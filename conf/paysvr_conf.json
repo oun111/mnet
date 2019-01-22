@@ -1,0 +1,22 @@
+{
+  "Globals": {
+    "BindAddress" : "127.0.0.1",
+    "ListenPort" : 5481,
+    "NotifyPort" : 1366
+  },
+
+  "channels": {
+    "alipay": {
+      "url": "https://127.0.0.1/aaa",
+      "merchant": 123,
+      "apikey": "1234"
+    },
+    "wxpay": {
+      "url": "https://127.0.0.1/xxx",
+      "merchant": "123",
+      "apikey": "1234"
+    }
+  }
+
+}
+
