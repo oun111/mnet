@@ -338,6 +338,8 @@ struct module_struct_s g_module = {
   .id = -1,
 
   .dyn_handle = NULL,
+  
+  .ssl = false,
 
   .opts[inbound_l5] = {
     .rx = example_http_rx,

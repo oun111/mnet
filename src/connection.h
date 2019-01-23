@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <sys/epoll.h>
+#include "ssl.h"
 #include "proto.h"
 #include "dbuffer.h"
 #include "list.h"
@@ -30,6 +31,8 @@ struct __attribute__((__aligned__(64))) connection_s {
   struct list_head pool_item ;
 
   int module_id ;
+
+  ssl_item_t ssl ;
 
 } ;
 
@@ -60,8 +63,8 @@ extern int init_conn_pool(Network_t net, size_t pool_size);
 
 extern void release_conn_pool(Network_t net);
 
-extern connection_t alloc_conn(Network_t net, 
-    proto_opt *l4opt, proto_opt *l5opt);
+extern connection_t alloc_conn(Network_t net, proto_opt *l4opt, 
+                               proto_opt *l5opt, bool bSSL);
 
 extern void save_conn_fd(connection_t, int fd);
 

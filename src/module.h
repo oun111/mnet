@@ -25,6 +25,8 @@ struct module_struct_s {
   void *dyn_handle;
 
   void *extra ;
+
+  bool ssl ;
 } ;
 
 typedef struct module_struct_s* module_t ;

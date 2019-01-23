@@ -13,7 +13,7 @@ enum proto_types {
   max_protos,
 } ;
 
-#include "module.h"
+//#include "module.h"
 
 
 extern int instance_start(int argc, char *argv[]);

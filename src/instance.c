@@ -71,9 +71,10 @@ g_inst =
 };
 
 
-connection_t add_to_event_poll(Network_t net, int fd, proto_opt *l4opt, proto_opt *l5opt)
+connection_t add_to_event_poll(Network_t net, int fd, proto_opt *l4opt, 
+                               proto_opt *l5opt, bool bSSL)
 {
-  connection_t pconn = alloc_conn(net,l4opt,l5opt);
+  connection_t pconn = alloc_conn(net,l4opt,l5opt,bSSL);
 
 
   if (!pconn) {
@@ -374,7 +375,7 @@ connection_t register_protocols(Network_t net, int fd, int mod_id, int l4proto, 
   if (l5proto>=local_l4 && l5proto<max_protos)
     l5opt = &pmod->opts[l5proto];
 
-  pconn = add_to_event_poll(net,fd,l4opt,l5opt);
+  pconn = add_to_event_poll(net,fd,l4opt,l5opt,pmod->ssl);
   if (pconn)
     pconn->module_id = mod_id ;
 

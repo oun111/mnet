@@ -35,7 +35,7 @@ void release_conn_pool(Network_t net)
 }
 
 connection_t alloc_conn(Network_t net, proto_opt *l4opt,
-    proto_opt *l5opt)
+                        proto_opt *l5opt, bool bSSL)
 {
   connection_t pconn = obj_pool_alloc(net->pool,struct connection_s);
 
@@ -54,6 +54,10 @@ connection_t alloc_conn(Network_t net, proto_opt *l4opt,
   pconn->is_close = 0;
 
   pconn->module_id = -1;
+
+  if (bSSL) {
+    pconn->ssl = ssl_init();
+  }
 
   return pconn ;
 }

@@ -1214,6 +1214,8 @@ struct module_struct_s g_module = {
 
   .dyn_handle = NULL,
 
+  .ssl = false,
+
   .opts[inbound_l5] = {
     .init     = mp2_init,
     .release  = mp2_release,

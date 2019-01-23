@@ -15,7 +15,7 @@
   log_error("fail, %d, %s\n",__rc__,__msg__); \
 } while(0)
 
-ssl_item_t ssl_client_init()
+ssl_item_t ssl_init()
 {
   ssl_item_t ps = kmalloc(sizeof(struct ssl_item_s),0L);
 
@@ -113,6 +113,87 @@ int ssl_write(ssl_item_t ps, char *outb, int outlen)
   return -1;
 }
 
+int ssl_rx(Network_t net, connection_t pconn)
+{
+  ssl_item_t ps = pconn->ssl ;
+  const size_t rx_size = 4096 ;
+  ssize_t ret = 0;
+  dbuffer_t buf ;
+
+
+  if (!ps) {
+    log_error("fatal: no ssl item defined!\n");
+    return -1;
+  }
+
+  pconn->rxb = rearrange_dbuffer(pconn->rxb,rx_size);
+  /* arrange buffer fail */
+  if (!pconn->rxb) {
+    log_error("alloca rx buffer fail\n");
+    return -1;
+  }
+
+  /* the read data position */
+  buf = dbuffer_ptr(pconn->rxb,1);
+
+  ret = ssl_read(ps,buf,rx_size);
+
+  if (ret>0) {
+    /* update write pointer */
+    dbuffer_lseek(pconn->rxb,ret,SEEK_CUR,1);
+    return 0;
+  }
+
+  return ret==0?1:-1;
+}
+
+int ssl_tx(Network_t net, connection_t pconn)
+{
+  ssl_item_t ps = pconn->ssl ;
+  size_t tx_size = dbuffer_data_size(pconn->txb);
+  dbuffer_t buf = dbuffer_ptr(pconn->txb,0);
+  int ret = 0;
+
+
+  if (!ps) {
+    log_error("fatal: no ssl item defined!\n");
+    return -1;
+  }
+
+  ret = ssl_write(ps,buf,tx_size);
+
+  if (ret>=0) {
+    /* update read pointer */
+    if (ret>0) 
+      dbuffer_lseek(pconn->txb,ret,SEEK_CUR,0);
+
+    if (ret==tx_size) {
+      disable_send(net->m_efd,pconn->fd,pconn);
+      return 0;
+    }
+
+    enable_send(net->m_efd,pconn->fd,pconn);
+    return 1;
+  }
+
+  return -1;
+}
+
+void ssl_close(Network_t net, connection_t pconn)
+{
+  ssl_item_t ps = pconn->ssl ;
+
+
+  if (!ps) {
+    log_error("fatal: no ssl item defined!\n");
+    return ;
+  }
+
+  ssl_release(ps);
+
+  pconn->ssl = NULL;
+}
+
 #if TEST_CASES==1
 void test_ssl()
 {
@@ -130,7 +211,7 @@ void test_ssl()
     return ;
   }
 
-  ssl_item_t ps = ssl_client_init();
+  ssl_item_t ps = ssl_init();
   if (!ps) {
     return ;
   }

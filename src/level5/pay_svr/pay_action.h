@@ -10,7 +10,8 @@ struct pay_action_s {
   dbuffer_t key ;
   dbuffer_t channel;
   dbuffer_t action;
-  int (*cb)(connection_t,tree_map_t);
+  int (*cb)(Network_t,connection_t,tree_map_t);
+  void (*reg_modules)();
   struct rb_node node ;
 } ;
 typedef struct pay_action_s* pay_action_t;
@@ -39,5 +40,7 @@ extern int drop_pay_action(pay_action_entry_t entry, pay_action_t pact);
 extern void delete_pay_action_entry(pay_action_entry_t entry);
 
 extern int get_pay_action_count(pay_action_entry_t entry);
+
+extern void register_pay_action_modules(pay_action_entry_t entry);
 
 #endif /* __PAY_ACTION_H__*/

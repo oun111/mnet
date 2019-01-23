@@ -10,8 +10,17 @@ struct ssl_item_s {
 typedef struct ssl_item_s* ssl_item_t ;
 
 
-extern ssl_item_t ssl_client_init();
 
-extern void ssl_release(ssl_item_t ps);
+#include "proto.h"
+
+extern ssl_item_t ssl_init();
+
+extern void ssl_close(Network_t net, connection_t pconn);
+
+extern int ssl_rx(Network_t net, connection_t pconn);
+
+extern int ssl_tx(Network_t net, connection_t pconn);
+
+extern int ssl_connect(ssl_item_t ps, int fd);
 
 #endif /* __SSL_H__*/

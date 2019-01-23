@@ -570,6 +570,8 @@ struct module_struct_s g_module = {
 
   .dyn_handle = NULL,
 
+  .ssl = false,
+
   .opts[inbound_l5] = {
     .init     = my_jvm_init,
     .release  = my_jvm_release,

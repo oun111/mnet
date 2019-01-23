@@ -47,7 +47,6 @@ struct pay_svr_conf {
   struct paySvr_config_s m_conf;
 
   pay_action_entry_t m_pas0 ;
-  
 
 } g_paySvrConf = {
   .host = "127.0.0.1",
@@ -76,7 +75,7 @@ static int parse_cmd_line(int argc, char *argv[]);
 
 
 
-void register_pay_action_list(void)
+void register_pay_action_list()
 {
 #if 1
   for (int i =0; g_payAction_list[i]!=NULL; i++) {
@@ -145,7 +144,8 @@ int uri_to_map(char *strKv, size_t kvLen, tree_map_t entry)
   return 0;
 }
 
-static int process_param_list(connection_t pconn, char *kvlist, const char *action)
+static int process_param_list(Network_t net, connection_t pconn, 
+                              char *kvlist, const char *action)
 {
   int ret = -1;
   pay_action_t pos ;
@@ -166,7 +166,7 @@ static int process_param_list(connection_t pconn, char *kvlist, const char *acti
   snprintf(key,256,"%s/%s",payChan,action);
 
   if ((pos=get_pay_action(g_paySvrConf.m_pas0,key))) {
-    ret = pos->cb(pconn,map);
+    ret = pos->cb(net,pconn,map);
   }
 
 __end:
@@ -176,7 +176,8 @@ __end:
 }
 
 static 
-int pay_svr_do_post(connection_t pconn, const dbuffer_t req, const size_t len)
+int pay_svr_do_post(Network_t net, connection_t pconn, 
+                    const dbuffer_t req, const size_t len)
 {
   char action[256] = ""/*, e=0*/;
   /* XXX: '/' should be existing */
@@ -218,7 +219,7 @@ int pay_svr_do_post(connection_t pconn, const dbuffer_t req, const size_t len)
   log_debug("values: %s\n",ps);
 
 
-  return process_param_list(pconn,ps,action);
+  return process_param_list(net,pconn,ps,action);
 }
 
 void pay_svr_print_debug_req(dbuffer_t req, size_t len, int res)
@@ -264,7 +265,7 @@ int pay_svr_rx(Network_t net, connection_t pconn)
   while (status==0 && next && (subreq=get_sub_req(next,&reqlen))) {
 
     /* process a whole sub request */
-    status = pay_svr_do_post(pconn,subreq,reqlen);
+    status = pay_svr_do_post(net,pconn,subreq,reqlen);
 
     pay_svr_print_debug_req(subreq,reqlen,status);
 
@@ -328,6 +329,8 @@ struct module_struct_s g_module = {
 
   .dyn_handle = NULL,
 
+  //.ssl = false,
+
   .opts[inbound_l5] = {
     .rx = pay_svr_rx,
     .tx = pay_svr_tx,
@@ -377,6 +380,8 @@ struct module_struct_s g_notify_module = {
 
   .dyn_handle = NULL,
 
+  //.ssl = false,
+
   .opts[inbound_l5] = {
     .rx = pay_svr_notify_rx,
     .tx = pay_svr_notify_tx,
@@ -417,10 +422,6 @@ int pay_svr_init(Network_t net)
 {
   net->reg_local(net,g_paySvrConf.fd,THIS_MODULE->id);
 
-  g_paySvrConf.m_pas0 = new_pay_action_entry();
-
-  register_pay_action_list();
-
   log_info("done!\n");
 
   return 0;
@@ -447,6 +448,10 @@ void pay_svr_module_init(int argc, char *argv[])
 
   register_module(&g_module);
   register_module(&g_notify_module);
+
+  g_paySvrConf.m_pas0 = new_pay_action_entry();
+  register_pay_action_list();
+  register_pay_action_modules(g_paySvrConf.m_pas0);
 }
 
 void pay_svr_module_exit()

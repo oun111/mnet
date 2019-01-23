@@ -2,8 +2,10 @@
 #include <dirent.h>
 #include <dlfcn.h>
 #include "L4.h"
+#include "ssl.h"
 #include "instance.h"
 #include "log.h"
+#include "module.h"
 
 
 #define init_static_modules(argc,argv)  do{\
@@ -28,9 +30,8 @@ struct module_list_t {
 
   int id_counter ;
 
-  size_t total_modules ;
-
   char lib_path[PATH_MAX];
+
 } 
 g_module_list = {
 
@@ -38,9 +39,9 @@ g_module_list = {
 
   .id_counter = 0,
 
-  .total_modules = 0L,
-
   .lib_path = "./",
+
+#define TOTAL_MODULES  id_counter
 } ;
 
 
@@ -129,7 +130,7 @@ int init_dynamic_modules(int argc, char *argv[])
     pf(argc,argv);
 
     // fill back the module infos
-    module_t current_module = &g_module_list.list[g_module_list.id_counter-1];
+    module_t current_module = &g_module_list.list[g_module_list.TOTAL_MODULES-1];
 
     current_module->dyn_handle = handle ;
     strcpy(current_module->name,mod_name);
@@ -142,7 +143,7 @@ int init_dynamic_modules(int argc, char *argv[])
 
 int release_dynamic_modules()
 {
-  for (int i=0;i<g_module_list.total_modules; i++) {
+  for (int i=0;i<g_module_list.TOTAL_MODULES; i++) {
 
     void *handle = g_module_list.list[i].dyn_handle;
     char exit_fn_name[128] = "";
@@ -174,18 +175,13 @@ int init_module_list(int argc, char *argv[])
 
   parse_cmd_line(argc,argv);
 
-  nDyn = get_dynamic_modules_count()*2 ;
+  nDyn    = get_dynamic_modules_count() ;
   nStatic = get_static_modules_count() ;
 
+  log_debug("static modules %zu, dynamic modules %zu\n",
+            nStatic,nDyn);
 
-  g_module_list.total_modules = nDyn*2 + nStatic ;
-
-  log_debug("total module list size: %zu, static %zu, dynamic %zu\n",
-            g_module_list.total_modules,nStatic,nDyn);
-
-  g_module_list.list = kmalloc(sizeof(struct module_struct_s)
-                               *g_module_list.total_modules,0L);
-
+  g_module_list.list = (module_t)alloc_default_dbuffer();
 
   init_static_modules(argc,argv);
 
@@ -201,42 +197,48 @@ void release_module_list()
   release_dynamic_modules();
 
   if (g_module_list.list)
-    kfree(g_module_list.list);
+    drop_dbuffer((dbuffer_t)g_module_list.list);
 }
 
 int register_module(module_t src_mod)
 {
-  const size_t nModules = g_module_list.total_modules;
-  module_t pmod = 0/*, src_mod = (module_t)mod*/;
+  module_t pmod = 0;
   int *pcnt = 0;
 
 
-  if (g_module_list.id_counter>=nModules) {
-    log_error("much too modules\n");
-    return -1;
+  pcnt = &g_module_list.id_counter ;
+  src_mod->id = *pcnt ;
+
+  g_module_list.list = (module_t)append_dbuffer((dbuffer_t)g_module_list.list,src_mod,
+                                      sizeof(struct module_struct_s));
+
+  pmod = &g_module_list.list[*pcnt];
+  log_info("module '%s' id %d is registering...\n",pmod->name,pmod->id);
+
+  (*pcnt)++ ;
+
+  if (!pmod->opts[local_l4].rx) {
+    pmod->opts[local_l4].rx = pmod->ssl?NULL:tcp_accept ; //TODO: l4 ssl
   }
 
-  pcnt = &g_module_list.id_counter ;
-  pmod = &g_module_list.list[*pcnt];
-  src_mod->id = (*pcnt)++ ;
-  memcpy(pmod,src_mod,sizeof(struct module_struct_s));
+  if (!pmod->opts[local_l4].close) {
+    pmod->opts[local_l4].close = pmod->ssl?NULL:tcp_close ; //TODO: l4 ssl
+  }
 
-  if (!pmod->opts[local_l4].rx)
-    pmod->opts[local_l4].rx = tcp_accept ;
+  if (!pmod->opts[normal_l4].rx) {
+    pmod->opts[normal_l4].rx = pmod->ssl?ssl_rx:tcp_rx ;
+  }
 
-  if (!pmod->opts[local_l4].close)
-    pmod->opts[local_l4].close = tcp_close ;
+  if (!pmod->opts[normal_l4].tx) {
+    pmod->opts[normal_l4].tx = pmod->ssl?ssl_tx:tcp_tx ;
+  }
 
-  if (!pmod->opts[normal_l4].rx)
-    pmod->opts[normal_l4].rx = tcp_rx ;
+  if (!pmod->opts[normal_l4].close) {
+    pmod->opts[normal_l4].close = pmod->ssl?ssl_close:tcp_close ;
+  }
 
-  if (!pmod->opts[normal_l4].tx)
-    pmod->opts[normal_l4].tx = tcp_tx ;
 
-  if (!pmod->opts[normal_l4].close)
-    pmod->opts[normal_l4].close = tcp_close ;
-
-  log_info("module '%s' id %d init done! \n",pmod->name,pmod->id);
+  log_debug("totally %d modules\n",g_module_list.TOTAL_MODULES);
 
   return 0;
 }
@@ -244,13 +246,13 @@ int register_module(module_t src_mod)
 module_t get_module(int mod_id)
 {
   //log_debug("module id: %d\n",mod_id);
-  return mod_id>=0 && mod_id<g_module_list.total_modules ? 
+  return mod_id>=0 && mod_id<g_module_list.TOTAL_MODULES ? 
          &g_module_list.list[mod_id]:NULL ;
 }
 
 int get_module_id(const char *mod_name)
 {
-  for (int i=0;i<g_module_list.total_modules;i++)
+  for (int i=0;i<g_module_list.TOTAL_MODULES;i++)
     if (!strcmp(g_module_list.list[i].name,mod_name)) {
       //log_debug("module name '%s' -> id '%d'\n",mod_name,g_module_list.list[i].id);
       return g_module_list.list[i].id ;
@@ -261,7 +263,7 @@ int get_module_id(const char *mod_name)
 
 void* get_module_extra(int mod_id)
 {
-  if (mod_id>=0 && mod_id<g_module_list.total_modules)
+  if (mod_id>=0 && mod_id<g_module_list.TOTAL_MODULES)
     return g_module_list.list[mod_id].extra ;
 
   return NULL ;
