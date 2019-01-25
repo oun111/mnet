@@ -3,9 +3,19 @@
 
 #include <openssl/ssl.h>
 
+
+enum sslst {
+  s_none,
+  s_connecting,
+  s_ok,
+  s_error
+};
+
 struct ssl_item_s {
   SSL_CTX *ctx ;
   SSL *ssl ;
+  int state;
+  void *peer ;
 } ;
 typedef struct ssl_item_s* ssl_item_t ;
 

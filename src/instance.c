@@ -74,7 +74,7 @@ g_inst =
 connection_t add_to_event_poll(Network_t net, int fd, proto_opt *l4opt, 
                                proto_opt *l5opt, bool bSSL)
 {
-  connection_t pconn = alloc_conn(net,l4opt,l5opt,bSSL);
+  connection_t pconn = alloc_conn(net,fd,l4opt,l5opt,bSSL);
 
 
   if (!pconn) {
@@ -82,7 +82,6 @@ connection_t add_to_event_poll(Network_t net, int fd, proto_opt *l4opt,
     return NULL;
   }
 
-  save_conn_fd(pconn,fd);
   add_to_epoll(net->m_efd,fd,pconn);
 
   log_debug("client %d connect\n",pconn->fd);

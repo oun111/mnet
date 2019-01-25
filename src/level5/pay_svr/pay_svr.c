@@ -20,7 +20,8 @@
 #include "kernel.h"
 #include "myrbtree.h"
 #include "config.h"
-#include "pay_action_list.h"
+#include "extra_modules.h"
+#include "http_utils.h"
 
 
 
@@ -71,22 +72,13 @@ static int pay_svr_init(Network_t net);
 
 static int pay_svr_notify_init(Network_t net);
 
-static int parse_cmd_line(int argc, char *argv[]);
 
 
-
-void register_pay_action_list()
+void register_pay_action(pay_action_t pa)
 {
-#if 1
-  for (int i =0; g_payAction_list[i]!=NULL; i++) {
-    pay_action_t pa = g_payAction_list[i];
-    add_pay_action(g_paySvrConf.m_pas0,pa);
-  }
-#else
-  for (pay_action_t pa =(pay_action_t)g_payAction_list; pa!=NULL; pa++) {
-    add_pay_action(g_paySvrConf.m_pas0,pa);
-  }
-#endif
+  add_pay_action(g_paySvrConf.m_pas0,pa);
+
+  log_info("registering '%s: %s'...\n",pa->channel,pa->action);
 }
 
 static 
@@ -144,8 +136,9 @@ int uri_to_map(char *strKv, size_t kvLen, tree_map_t entry)
   return 0;
 }
 
-static int process_param_list(Network_t net, connection_t pconn, 
-                              char *kvlist, const char *action)
+static 
+int process_param_list(Network_t net, connection_t pconn, 
+                       char *kvlist, const char *action)
 {
   int ret = -1;
   pay_action_t pos ;
@@ -177,117 +170,118 @@ __end:
 
 static 
 int pay_svr_do_post(Network_t net, connection_t pconn, 
-                    const dbuffer_t req, const size_t len)
+                    const dbuffer_t req, const size_t sz_in)
 {
-  char action[256] = ""/*, e=0*/;
-  /* XXX: '/' should be existing */
-  dbuffer_t ps = strstr(req,"/");
-  dbuffer_t end1 = strstr(ps," ");
-  const char kv_start[] = "\r\n\r\n";
-  const int kv_len = 4;
-  size_t ln = 0;
+  char action[256] = "";
+  size_t ln = 256, szhdr = get_http_hdr_size(req,sz_in) ;
+  char *pbody = get_http_body_ptr(req,sz_in);
 
 
-  // parse action 
-  if (*(ps+1)==' ') {
-    ln = 1;
-  }
-  else {
-    ln = end1-ps-1 ;
-    ps = ps+1 ;
-  }
-  memcpy(action,ps,ln);
-  action[ln] = '\0';
-  log_debug("action: %s\n",action);
-
-  // parse key-values
-  end1 = req + len ;
-  ps = strstr(req,kv_start);
-  if (!ps) {
-    log_error("invalid header ending\n");
+  /* 
+   * parse action 
+   */
+  if (get_http_hdr_field_str(req,sz_in,"/"," ",action,&ln)==-1) {
+    log_error("get action fail!");
     return -1;
   }
 
-  // no kv list
-  if ((ps+kv_len)>=end1) {
+  log_debug("action: %s\n",action);
+
+  /*
+   * parse param list
+   */
+  if (sz_in == szhdr) {
+    log_error("no param list\n");
     pay_svr_do_error(pconn);
     return 0;
   }
 
-  // have key-values
-  ps += kv_len ;
-  log_debug("values: %s\n",ps);
+  log_debug("values: %s\n",pbody);
 
-
-  return process_param_list(net,pconn,ps,action);
+  return process_param_list(net,pconn,pbody,action);
 }
 
-void pay_svr_print_debug_req(dbuffer_t req, size_t len, int res)
+ssize_t pay_svr_http_rx(Network_t net, connection_t pconn)
 {
-  char c = req[len];
+  size_t sz_in = dbuffer_data_size(pconn->rxb);
+  dbuffer_t b = dbuffer_ptr(pconn->rxb,0);
+  size_t szReq = 0L, szhdr= 0L;
 
-  log_debug("%s...(size %zu) - %s\n",req,len,!res?"ok":"fail");
-  req[len] = c;
+  /* mysql packet has header length==4 */
+  if (sz_in==0) {
+    return 0L;
+  }
+
+  szhdr = get_http_hdr_size(b,sz_in);
+  // not enough data
+  if (szhdr==0L) {
+    //log_error("no header size\n");
+    return -1;
+  }
+
+  szReq = get_http_body_size(b,sz_in);
+  // no 'content-length'?
+  if (szReq==0L) {
+    //log_info("no body size\n");
+  }
+
+  // total req size
+  szReq += szhdr ;
+
+  return szReq==sz_in?szReq:-1;
 }
 
-static dbuffer_t get_sub_req(dbuffer_t subreq, size_t *len) 
-{
-#define GET_START_POS(__req) ({\
-  dbuffer_t __ptr = strstr((__req),"POST");\
-  !__ptr?strstr((__req),"GET"):__ptr; \
-})
-  dbuffer_t sp = GET_START_POS(subreq), next=NULL;
-
-  if (!sp)
-    return NULL ;
-
-  /* get next sub req's begining */
-  next = GET_START_POS(subreq+1);
-
-  /* req len */
-  *len = !next?strlen(subreq):(next-subreq+1);
-
-  return sp ;
-}
-
+static
 int pay_svr_rx(Network_t net, connection_t pconn)
 {
-  size_t datalen = dbuffer_data_size(pconn->rxb);
-  dbuffer_t subreq = 0, next = dbuffer_ptr(pconn->rxb,0);
-  int status = 0;
-  size_t reqlen = 0L ;
+  size_t sz_in = 0L;
+  int rc = 0;
 
+  while ((sz_in=pay_svr_http_rx(net,pconn))>0) {
+    dbuffer_t inb = dbuffer_ptr(pconn->rxb,0);
 
-  if (datalen==0) return 0;
-
-  next[datalen] = '\0';
-
-  while (status==0 && next && (subreq=get_sub_req(next,&reqlen))) {
+    inb[sz_in] = '\0';
 
     /* process a whole sub request */
-    status = pay_svr_do_post(net,pconn,subreq,reqlen);
+    rc = pay_svr_do_post(net,pconn,inb,sz_in);
 
-    pay_svr_print_debug_req(subreq,reqlen,status);
+    log_debug("%s...(size %zu) - %s\n",inb,sz_in,!rc?"ok":"fail");
 
 
-    if (status==-1) 
+    if (rc==-1) 
       pay_svr_do_error(pconn);
 
     pconn->l5opt.tx(net,pconn);
 
-    next += reqlen ;
+    /* REMEMBER TO update the read pointer of rx buffer */
+    dbuffer_lseek(pconn->rxb,sz_in,SEEK_CUR,0);
   }
-
-  /* REMEMBER TO update the read pointer of rx buffer */
-  dbuffer_lseek(pconn->rxb,datalen,SEEK_CUR,0);
 
   return 0;
 }
 
+static
 int pay_svr_tx(Network_t net, connection_t pconn)
 {
   pconn->l4opt.tx(net,pconn);
 
+  return 0;
+}
+
+static
+int parse_cmd_line(int argc, char *argv[])
+{
+  //char *ptr = 0;
+
+  for (int i=1; i<argc; i++) {
+    if (!strcmp(argv[i],"-cp") && i+1<argc) {
+      strcpy(g_paySvrConf.conf_path,argv[i+1]);
+    }
+    else if (!strcmp(argv[i],"-h")) {
+      printf("help message\n");
+      return 1;
+    }
+  }
   return 0;
 }
 
@@ -313,6 +307,7 @@ int pay_svr_pre_init(int argc, char *argv[])
   return 0;
 }
 
+static
 void pay_svr_release()
 {
   close(g_paySvrConf.fd);
@@ -401,23 +396,6 @@ int pay_svr_notify_init(Network_t net)
 
 
 static
-int parse_cmd_line(int argc, char *argv[])
-{
-  //char *ptr = 0;
-
-  for (int i=1; i<argc; i++) {
-    if (!strcmp(argv[i],"-cp") && i+1<argc) {
-      strcpy(g_paySvrConf.conf_path,argv[i+1]);
-    }
-    else if (!strcmp(argv[i],"-h")) {
-      printf("module '%s' help message\n",THIS_MODULE->name);
-      return 1;
-    }
-  }
-  return 0;
-}
-
-static
 int pay_svr_init(Network_t net)
 {
   net->reg_local(net,g_paySvrConf.fd,THIS_MODULE->id);
@@ -450,8 +428,10 @@ void pay_svr_module_init(int argc, char *argv[])
   register_module(&g_notify_module);
 
   g_paySvrConf.m_pas0 = new_pay_action_entry();
-  register_pay_action_list();
-  register_pay_action_modules(g_paySvrConf.m_pas0);
+
+  //register_pay_actions_list(g_paySvrConf.m_pas0);
+
+  register_extra_modules();
 }
 
 void pay_svr_module_exit()

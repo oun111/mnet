@@ -80,7 +80,6 @@ add_pay_action(pay_action_entry_t entry, pay_action_t pact)
   p->channel[ln] = '\0';
 
   p->cb = pact->cb;
-  p->reg_modules = pact->reg_modules;
 
   return 0;
 }
@@ -126,15 +125,6 @@ int release_all_pay_actions(pay_action_entry_t entry)
   }
 
   return 0;
-}
-
-void register_pay_action_modules(pay_action_entry_t entry)
-{
-  pay_action_t pos,n;
-
-  rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
-    pos->reg_modules();
-  }
 }
 
 void delete_pay_action_entry(pay_action_entry_t entry)

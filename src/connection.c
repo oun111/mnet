@@ -34,7 +34,7 @@ void release_conn_pool(Network_t net)
   release_obj_pool(net->pool,struct connection_s);
 }
 
-connection_t alloc_conn(Network_t net, proto_opt *l4opt,
+connection_t alloc_conn(Network_t net, int fd, proto_opt *l4opt,
                         proto_opt *l5opt, bool bSSL)
 {
   connection_t pconn = obj_pool_alloc(net->pool,struct connection_s);
@@ -49,7 +49,7 @@ connection_t alloc_conn(Network_t net, proto_opt *l4opt,
   register_proto_opt(pconn,0,l4opt) ;
   register_proto_opt(pconn,1,l5opt) ;
 
-  pconn->fd = -1;
+  pconn->fd = fd;
 
   pconn->is_close = 0;
 
@@ -57,6 +57,8 @@ connection_t alloc_conn(Network_t net, proto_opt *l4opt,
 
   if (bSSL) {
     pconn->ssl = ssl_init();
+
+    ssl_connect(pconn->ssl,fd);
   }
 
   return pconn ;
@@ -69,10 +71,5 @@ int free_conn(Network_t net, connection_t pconn)
   obj_pool_free(net->pool,pconn);
 
   return 0;
-}
-
-void save_conn_fd(connection_t pconn, int fd) 
-{
-  pconn->fd = fd ;
 }
 

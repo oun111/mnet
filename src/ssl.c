@@ -36,6 +36,9 @@ ssl_item_t ssl_init()
     return NULL ;
   }
 
+  ps->state = s_none;
+  ps->peer  = NULL ;
+
   return ps;
 }
 
@@ -56,6 +59,8 @@ int ssl_connect(ssl_item_t ps, int fd)
   int ret = 0;
 
 
+  ps->state = s_connecting;
+
   if (fd>0 && !SSL_set_fd(ps->ssl,fd)) {
     SSL_LOG_ERROR();
     return -1;
@@ -64,6 +69,8 @@ int ssl_connect(ssl_item_t ps, int fd)
   ret = SSL_connect(ps->ssl);
   if (ret==1) {
     log_info("handshake OK!\n");
+
+    ps->state = s_ok ;
     return 1;
   }
 
@@ -72,6 +79,8 @@ int ssl_connect(ssl_item_t ps, int fd)
     //log_info("handshake incompleted!\n");
     return 0;
   }
+
+  ps->state = s_error ;
 
   SSL_LOG_ERROR();
   return -1;
@@ -126,6 +135,17 @@ int ssl_rx(Network_t net, connection_t pconn)
     return -1;
   }
 
+  // need ssl-connect
+  if (ps->state!=s_ok) {
+    ret = ssl_connect(ps,pconn->fd);
+
+    // ssl connection's just ok!
+    if (ret==1)
+      enable_send(net->m_efd,pconn->fd,pconn);
+
+    return 0;
+  }
+
   pconn->rxb = rearrange_dbuffer(pconn->rxb,rx_size);
   /* arrange buffer fail */
   if (!pconn->rxb) {
@@ -160,6 +180,10 @@ int ssl_tx(Network_t net, connection_t pconn)
     return -1;
   }
 
+  if (tx_size==0) {
+    return 1;
+  }
+
   ret = ssl_write(ps,buf,tx_size);
 
   if (ret>=0) {
@@ -190,8 +214,11 @@ void ssl_close(Network_t net, connection_t pconn)
   }
 
   ssl_release(ps);
-
   pconn->ssl = NULL;
+
+  net->unreg_all(net,pconn);
+
+  close(pconn->fd);
 }
 
 #if TEST_CASES==1
@@ -203,6 +230,7 @@ void test_ssl()
   int fd = 0, ret = 0;
   unsigned long addr = hostname_to_uladdr(host);
   char dataBuf[REQ_BUF_SZ] = "GET / \r\n\r\n";
+  size_t total = 0L ;
 
 
   fd = new_tcp_client(addr,port);
@@ -241,8 +269,11 @@ void test_ssl()
     if (ret>0) {
       dataBuf[ret] = '\0'; 
       printf("%s",dataBuf);
+      total += ret ;
     }
   }
+
+  printf("total size: %zu\n",total);
 
 __end:
   ssl_release(ps);

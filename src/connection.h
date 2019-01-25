@@ -63,10 +63,10 @@ extern int init_conn_pool(Network_t net, size_t pool_size);
 
 extern void release_conn_pool(Network_t net);
 
-extern connection_t alloc_conn(Network_t net, proto_opt *l4opt, 
+extern connection_t alloc_conn(Network_t net, int fd, proto_opt *l4opt, 
                                proto_opt *l5opt, bool bSSL);
 
-extern void save_conn_fd(connection_t, int fd);
+//extern void save_conn_fd(connection_t, int fd);
 
 extern int free_conn(Network_t net, connection_t pconn);
 
