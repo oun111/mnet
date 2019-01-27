@@ -51,7 +51,7 @@ int alipay_ssl_outbound_tx(Network_t net, connection_t pconn)
 static
 int alipay_ssl_outbound_rx(Network_t net, connection_t pconn)
 {
-  size_t sz_in = 0L;
+  ssize_t sz_in = 0L;
   dbuffer_t b = NULL;
   connection_t peer = NULL;
 
