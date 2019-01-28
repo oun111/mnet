@@ -22,6 +22,7 @@
 #include "config.h"
 #include "extra_modules.h"
 #include "http_utils.h"
+#include "pay_data.h"
 
 
 
@@ -48,6 +49,8 @@ struct pay_svr_conf {
   struct paySvr_config_s m_conf;
 
   pay_action_entry_t m_pas0 ;
+
+  pay_channels_entry_t m_paych ;
 
 } g_paySvrConf = {
   .host = "127.0.0.1",
@@ -155,11 +158,20 @@ int process_param_list(Network_t net, connection_t pconn,
     goto __end;
   }
 
+  // pay route
+  pay_data_t pdt = get_pay_route(g_paySvrConf.m_paych,payChan);
+
+  if (!pdt) {
+    log_error("not pay route to channel '%s'\n",payChan);
+    goto __end;
+  }
+
   // construct the 'key'
   snprintf(key,256,"%s/%s",payChan,action);
 
   if ((pos=get_pay_action(g_paySvrConf.m_pas0,key))) {
-    ret = pos->cb(net,pconn,map);
+
+    ret = pos->cb(net,pconn,pdt,map);
   }
 
 __end:
@@ -312,6 +324,8 @@ void pay_svr_release()
 {
   close(g_paySvrConf.fd);
 
+  delete_pay_channels_entry(g_paySvrConf.m_paych);
+
   delete_pay_action_entry(g_paySvrConf.m_pas0);
 }
 
@@ -427,9 +441,9 @@ void pay_svr_module_init(int argc, char *argv[])
   register_module(&g_module);
   register_module(&g_notify_module);
 
-  g_paySvrConf.m_pas0 = new_pay_action_entry();
+  g_paySvrConf.m_paych= new_pay_channels_entry();
 
-  //register_pay_actions_list(g_paySvrConf.m_pas0);
+  g_paySvrConf.m_pas0 = new_pay_action_entry();
 
   register_extra_modules();
 }

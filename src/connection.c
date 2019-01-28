@@ -55,6 +55,8 @@ connection_t alloc_conn(Network_t net, int fd, proto_opt *l4opt,
 
   pconn->module_id = -1;
 
+  pconn->ssl = NULL;
+
   if (bSSL) {
     pconn->ssl = ssl_init();
 

@@ -103,22 +103,47 @@ struct module_struct_s g_alipay_ssl_outbound_mod = {
 };
 
 
-static int do_alipay_order(Network_t net,connection_t pconn,tree_map_t params)
+static int do_alipay_order(Network_t net,connection_t pconn,pay_data_t pd,tree_map_t params)
 {
   int fd = 0;
-  connection_t out_conn = NULL ;
-  const char *host = "www.163.com"; // FIXME
-  const int port = 443 ;
-  unsigned long addr = hostname_to_uladdr(host);
+  connection_t out_conn = pconn ;
+  char *host = 0, *str = 0;
+  int port = 443 ;
+  unsigned long addr = 0L;
+  tree_map_t pay_params = pd->pay_params ;
+  int param_type = 0; 
 
 
-  // connect to server first
-  fd = new_tcp_client(addr,port);
+  host = get_tree_map_value(pay_params,"req_url",strlen("req_url"));
+  str  = get_tree_map_value(pay_params,"port",strlen("port"));
 
-  out_conn = net->reg_outbound(net,fd,g_alipay_ssl_outbound_mod.id);
+  if (host) {
 
-  out_conn->ssl->peer = pconn ;
+    if (str)
+      port = atoi(str) ;
 
+    addr = hostname_to_uladdr(host) ;
+
+    // connect to server 
+    fd = new_tcp_client(addr,port);
+
+    out_conn = net->reg_outbound(net,fd,g_alipay_ssl_outbound_mod.id);
+
+    out_conn->ssl->peer = pconn ;
+  }
+
+
+  str  = get_tree_map_value(pay_params,"param_type",strlen("param_type"));
+  if (str) {
+    param_type = atoi(str);
+  }
+
+  // construct html style params
+  if (create_http_post_req(out_conn,param_type,pay_params)) {
+    return -1;
+  }
+
+#if 0
   {
     char req[] = "GET / \r\n\r\n";
     const size_t sz = strlen(req);
@@ -129,6 +154,10 @@ static int do_alipay_order(Network_t net,connection_t pconn,tree_map_t params)
     if (out_conn->ssl->state==s_ok)
       alipay_ssl_outbound_tx(net,out_conn);
   }
+#else
+    if (!out_conn->ssl || out_conn->ssl->state==s_ok)
+      alipay_ssl_outbound_tx(net,out_conn);
+#endif
 
   return 0;
 }

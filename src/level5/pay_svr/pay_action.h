@@ -4,13 +4,14 @@
 #include "connection.h"
 #include "rbtree.h"
 #include "tree_map.h"
+#include "pay_data.h"
 
 
 struct pay_action_s {
   dbuffer_t key ;
   dbuffer_t channel;
   dbuffer_t action;
-  int (*cb)(Network_t,connection_t,tree_map_t);
+  int (*cb)(Network_t,connection_t,pay_data_t,tree_map_t);
   struct rb_node node ;
 } ;
 typedef struct pay_action_s* pay_action_t;
