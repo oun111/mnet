@@ -114,8 +114,8 @@ static int do_alipay_order(Network_t net,connection_t pconn,pay_data_t pd,tree_m
   int param_type = 0; 
 
 
-  host = get_tree_map_value(pay_params,"req_url",strlen("req_url"));
-  str  = get_tree_map_value(pay_params,"port",strlen("port"));
+  host = get_tree_map_value(pay_params,REQ_URL,strlen(REQ_URL));
+  str  = get_tree_map_value(pay_params,REQ_PORT,strlen(REQ_PORT));
 
   if (host) {
 
@@ -133,7 +133,7 @@ static int do_alipay_order(Network_t net,connection_t pconn,pay_data_t pd,tree_m
   }
 
 
-  str  = get_tree_map_value(pay_params,"param_type",strlen("param_type"));
+  str  = get_tree_map_value(pay_params,PARAM_TYPE,strlen(PARAM_TYPE));
   if (str) {
     param_type = atoi(str);
   }

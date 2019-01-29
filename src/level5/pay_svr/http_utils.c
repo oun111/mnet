@@ -7,6 +7,8 @@
 #include "tree_map.h"
 #include "myrbtree.h"
 #include "log.h"
+#include "pay_data.h"
+#include "jsons.h"
 
 
 size_t get_http_hdr_size(char *inb, size_t sz_in)
@@ -97,7 +99,21 @@ char* get_http_body_ptr(char *inb, size_t sz_in)
 
 dbuffer_t create_json_params(tree_map_t pay_params)
 {
-  return NULL;
+  jsonKV_t *pr = 0;
+  dbuffer_t strParams = 0;
+
+
+  drop_tree_map_item(pay_params,REQ_URL,strlen(REQ_URL));
+  drop_tree_map_item(pay_params,REQ_PORT,strlen(REQ_PORT));
+  drop_tree_map_item(pay_params,PARAM_TYPE,strlen(PARAM_TYPE));
+
+  pr = jsons_parse_tree_map(pay_params);
+  strParams = alloc_default_dbuffer();
+
+  jsons_toString(pr,&strParams);
+  jsons_release(pr);
+
+  return strParams;
 }
 
 dbuffer_t create_html_params(tree_map_t pay_params)
@@ -108,6 +124,11 @@ dbuffer_t create_html_params(tree_map_t pay_params)
 
 
   MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&pay_params->u.root,node) {
+
+    if (!strcmp(pos->key,REQ_URL) || !strcmp(pos->key,REQ_PORT) ||
+        !strcmp(pos->key,PARAM_TYPE)) {
+      continue ;
+    }
 
     // construct 'key=value'
     ln = dbuffer_data_size(pos->key); 

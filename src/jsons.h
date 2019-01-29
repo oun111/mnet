@@ -4,6 +4,7 @@
 
 #include "sstack.h"
 #include "list.h"
+#include "tree_map.h"
 
 #define MAX_KEY_LEN  64
 #define MAX_VAL_LEN  256
@@ -41,6 +42,10 @@ extern void test_jsons();
 extern char* jsons_string(char *in, size_t *inlen) ;
 
 extern int jsons_integer(char *in);
+
+extern jsonKV_t* jsons_parse_tree_map(tree_map_t entry);
+
+extern int jsons_toString(jsonKV_t *root, dbuffer_t *outb);
 
 #endif /* __JSONS_H__*/
 

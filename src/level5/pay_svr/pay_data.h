@@ -5,6 +5,11 @@
 #include "tree_map.h"
 #include "list.h"
 
+
+#define REQ_URL      "req_url"
+#define PARAM_TYPE   "param_type"
+#define REQ_PORT     "port"
+
 struct pay_data_item_s {
   dbuffer_t subname ;
 
