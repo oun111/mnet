@@ -103,25 +103,30 @@ struct module_struct_s g_alipay_ssl_outbound_mod = {
 };
 
 
-static int do_alipay_order(Network_t net,connection_t pconn,pay_data_t pd,tree_map_t params)
+static 
+int do_alipay_order(Network_t net,connection_t pconn,
+                    pay_data_t pd,tree_map_t postParams)
 {
   int fd = 0;
   connection_t out_conn = pconn ;
-  char *host = 0, *str = 0;
+  char host[128]="", *str = 0, *url = 0;
   int port = 443 ;
   unsigned long addr = 0L;
   tree_map_t pay_params = pd->pay_params ;
+  tree_map_t pay_data  = NULL ;
   int param_type = 0; 
 
 
-  host = get_tree_map_value(pay_params,REQ_URL,strlen(REQ_URL));
-  str  = get_tree_map_value(pay_params,REQ_PORT,strlen(REQ_PORT));
+  url = get_tree_map_value(pay_params,REQ_URL,strlen(REQ_URL));
+  str = get_tree_map_value(pay_params,REQ_PORT,strlen(REQ_PORT));
 
-  if (host) {
+  // connect to remote host
+  if (url) {
 
     if (str)
       port = atoi(str) ;
 
+    parse_http_url(url,host,128,NULL,0L);
     addr = hostname_to_uladdr(host) ;
 
     // connect to server 
@@ -133,13 +138,14 @@ static int do_alipay_order(Network_t net,connection_t pconn,pay_data_t pd,tree_m
   }
 
 
+  // construct pay request
   str  = get_tree_map_value(pay_params,PARAM_TYPE,strlen(PARAM_TYPE));
   if (str) {
     param_type = atoi(str);
   }
 
-  // construct html style params
-  if (create_http_post_req(out_conn,param_type,pay_params)) {
+  pay_data = get_tree_map_nest(pay_params,PAY_DATA,strlen(PAY_DATA));
+  if (create_http_post_req(&out_conn->txb,url,param_type,pay_data)) {
     return -1;
   }
 

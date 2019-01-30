@@ -34,6 +34,13 @@ dbuffer_t get_tree_map_value(tree_map_t entry, char *k, size_t kLen)
   return p?p->val:NULL;
 }
 
+tree_map_t get_tree_map_nest(tree_map_t entry, char *k, size_t kLen)
+{
+  tm_item_t p = get_tree_map(entry,k);
+
+  return p?p->nest_map:NULL ;
+}
+
 tree_map_t new_tree_map()
 {
   tree_map_t entry = kmalloc(sizeof(struct tree_map_entry_s),0L);

@@ -181,6 +181,40 @@ __end:
 }
 
 static 
+int pay_svr_do_get(Network_t net, connection_t pconn, 
+                   const dbuffer_t req, const size_t sz_in)
+{
+  char action[256] = "";
+  size_t ln = 0L ;
+  char body[256] = "";
+
+
+  /* 
+   * parse action 
+   */
+  ln = sizeof(action);
+  if (get_http_hdr_field_str(req,sz_in,"/","?",action,&ln)==-1) {
+    log_error("get action fail!");
+    return -1;
+  }
+
+  log_debug("action: %s\n",action);
+
+  /*
+   * parse param list
+   */
+  ln = sizeof(body);
+  if (get_http_hdr_field_str(req,sz_in,"?"," ",body,&ln)==-1) {
+    log_error("get body fail!");
+    return -1;
+  }
+
+  log_debug("values: %s\n",body);
+
+  return process_param_list(net,pconn,body,action);
+}
+
+static 
 int pay_svr_do_post(Network_t net, connection_t pconn, 
                     const dbuffer_t req, const size_t sz_in)
 {
@@ -217,7 +251,7 @@ ssize_t pay_svr_http_rx(Network_t net, connection_t pconn)
 {
   size_t sz_in = dbuffer_data_size(pconn->rxb);
   dbuffer_t b = dbuffer_ptr(pconn->rxb,0);
-  size_t szReq = 0L, szhdr= 0L;
+  ssize_t szReq = 0L, szhdr= 0L;
 
   /* mysql packet has header length==4 */
   if (sz_in==0) {
@@ -255,7 +289,12 @@ int pay_svr_rx(Network_t net, connection_t pconn)
     inb[sz_in] = '\0';
 
     /* process a whole sub request */
-    rc = pay_svr_do_post(net,pconn,inb,sz_in);
+    if (strstr(inb,"POST")) {
+      rc = pay_svr_do_post(net,pconn,inb,sz_in);
+    }
+    else {
+      rc = pay_svr_do_get(net,pconn,inb,sz_in);
+    }
 
     log_debug("%s...(size %zu) - %s\n",inb,sz_in,!rc?"ok":"fail");
 
