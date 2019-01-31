@@ -23,15 +23,8 @@
 #include "extra_modules.h"
 #include "http_utils.h"
 #include "pay_data.h"
+#include "jsons.h"
 
-
-
-const char normalHdr[] = "HTTP/1.1 %s\r\n"
-                         "Server: pay-svr/0.1\r\n"
-                         //"Content-Type: text/html;charset=GBK\r\n"
-                         "Content-Type: text/json;charset=GBK\r\n"
-                         "Content-Length:%zu      \r\n"
-                         "Date: %s\r\n\r\n";
 
 
 
@@ -76,6 +69,28 @@ static int pay_svr_init(Network_t net);
 static int pay_svr_notify_init(Network_t net);
 
 
+int init_pay_data()
+{
+  tm_item_t pos,n;
+  tm_item_t pos1,n1;
+  tree_map_t entry = g_paySvrConf.m_conf.chan_cfg;
+
+
+  g_paySvrConf.m_paych = new_pay_channels_entry();
+
+  rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
+    tree_map_t chansub = pos->nest_map ;
+
+    if (!chansub)
+      continue ;
+
+    rbtree_postorder_for_each_entry_safe(pos1,n1,&chansub->u.root,node) {
+      add_pay_data(g_paySvrConf.m_paych,pos->key,pos1->key,pos1->nest_map);
+    }
+  }
+
+  return 0;
+}
 
 void register_pay_action(pay_action_t pa)
 {
@@ -88,16 +103,8 @@ static
 int pay_svr_do_error(connection_t pconn)
 {
   const char *bodyPage = "{ \"status\":\"error\" }\r\n" ;
-  char hdr[256] = "";
-  time_t t = time(NULL);
-  char tb[64];
 
-  ctime_r(&t,tb);
-  snprintf(hdr,256,normalHdr,"404",strlen(bodyPage),tb);
-
-  pconn->txb = write_dbuffer(pconn->txb,hdr,strlen(hdr));
-  pconn->txb = append_dbuffer(pconn->txb,(char*)bodyPage,strlen(bodyPage));
-
+  create_http_simple_res(&pconn->txb,bodyPage);
   return 0;
 }
 
@@ -146,10 +153,10 @@ int process_param_list(Network_t net, connection_t pconn,
   int ret = -1;
   pay_action_t pos ;
   char key[256] = "", *payChan = 0;
+#if 0
   tree_map_t map = new_tree_map();
 
 
-  //log_debug("kvlist: %s\n",kvlist);
   uri_to_map(kvlist,strlen(kvlist),map);
   payChan = get_tree_map_value(map,(char*)g_paySvrKeywords.channel,
                                strlen(g_paySvrKeywords.channel));
@@ -157,12 +164,16 @@ int process_param_list(Network_t net, connection_t pconn,
     log_error("no '%s' param found\n",g_paySvrKeywords.channel);
     goto __end;
   }
+#else
+  (void)g_paySvrKeywords;
+  payChan = "alipay";
+#endif
 
   // pay route
   pay_data_t pdt = get_pay_route(g_paySvrConf.m_paych,payChan);
 
   if (!pdt) {
-    log_error("not pay route to channel '%s'\n",payChan);
+    log_error("no pay route to channel '%s'\n",payChan);
     goto __end;
   }
 
@@ -171,11 +182,11 @@ int process_param_list(Network_t net, connection_t pconn,
 
   if ((pos=get_pay_action(g_paySvrConf.m_pas0,key))) {
 
-    ret = pos->cb(net,pconn,pdt,map);
+    ret = pos->cb(net,pconn,pdt/*,map*/);
   }
 
 __end:
-  delete_tree_map(map);
+  //delete_tree_map(map);
 
   return ret;
 }
@@ -345,15 +356,13 @@ int pay_svr_pre_init(int argc, char *argv[])
     return -1;
 
   strcpy(g_paySvrConf.host,get_bind_address(&g_paySvrConf.m_conf));
-  g_paySvrConf.port = get_listen_port(&g_paySvrConf.m_conf);
+
   g_paySvrConf.notify_port = get_notify_port(&g_paySvrConf.m_conf);
+  g_paySvrConf.port        = get_listen_port(&g_paySvrConf.m_conf);
 
-  g_paySvrConf.fd = new_tcp_svr(__net_atoi(g_paySvrConf.host),
-                                g_paySvrConf.port);
+  g_paySvrConf.fd          = new_tcp_svr(__net_atoi(g_paySvrConf.host),g_paySvrConf.port);
 
-  // the notify servlet
-  g_paySvrConf.notify_fd = new_tcp_svr(__net_atoi(g_paySvrConf.host),
-                                       g_paySvrConf.notify_port);
+  g_paySvrConf.notify_fd   = new_tcp_svr(__net_atoi(g_paySvrConf.host),g_paySvrConf.notify_port);
 
   return 0;
 }
@@ -366,6 +375,8 @@ void pay_svr_release()
   delete_pay_channels_entry(g_paySvrConf.m_paych);
 
   delete_pay_action_entry(g_paySvrConf.m_pas0);
+
+  free_config(&g_paySvrConf.m_conf);
 }
 
 static
@@ -480,9 +491,9 @@ void pay_svr_module_init(int argc, char *argv[])
   register_module(&g_module);
   register_module(&g_notify_module);
 
-  g_paySvrConf.m_paych= new_pay_channels_entry();
-
   g_paySvrConf.m_pas0 = new_pay_action_entry();
+
+  init_pay_data();
 
   register_extra_modules();
 }

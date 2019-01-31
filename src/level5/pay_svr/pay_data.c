@@ -71,7 +71,8 @@ pay_channel_t new_pay_channel(const char *chan)
 }
 
 pay_data_t 
-add_pay_data(pay_channels_entry_t entry, const char *chan, const char *subname)
+add_pay_data(pay_channels_entry_t entry, const char *chan, 
+             const char *subname, tree_map_t params)
 {
   char *pv = 0;
   size_t ln = 0L ;
@@ -91,7 +92,7 @@ add_pay_data(pay_channels_entry_t entry, const char *chan, const char *subname)
     p->subname = alloc_default_dbuffer(chan);
     p->freq   = 0;
     p->weight = 0;
-    p->pay_params = new_tree_map();
+    p->pay_params = /*new_tree_map()*/params;
     INIT_LIST_HEAD(&p->upper); 
 
 

@@ -44,6 +44,7 @@ int do_ok(connection_t pconn)
 static
 int alipay_ssl_outbound_tx(Network_t net, connection_t pconn)
 {
+  log_debug("tx: \n");
   pconn->l4opt.tx(net,pconn);
   return 0;
 }
@@ -105,7 +106,7 @@ struct module_struct_s g_alipay_ssl_outbound_mod = {
 
 static 
 int do_alipay_order(Network_t net,connection_t pconn,
-                    pay_data_t pd,tree_map_t postParams)
+                    pay_data_t pd/*,tree_map_t postParams*/)
 {
   int fd = 0;
   connection_t out_conn = pconn ;
@@ -132,6 +133,10 @@ int do_alipay_order(Network_t net,connection_t pconn,
     // connect to server 
     fd = new_tcp_client(addr,port);
 
+    if (fd<0) {
+      return -1;
+    }
+
     out_conn = net->reg_outbound(net,fd,g_alipay_ssl_outbound_mod.id);
 
     out_conn->ssl->peer = pconn ;
@@ -145,6 +150,7 @@ int do_alipay_order(Network_t net,connection_t pconn,
   }
 
   pay_data = get_tree_map_nest(pay_params,PAY_DATA,strlen(PAY_DATA));
+  //dump_tree_map(pay_data);
   if (create_http_post_req(&out_conn->txb,url,param_type,pay_data)) {
     return -1;
   }
@@ -157,13 +163,15 @@ int do_alipay_order(Network_t net,connection_t pconn,
 
     out_conn->txb = write_dbuffer(out_conn->txb,req,sz);
 
-    if (out_conn->ssl->state==s_ok)
+    if (out_conn->ssl->state==s_ok) 
       alipay_ssl_outbound_tx(net,out_conn);
   }
 #else
-    if (!out_conn->ssl || out_conn->ssl->state==s_ok)
-      alipay_ssl_outbound_tx(net,out_conn);
+  if (!out_conn->ssl || out_conn->ssl->state==s_ok)
+    alipay_ssl_outbound_tx(net,out_conn);
 #endif
+  log_info("tx size: %zu\n",dbuffer_data_size(out_conn->txb));
+    
 
   return 0;
 }

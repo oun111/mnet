@@ -68,11 +68,10 @@ __put_tree_map(tree_map_t entry, char *k, size_t kLen,
 
     p->key = alloc_default_dbuffer();
     p->val = alloc_default_dbuffer();
+    p->nest_map = NULL ;
 
     p->key= write_dbuffer(p->key,k,kLen);
     p->key[kLen] = '\0';
-
-    p->nest_map = bNest?(void*)v:NULL ;
 
     if (MY_RB_TREE_INSERT(&entry->u.root,p,key,node,compare)) {
       log_error("insert tree map item fail\n");
@@ -83,8 +82,14 @@ __put_tree_map(tree_map_t entry, char *k, size_t kLen,
     entry->item_count++ ;
   }
 
-  p->val= write_dbuffer(p->val,v,vLen);
-  p->val[vLen] = '\0';
+
+  if (bNest) {
+    p->nest_map = (void*)v;
+  }
+  else {
+    p->val= write_dbuffer(p->val,v,vLen);
+    p->val[vLen] = '\0';
+  }
 
   return 0;
 }
@@ -135,10 +140,30 @@ static
 int release_all_tree_map_items(tree_map_t entry)
 {
   tm_item_t pos,n;
+  struct sstack_t k ;
+  tree_map_t prt = entry ;
 
-  rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
-    drop_tree_map_item_internal(entry,pos);
+
+  sstack_init(&k);
+  sstack_push(&k,prt);
+
+  while (!sstack_empty(&k)) {
+
+    prt = sstack_top(&k);
+    sstack_pop(&k);
+
+    rbtree_postorder_for_each_entry_safe(pos,n,&prt->u.root,node) {
+      if (pos->nest_map) {
+        sstack_push(&k,pos->nest_map);
+      }
+
+      drop_tree_map_item_internal(prt,pos);
+    }
+
+    kfree(prt);
   }
+
+  sstack_release(&k);
 
   return 0;
 }

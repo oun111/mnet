@@ -54,7 +54,7 @@ extern pay_data_t get_pay_data(pay_channels_entry_t entry, const char *channel,
 extern pay_channels_entry_t new_pay_channels_entry();
 
 extern pay_data_t add_pay_data(pay_channels_entry_t entry, const char *chan, 
-                               const char *subname);
+                               const char *subname, tree_map_t params);
 
 extern void delete_pay_channels_entry(pay_channels_entry_t entry);
 

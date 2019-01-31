@@ -9,7 +9,7 @@
 
     "alipay": {
       "m0" : {
-        "req_url": "https://127.0.0.1/aaa",
+        "req_url": "https://www.163.com",
         "port": 443,
         "param_type": "html",
         "pay_data": {
@@ -18,7 +18,8 @@
         }
       },
       "m1" : {
-        "req_url": "http://127.0.0.1/bbb",
+        "req_url": "https://www.163.com",
+        "port": 443,
         "param_type": "json",
         "pay_data": {
           "merchant" : "123bb",

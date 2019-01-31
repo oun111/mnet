@@ -45,5 +45,6 @@ extern int drop_tree_map_item(tree_map_t entry, char *k, size_t kLen);
 
 extern int get_tree_map_item_count(tree_map_t entry);
 
+extern void dump_tree_map(tree_map_t entry);
 
 #endif /* __TREE_MAP_H__*/

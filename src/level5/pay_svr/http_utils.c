@@ -142,10 +142,10 @@ int create_http_post_req(dbuffer_t *inb, const char *url,
   dbuffer_t strParams = 0;
   char host[128] = "", uri[256]="";
   const char hdrFmt[] = "HTTP/1.1 %s\r\n"
-                           "User-Agent: pay-svr/0.1\r\n"
-                           "Content-Type: %s\r\n"
-                           "Content-Length: %zu\r\n"
-                           "Host: %s\r\n\r\n";
+                        "User-Agent: pay-svr/0.1\r\n"
+                        "Content-Type: %s\r\n"
+                        "Content-Length: %zu\r\n"
+                        "Host: %s\r\n\r\n";
 
 
   if (param_type==pt_html) {
@@ -157,16 +157,38 @@ int create_http_post_req(dbuffer_t *inb, const char *url,
 
   // http header
   parse_http_url(url,host,128,uri,256);
-  snprintf(hdr,sizeof(hdr),hdrFmt,uri,param_type==pt_html?"text/xml":"text/json",
+  snprintf(hdr,sizeof(hdr),hdrFmt,uri,param_type==pt_html?"text/html":"text/json",
            dbuffer_data_size(strParams),host);
-  log_debug("post header: %s\n",hdr);
 
   // attach whole body
   *inb = append_dbuffer(*inb,hdr,strlen(hdr));
   *inb = append_dbuffer(*inb,strParams,dbuffer_data_size(strParams));
 
+  log_debug("post req: %s\n",*inb);
+
 
   drop_dbuffer(strParams);
+
+  return 0;
+}
+
+int create_http_simple_res(dbuffer_t *inb, const char *res)
+{
+  const char normalHdr[] = "HTTP/1.1\r\n"
+                           "Server: pay-svr/0.1\r\n"
+                           "Content-Type: text/html;charset=GBK\r\n"
+                           "Content-Length:%zu      \r\n"
+                           "Date: %s\r\n\r\n";
+  char hdr[256] = "";
+  time_t t = time(NULL);
+  char tb[64];
+
+
+  ctime_r(&t,tb);
+  snprintf(hdr,sizeof(hdr),normalHdr,strlen(res),tb);
+
+  *inb = write_dbuffer(*inb,hdr,strlen(hdr));
+  *inb = append_dbuffer(*inb,(char*)res,strlen(res));
 
   return 0;
 }

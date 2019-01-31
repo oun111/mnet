@@ -26,11 +26,14 @@ enum ePtnType {
   pFind,
   pDump,
   pRelease,
-  pToStr,
+  pToStr,  // json -> string
+  pToTreemap, // json -> tree map
 };
 
-struct toStringInfo {
+struct jsonsPtnInfo {
   dbuffer_t str;
+
+  struct sstack_t k;
 } ;
 
 #define NEXT_CHILD(s,p) ({      \
@@ -83,7 +86,7 @@ struct toStringInfo {
   (__parent__) && (__parent__)->num_children>1 && (__p__)->upper.next!=&(__parent__)->children
 
 #define FUNC_TOSTR_0(__p__,__arg__) do{ \
-  struct toStringInfo *ti = (struct toStringInfo*)(void*)(__arg__); \
+  struct jsonsPtnInfo *ti = (struct jsonsPtnInfo*)(void*)(__arg__); \
   if (strcmp((__p__)->key,"root")) { \
     ti->str = append_dbuffer(ti->str,(__p__)->key,strlen((__p__)->key)); \
     ti->str = append_dbuffer(ti->str,":",1); \
@@ -98,10 +101,33 @@ struct toStringInfo {
 } while(0)
 
 #define FUNC_TOSTR_1(__p__,__arg__) do{\
-  struct toStringInfo *ti = (struct toStringInfo*)(void*)(__arg__); \
+  struct jsonsPtnInfo *ti = (struct jsonsPtnInfo*)(void*)(__arg__); \
   ti->str = append_dbuffer(ti->str,"}",1); \
   if (NOT_LAST_CHILD(__p__,(__p__)->parent)) \
     ti->str = append_dbuffer(ti->str,",",1); \
+}while(0)
+
+
+#define FUNC_TOTREEMAP_0(__p__,__arg__) do{\
+  struct jsonsPtnInfo *ti = (struct jsonsPtnInfo*)(void*)(__arg__); \
+  tree_map_t prt = sstack_top(&ti->k); \
+  size_t vl= 0L;  \
+  char *pv = jsons_string(__p__->key,&vl); \
+  if ((__p__)->type==keyList) {\
+    tree_map_t chld = new_tree_map(); \
+    put_tree_map_nest(prt,pv,vl,chld); \
+    sstack_push(&ti->k,chld); \
+  } \
+  else if ((__p__)->type==keyValue) {\
+    size_t ln= 0L;  \
+    char *val = jsons_string(__p__->value,&ln); \
+    put_tree_map(prt,pv,vl,val,ln); \
+  } \
+}while(0)
+
+#define FUNC_TOTREEMAP_1(__p__,__arg__) do{\
+  struct jsonsPtnInfo *ti = (struct jsonsPtnInfo*)(void*)(__arg__); \
+  sstack_pop(&ti->k);  \
 }while(0)
 
 //static 
@@ -151,6 +177,9 @@ jsonKV_t* jsons_pattern(jsonKV_t *root, int function, void *arg)
         if (function==pToStr) 
           FUNC_TOSTR_1(p0,arg);
 
+        if (function==pToTreemap) 
+          FUNC_TOTREEMAP_1(p0,arg);
+
         sstack_pop(&stk);
         sstack_pop(&stk1);
         level-- ;
@@ -188,6 +217,9 @@ jsonKV_t* jsons_pattern(jsonKV_t *root, int function, void *arg)
 
     if (function==pToStr) 
       FUNC_TOSTR_0(p,arg);
+
+    if (function==pToTreemap) 
+      FUNC_TOTREEMAP_0(p,arg);
 
     /* the node has children list */
     if (p->type==keyList) {
@@ -256,7 +288,7 @@ int jsons_release(jsonKV_t *root)
 
 int jsons_toString(jsonKV_t *root, dbuffer_t *outb)
 {
-  struct toStringInfo ti = {NULL};
+  struct jsonsPtnInfo ti = {NULL};
 
 
   ti.str = alloc_default_dbuffer();
@@ -269,6 +301,23 @@ int jsons_toString(jsonKV_t *root, dbuffer_t *outb)
   drop_dbuffer(ti.str);
 
   return 0;
+}
+
+tree_map_t jsons_to_treemap(jsonKV_t *root)
+{
+  struct jsonsPtnInfo ti = {NULL};
+  tree_map_t base_map = new_tree_map();
+
+
+  sstack_init(&ti.k);
+
+  sstack_push(&ti.k,base_map);
+
+  jsons_pattern(root,pToTreemap,(void*)&ti);
+
+  sstack_release(&ti.k);
+
+  return base_map;
 }
 
 static
@@ -416,32 +465,6 @@ jsonKV_t* jsons_parse(char *s)
   return m_root;
 }
 
-#if 0
-jsonKV_t* jsons_parse_tree_map(tree_map_t entry)
-{
-  tm_item_t pos,n;
-  jsonKV_t *m_root = new_node((char*)"root");
-
-
-  MY_RBTREE_SORTORDER_FOR_EACH_ENTRY_SAFE(pos,n,&entry->u.root,node) {
-
-    jsonKV_t *chld = new_node(pos->key);
-
-    strncpy(chld->value,pos->val,sizeof(chld->value));
-    chld->parent = m_root ;
-    chld->type   = keyValue;
-    list_add(&chld->upper,&m_root->children);
-
-    m_root->num_children ++ ;
-  }
-  
-  if (m_root->num_children>0)
-    m_root->type = keyList;
-
-  return m_root;
-}
-#endif
-
 static 
 jsonKV_t* attach_parent(jsonKV_t *parent, const char *key, int nodeType)
 {
@@ -455,6 +478,16 @@ jsonKV_t* attach_parent(jsonKV_t *parent, const char *key, int nodeType)
   return pj ;
 }
 
+static
+dbuffer_t create_jsons_string(dbuffer_t jstr, const char *s)
+{
+  jstr = write_dbuffer(jstr,"\"",1);
+  jstr = append_dbuffer(jstr,(char*)s,strlen(s));
+  jstr = append_dbuffer(jstr,"\"",1);
+
+  return jstr;
+}
+
 jsonKV_t* jsons_parse_tree_map(tree_map_t entry)
 {
   jsonKV_t *js_root = new_node((char*)"root"), *pj = 0;
@@ -462,6 +495,7 @@ jsonKV_t* jsons_parse_tree_map(tree_map_t entry)
   struct rb_root *m_root = &entry->u.root ;
   tm_item_t pos,n;
   bool b1stItem = true ;
+  dbuffer_t jstr = alloc_default_dbuffer();
 
 
   sstack_init(&stk_r);
@@ -481,7 +515,8 @@ jsonKV_t* jsons_parse_tree_map(tree_map_t entry)
       if (pos->nest_map) {
 
         sstack_push(&stk_s,js_root);
-        js_root = attach_parent(js_root,pos->key,keyList);
+        jstr = create_jsons_string(jstr,pos->key);
+        js_root = attach_parent(js_root,jstr,keyList);
 
         sstack_push(&stk_r,m_root);
         m_root = pos->nest_map ;
@@ -493,8 +528,11 @@ jsonKV_t* jsons_parse_tree_map(tree_map_t entry)
         break ;
       }
       
-      pj = attach_parent(js_root,pos->key,keyValue);
-      strncpy(pj->value,pos->val,sizeof(pj->value));
+      jstr = create_jsons_string(jstr,pos->key);
+      pj = attach_parent(js_root,jstr,keyValue);
+
+      jstr = create_jsons_string(jstr,pos->val);
+      strncpy(pj->value,jstr,strlen(jstr));
     }
 
     if (!b1stItem) {
@@ -516,6 +554,8 @@ jsonKV_t* jsons_parse_tree_map(tree_map_t entry)
   sstack_release(&stk_r);
   sstack_release(&stk_p);
   sstack_release(&stk_s);
+
+  drop_dbuffer(jstr);
 
   return js_root ;
 }
@@ -656,11 +696,19 @@ void test_jsons()
       drop_dbuffer(str);
     }
 
+    printf("*************\n");
+    tree_map_t totmap = jsons_to_treemap(root);
+    dump_tree_map(totmap);
+
+    delete_tree_map(totmap);
+
     jsons_release(root);
     delete_tree_map(tmap);
+#if 0
     delete_tree_map(map2);
     delete_tree_map(map3);
     delete_tree_map(map4);
+#endif
   }
 
   exit(0);
