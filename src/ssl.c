@@ -37,7 +37,7 @@ ssl_item_t ssl_init()
   }
 
   ps->state = s_none;
-  ps->peer  = NULL ;
+  //ps->peer  = NULL ;
 
   return ps;
 }

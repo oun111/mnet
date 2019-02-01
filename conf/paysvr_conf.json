@@ -9,12 +9,13 @@
 
     "alipay": {
       "m0" : {
-        "req_url": "https://www.163.com",
+        "req_url": "https://www.163.com/",
         "port": 443,
-        "param_type": "html",
+        "param_type": "json",
         "pay_data": {
-          "merchant" : "123",
-          "apikey" : "456"
+          "app_id" : "123",
+          "method" : "alipay.trade.wap.pay",
+          "format" : "JSON"
         }
       },
       "m1" : {

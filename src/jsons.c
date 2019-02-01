@@ -484,6 +484,7 @@ dbuffer_t create_jsons_string(dbuffer_t jstr, const char *s)
   jstr = write_dbuffer(jstr,"\"",1);
   jstr = append_dbuffer(jstr,(char*)s,strlen(s));
   jstr = append_dbuffer(jstr,"\"",1);
+  jstr = append_dbuffer(jstr,"\0",1);
 
   return jstr;
 }

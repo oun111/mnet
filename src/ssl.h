@@ -15,7 +15,7 @@ struct ssl_item_s {
   SSL_CTX *ctx ;
   SSL *ssl ;
   int state;
-  void *peer ;
+  //void *peer ;
 } ;
 typedef struct ssl_item_s* ssl_item_t ;
 

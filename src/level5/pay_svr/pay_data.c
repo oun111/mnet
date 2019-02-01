@@ -105,6 +105,8 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
       kfree(p);
       return NULL;
     }
+
+  printf("adding pay data sub: %s\n",subname);
   }
 
   pv = (char*)subname ;
@@ -180,7 +182,9 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan)
 
   // TODO: get best pay route
   list_for_each_entry(pos,&pc->pay_data_list,upper) {
-    return pos ;
+    printf("sub: %s, weight: %d\n",pos->subname,pos->weight);
+    if (!(pos->weight%2))
+      return pos ;
   }
 
   return NULL ;

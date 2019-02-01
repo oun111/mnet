@@ -24,6 +24,7 @@
 #include "http_utils.h"
 #include "pay_data.h"
 #include "jsons.h"
+#include "backend.h"
 
 
 
@@ -44,6 +45,8 @@ struct pay_svr_conf {
   pay_action_entry_t m_pas0 ;
 
   pay_channels_entry_t m_paych ;
+
+  struct backend_entry_s m_backends;
 
 } g_paySvrConf = {
   .host = "127.0.0.1",
@@ -84,7 +87,9 @@ int init_pay_data()
     if (!chansub)
       continue ;
 
+    printf("channel: %s\n",pos->key);
     rbtree_postorder_for_each_entry_safe(pos1,n1,&chansub->u.root,node) {
+      printf("subname: %s\n",pos1->key);
       add_pay_data(g_paySvrConf.m_paych,pos->key,pos1->key,pos1->nest_map);
     }
   }
@@ -92,11 +97,14 @@ int init_pay_data()
   return 0;
 }
 
-void register_pay_action(pay_action_t pa)
+pay_action_entry_t get_pay_action_entry()
 {
-  add_pay_action(g_paySvrConf.m_pas0,pa);
+  return g_paySvrConf.m_pas0 ;
+}
 
-  log_info("registering '%s: %s'...\n",pa->channel,pa->action);
+backend_entry_t get_backend_entry()
+{
+  return &g_paySvrConf.m_backends;
 }
 
 static 
@@ -153,7 +161,6 @@ int process_param_list(Network_t net, connection_t pconn,
   int ret = -1;
   pay_action_t pos ;
   char key[256] = "", *payChan = 0;
-#if 0
   tree_map_t map = new_tree_map();
 
 
@@ -164,10 +171,6 @@ int process_param_list(Network_t net, connection_t pconn,
     log_error("no '%s' param found\n",g_paySvrKeywords.channel);
     goto __end;
   }
-#else
-  (void)g_paySvrKeywords;
-  payChan = "alipay";
-#endif
 
   // pay route
   pay_data_t pdt = get_pay_route(g_paySvrConf.m_paych,payChan);
@@ -177,16 +180,17 @@ int process_param_list(Network_t net, connection_t pconn,
     goto __end;
   }
 
+  log_info("route to item '%s'\n",pdt->subname);
+
   // construct the 'key'
   snprintf(key,256,"%s/%s",payChan,action);
 
   if ((pos=get_pay_action(g_paySvrConf.m_pas0,key))) {
-
-    ret = pos->cb(net,pconn,pdt/*,map*/);
+    ret = pos->cb(net,pconn,pdt,map);
   }
 
 __end:
-  //delete_tree_map(map);
+  delete_tree_map(map);
 
   return ret;
 }
@@ -355,6 +359,12 @@ int pay_svr_pre_init(int argc, char *argv[])
   if (init_config(&g_paySvrConf.m_conf,g_paySvrConf.conf_path))
     return -1;
 
+  init_backend_entry(&g_paySvrConf.m_backends);
+
+  g_paySvrConf.m_pas0 = new_pay_action_entry();
+
+  init_pay_data();
+
   strcpy(g_paySvrConf.host,get_bind_address(&g_paySvrConf.m_conf));
 
   g_paySvrConf.notify_port = get_notify_port(&g_paySvrConf.m_conf);
@@ -375,6 +385,8 @@ void pay_svr_release()
   delete_pay_channels_entry(g_paySvrConf.m_paych);
 
   delete_pay_action_entry(g_paySvrConf.m_pas0);
+
+  release_all_backends(&g_paySvrConf.m_backends);
 
   free_config(&g_paySvrConf.m_conf);
 }
@@ -490,11 +502,6 @@ void pay_svr_module_init(int argc, char *argv[])
 
   register_module(&g_module);
   register_module(&g_notify_module);
-
-  g_paySvrConf.m_pas0 = new_pay_action_entry();
-
-  init_pay_data();
-
   register_extra_modules();
 }
 

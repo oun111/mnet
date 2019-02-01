@@ -172,7 +172,7 @@ void delete_tree_map(tree_map_t entry)
 {
   release_all_tree_map_items(entry);
 
-  kfree(entry);
+  //kfree(entry);
 }
 
 int get_tree_map_item_count(tree_map_t entry)

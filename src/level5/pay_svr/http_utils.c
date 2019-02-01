@@ -141,7 +141,7 @@ int create_http_post_req(dbuffer_t *inb, const char *url,
   char hdr[1024] = "";
   dbuffer_t strParams = 0;
   char host[128] = "", uri[256]="";
-  const char hdrFmt[] = "HTTP/1.1 %s\r\n"
+  const char hdrFmt[] = "GET %s HTTP/1.1\r\n"
                         "User-Agent: pay-svr/0.1\r\n"
                         "Content-Type: %s\r\n"
                         "Content-Length: %zu\r\n"
@@ -161,7 +161,7 @@ int create_http_post_req(dbuffer_t *inb, const char *url,
            dbuffer_data_size(strParams),host);
 
   // attach whole body
-  *inb = append_dbuffer(*inb,hdr,strlen(hdr));
+  *inb = write_dbuffer(*inb,hdr,strlen(hdr));
   *inb = append_dbuffer(*inb,strParams,dbuffer_data_size(strParams));
 
   log_debug("post req: %s\n",*inb);
