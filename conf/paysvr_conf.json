@@ -9,9 +9,12 @@
 
     "alipay": {
       "m0" : {
-        "req_url": "https://www.163.com/",
-        "port": 443,
+        "req_url": "https://www.163.com",
         "param_type": "json",
+        "crypto": {
+          "public_key":"123456",
+          "private_key":"123456"
+        },
         "pay_data": {
           "app_id" : "123",
           "method" : "alipay.trade.wap.pay",
@@ -19,12 +22,16 @@
         }
       },
       "m1" : {
-        "req_url": "https://www.163.com",
-        "port": 443,
+        "req_url": "http://www.163.com:443/test1",
         "param_type": "json",
+        "crypto": {
+          "public_key":"asdfasf2r132r11234314fafsrf25432432423rewrewr",
+          "private_key":"123123jhkkljlu8u9jkljsdjfozuwkfVsdkfjioujisoufoidsuiofaf"
+        },
         "pay_data": {
-          "merchant" : "123bb",
-          "apikey" : "456aa"
+          "app_id" : "456789",
+          "method" : "alipay.trade.wap.pay11",
+          "format" : "JSON"
         }
       }
     },

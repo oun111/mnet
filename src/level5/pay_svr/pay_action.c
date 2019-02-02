@@ -41,7 +41,7 @@ add_pay_action(pay_action_entry_t entry, pay_action_t pact)
 {
   pay_action_t p = get_pay_action(entry,pact->key);
   char *pv = 0;
-  size_t ln = 0L ;
+  //size_t ln = 0L ;
 
 
   if (!p) {
@@ -56,9 +56,9 @@ add_pay_action(pay_action_entry_t entry, pay_action_t pact)
     p->channel = alloc_default_dbuffer();
 
     pv = pact->key ;
-    ln = strlen(pact->key);
-    p->key= write_dbuffer(p->key,pv,ln);
-    p->key[ln] = '\0';
+    //ln = strlen(pact->key);
+    p->key= write_dbuffer_string(p->key,pv,strlen(pact->key));
+    //p->key[ln] = '\0';
 
     if (MY_RB_TREE_INSERT(&entry->u.root,p,key,node,compare)) {
       log_error("insert tree map item fail\n");
@@ -70,14 +70,14 @@ add_pay_action(pay_action_entry_t entry, pay_action_t pact)
   }
 
   pv = pact->action ;
-  ln = strlen(pact->action);
-  p->action= write_dbuffer(p->action,pv,ln);
-  p->action[ln] = '\0';
+  //ln = strlen(pact->action);
+  p->action= write_dbuffer_string(p->action,pv,strlen(pact->key));
+  //p->action[ln] = '\0';
 
   pv = pact->channel ;
-  ln = strlen(pact->channel);
-  p->channel= write_dbuffer(p->channel,pv,ln);
-  p->channel[ln] = '\0';
+  //ln = strlen(pact->channel);
+  p->channel= write_dbuffer_string(p->channel,pv,strlen(pact->key));
+  //p->channel[ln] = '\0';
 
   p->cb = pact->cb;
 

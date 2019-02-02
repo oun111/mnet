@@ -35,7 +35,9 @@ extern off_t dbuffer_lseek(dbuffer_t b, off_t offset, int whence, int rw);
 
 extern dbuffer_t dbuffer_ptr(dbuffer_t b, int rw);
 
-/* debug */
-extern int dbuffer_test_case();
+extern dbuffer_t write_dbuffer_string(dbuffer_t b, char *in, size_t inlen);
+
+extern dbuffer_t append_dbuffer_string(dbuffer_t b, char *in, size_t inlen);
+
 
 #endif /* __DBUFFER_H__*/

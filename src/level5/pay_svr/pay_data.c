@@ -24,17 +24,12 @@ pay_channel_t get_pay_channel(pay_channels_entry_t entry, const char *chan)
   return p;
 }
 
-pay_data_t get_pay_data(pay_channels_entry_t entry, const char *channel, 
-                             const char *subname)
+pay_data_t get_pay_data(pay_channel_t pc, const char *subname)
 {
-  pay_channel_t p = get_pay_channel(entry,channel);
   pay_data_t pd = 0;
 
 
-  if (!p)
-    return NULL ;
-
-  list_for_each_entry(pd,&p->pay_data_list,upper) {
+  list_for_each_entry(pd,&pc->pay_data_list,upper) {
     if (!strcmp(pd->subname,subname))
       return pd;
   }
@@ -63,8 +58,8 @@ pay_channel_t new_pay_channel(const char *chan)
   pv = (char*)chan ;
   vl = strlen(chan);
   pc->channel = alloc_default_dbuffer();
-  pc->channel = write_dbuffer(pc->channel,pv,vl);
-  pc->channel[vl] = '\0';
+  pc->channel = write_dbuffer_string(pc->channel,pv,vl);
+  //pc->channel[vl] = '\0';
   INIT_LIST_HEAD(&pc->pay_data_list);
 
   return pc ;
@@ -76,13 +71,22 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
 {
   char *pv = 0;
   size_t ln = 0L ;
-  pay_data_t p = get_pay_data(entry,chan,subname);
+  pay_channel_t pc = get_pay_channel(entry,chan);
+  pay_data_t p = NULL;
 
+
+  if (!pc) {
+    pc = new_pay_channel(chan);
+    if (MY_RB_TREE_INSERT(&entry->u.root,pc,channel,node,compare)) {
+      log_error("insert pay channel item by name '%s' fail\n",chan);
+      kfree(pc);
+      return NULL;
+    }
+  }
+
+  p = get_pay_data(pc,subname);
 
   if (!p) {
-    pay_channel_t pc = NULL ;
-
-
     p = kmalloc(sizeof(struct pay_data_item_s),0L);
     if (!p) {
       log_error("allocate new tree map item fail\n");
@@ -92,27 +96,16 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
     p->subname = alloc_default_dbuffer(chan);
     p->freq   = 0;
     p->weight = 0;
-    p->pay_params = /*new_tree_map()*/params;
+    p->pay_params = params;
+
     INIT_LIST_HEAD(&p->upper); 
-
-
-    pc = new_pay_channel(chan);
     list_add(&p->upper,&pc->pay_data_list);
-
-
-    if (MY_RB_TREE_INSERT(&entry->u.root,pc,channel,node,compare)) {
-      log_error("insert pay data item fail\n");
-      kfree(p);
-      return NULL;
-    }
-
-  printf("adding pay data sub: %s\n",subname);
   }
 
   pv = (char*)subname ;
   ln = strlen(subname);
-  p->subname= write_dbuffer(p->subname,pv,ln);
-  p->subname[ln] = '\0';
+  p->subname= write_dbuffer_string(p->subname,pv,ln);
+  //p->subname[ln] = '\0';
 
   return p;
 }
@@ -182,7 +175,6 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan)
 
   // TODO: get best pay route
   list_for_each_entry(pos,&pc->pay_data_list,upper) {
-    printf("sub: %s, weight: %d\n",pos->subname,pos->weight);
     if (!(pos->weight%2))
       return pos ;
   }

@@ -133,6 +133,9 @@ struct jsonsPtnInfo {
 //static 
 void free_node(jsonKV_t *node)
 {
+  drop_dbuffer(node->key);
+  drop_dbuffer(node->value);
+
   if (node)
     kfree(node);
 }
@@ -142,12 +145,16 @@ jsonKV_t* new_node(char *key)
 {
   jsonKV_t *node = kmalloc(sizeof(jsonKV_t),0L) ;
 
-  strcpy(node->key,key);
+  //strcpy(node->key,key);
   INIT_LIST_HEAD(&node->upper);
   INIT_LIST_HEAD(&node->children);
   node->num_children = 0L;
   node->parent = NULL;
   node->type = keyValue;
+  node->key  = alloc_default_dbuffer();
+  node->value= alloc_default_dbuffer();
+
+  node->key = write_dbuffer_string(node->key,key,strlen(key));
 
   return node ;
 }
@@ -321,10 +328,10 @@ tree_map_t jsons_to_treemap(jsonKV_t *root)
 }
 
 static
-int jsons_lex_read(char *s, char *tkn, int pos)
+int jsons_lex_read(char *s, dbuffer_t *tkn, int pos)
 {
   uint16_t p = pos, p0=0;
-  size_t sz = 0;
+  //size_t sz = 0;
 
   /* 
    * eliminate spaces 
@@ -335,23 +342,35 @@ int jsons_lex_read(char *s, char *tkn, int pos)
   /* get a symbol */
   if (s[p]=='{' || s[p]=='}' || s[p]=='[' ||
      s[p]==']' || s[p]==':' || s[p]==',') {
+#if 0
     *tkn = s[p] ;
     tkn[1] = '\0';
+#else
+    *tkn = write_dbuffer_string(*tkn,&s[p],1);
+    //*tkn = append_dbuffer(*tkn,"\0",1);
+#endif
     return p+1 ;
   }
   /* 
    * get a normal string token
    */
   if (s[p]=='\"' || s[p]=='\'') {
-    const char endc = s[p] ;
+    /*const*/ char endc = s[p] ;
     for (++p,p0=p;p<strlen(s)&&s[p]!=endc;p++);
     if (p>=strlen(s))
       return p;
+#if 0
     sz = (p-p0)>MAX_VAL_LEN?(MAX_VAL_LEN-1):(p-p0);
     tkn[0] = endc;
     strncpy(tkn+1,s+p0,sz);
     tkn[sz+1] = endc;
     tkn[sz+2] = '\0';
+#else
+    *tkn = write_dbuffer(*tkn,&endc,1);
+    *tkn = append_dbuffer(*tkn,s+p0,(p-p0));
+    *tkn = append_dbuffer_string(*tkn,&endc,1);
+    //*tkn = append_dbuffer(*tkn,"\0",1);
+#endif
     return p+1 ;
   }
   /* 
@@ -362,9 +381,14 @@ int jsons_lex_read(char *s, char *tkn, int pos)
          &&s[p]!='}'&&!isspace(s[p]);p++);
     if (p>=strlen(s))
       return p;
+#if 0
     sz = (p-p0)>MAX_VAL_LEN?(MAX_VAL_LEN-1):(p-p0);
     strncpy(tkn,s+p0,sz);
     tkn[sz] = '\0';
+#else
+    *tkn = write_dbuffer_string(*tkn,s+p0,(p-p0));
+    //*tkn = append_dbuffer(*tkn,"\0",1);
+#endif
     return p+1 ;
   }
 
@@ -395,7 +419,7 @@ int jsons_eliminate_comments(char *s)
 jsonKV_t* jsons_parse(char *s)
 {
   int pos=0 ;
-  char tkn[MAX_VAL_LEN] ;
+  dbuffer_t tkn = alloc_default_dbuffer() ;
   jsonKV_t *p = 0, *tmp=0, *m_root = 0;
   struct sstack_t stk ;
   bool bEval = false, bKey = false, 
@@ -411,7 +435,7 @@ jsonKV_t* jsons_parse(char *s)
   sstack_push(&stk,p);
 
   /* traverse and create the analyzing tree */
-  while ((pos=jsons_lex_read(s,tkn,pos))>=0 && pos<(int)strlen(s)) {
+  while ((pos=jsons_lex_read(s,&tkn,pos))>=0 && pos<(int)strlen(s)) {
 
     if (*tkn=='{' || *tkn=='[') {
       p = (jsonKV_t*)sstack_top(&stk);
@@ -441,7 +465,7 @@ jsonKV_t* jsons_parse(char *s)
         if (bEval) {
           p = (jsonKV_t*)sstack_top(&stk);
           sstack_pop(&stk);
-          strncpy(p->value,tkn,MAX_VAL_LEN);
+          p->value = write_dbuffer_string(p->value,tkn,strlen(tkn));
           p->type  = keyValue ;
         } else {
           /* it's a key */
@@ -461,6 +485,8 @@ jsonKV_t* jsons_parse(char *s)
   }
 
   sstack_release(&stk);
+
+  drop_dbuffer(tkn);
 
   return m_root;
 }
@@ -483,8 +509,7 @@ dbuffer_t create_jsons_string(dbuffer_t jstr, const char *s)
 {
   jstr = write_dbuffer(jstr,"\"",1);
   jstr = append_dbuffer(jstr,(char*)s,strlen(s));
-  jstr = append_dbuffer(jstr,"\"",1);
-  jstr = append_dbuffer(jstr,"\0",1);
+  jstr = append_dbuffer_string(jstr,"\"",1);
 
   return jstr;
 }

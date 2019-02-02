@@ -7,7 +7,7 @@
 #include "tree_map.h"
 
 #define MAX_KEY_LEN  64
-#define MAX_VAL_LEN  256
+//#define MAX_VAL_LEN  256
 
 typedef struct jsonKV_s {
   /* 0: key-value, 1: key-object, 2: key only */
@@ -20,9 +20,15 @@ typedef struct jsonKV_s {
   struct list_head children ;
   size_t num_children ;
 
+#if 0
   char key[MAX_KEY_LEN];
 
   char value[MAX_VAL_LEN];
+#else
+  dbuffer_t key ;
+
+  dbuffer_t value ;
+#endif
 
   struct jsonKV_s *parent ;
 

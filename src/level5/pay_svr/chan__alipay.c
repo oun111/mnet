@@ -113,6 +113,26 @@ struct module_struct_s g_alipay_ssl_outbound_mod = {
 };
 
 
+static
+int deal_crypto(tree_map_t pay_params)
+{
+  tree_map_t crypto_map = get_tree_map_nest(pay_params,CRYPTO,strlen(CRYPTO));
+  char *privkey = 0, *pubkey = 0;
+
+
+  if (!crypto_map) {
+    return 1;
+  }
+
+  pubkey = get_tree_map_value(crypto_map,PUBKEY,strlen(PUBKEY));
+  privkey= get_tree_map_value(crypto_map,PRIVKEY,strlen(PRIVKEY));
+
+  printf("public key: %s, private key: %s\n",pubkey,privkey);
+
+
+  return 0;
+}
+
 static 
 int do_alipay_order(Network_t net,connection_t pconn,
                     pay_data_t pd,tree_map_t postParams)
@@ -120,7 +140,6 @@ int do_alipay_order(Network_t net,connection_t pconn,
   int fd = 0;
   connection_t out_conn = pconn ;
   char host[128]="", *str = 0, *url = 0;
-  int port = 443 ;
   unsigned long addr = 0L;
   tree_map_t pay_params = pd->pay_params ;
   tree_map_t pay_data  = NULL ;
@@ -129,15 +148,30 @@ int do_alipay_order(Network_t net,connection_t pconn,
 
 
   url = get_tree_map_value(pay_params,REQ_URL,strlen(REQ_URL));
-  str = get_tree_map_value(pay_params,REQ_PORT,strlen(REQ_PORT));
 
   // connect to remote host
   if (url) {
 
-    if (str)
-      port = atoi(str) ;
+    bool is_ssl = true ;
+    int port = -1 ;
 
-    parse_http_url(url,host,128,NULL,0L);
+
+    parse_http_url(url,host,128,&port,NULL,0L,&is_ssl);
+    //printf("url: %s, isssl: %d, host: %s, port: %d\n",url,is_ssl,host,port);
+
+    // just 'http' connection
+    if (!(is_ssl || port==443)) {
+
+      if (port==-1) 
+        port = 80 ;
+
+      g_alipay_ssl_outbound_mod.ssl = false ;
+    }
+    else {
+      if (port==-1)
+        port = 443 ;
+    }
+
     addr = hostname_to_uladdr(host) ;
 
     // connect to server 
@@ -157,6 +191,9 @@ int do_alipay_order(Network_t net,connection_t pconn,
   if (str) {
     param_type = !strcmp(str,"html")?pt_html:pt_json;
   }
+
+  // deals with cryptographic
+  deal_crypto(pay_params);
 
   // construct pay request
   pay_data = get_tree_map_nest(pay_params,PAY_DATA,strlen(PAY_DATA));

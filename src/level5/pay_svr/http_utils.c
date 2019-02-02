@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include "http_utils.h"
 #include "connection.h"
 #include "kernel.h"
@@ -156,7 +157,7 @@ int create_http_post_req(dbuffer_t *inb, const char *url,
   }
 
   // http header
-  parse_http_url(url,host,128,uri,256);
+  parse_http_url(url,host,128,NULL,uri,256,NULL);
   snprintf(hdr,sizeof(hdr),hdrFmt,uri,param_type==pt_html?"text/html":"text/json",
            dbuffer_data_size(strParams),host);
 
@@ -194,15 +195,21 @@ int create_http_simple_res(dbuffer_t *inb, const char *res)
 }
 
 int parse_http_url(const char *url, char *host, size_t szhost,
-                   char *uri, size_t szuri)
+                   int *port, char *uri, size_t szuri, bool *is_ssl)
 {
-  char *phost = strstr(url,"://"), *hend = 0;
+  char *phost = strstr(url,"://"), *hend = 0, *pe = 0;
   char *urlend = (char*)url + strlen(url);
-  size_t ln = 0L;
+  size_t ln = 0L, lp=0L;
+  char chport[10] = "";
 
+
+  if (is_ssl && phost) {
+    *is_ssl = !strncmp(url,"https",5)?true:false ;
+  }
 
   phost = phost?(phost+3):(char*)url ;
-  hend = strchr(phost,'/');
+  pe = strchr(phost,':');
+  hend = pe?pe:strchr(phost,'/');
 
   // host
   ln = hend?(hend-phost):(urlend-phost);
@@ -211,8 +218,18 @@ int parse_http_url(const char *url, char *host, size_t szhost,
     host[ln] = '\0';
   }
 
+  if (pe) {
+    char *s = pe ;
+    for (++pe;isspace(*pe);pe++);
+    for (int i=0;pe&&*pe!='\0'&&isdigit(*pe);i++,pe++)
+      chport[i] = *pe ;
+    if (port) 
+      *port = atoi(chport);
+    lp = pe-s ;
+  }
+
   // uri
-  phost += ln ;
+  phost += ln + lp ;
   ln = strlen(url)-ln;
   if (uri) {
     if (ln>0) {
@@ -234,7 +251,7 @@ void test_http_utils()
   char url[]=  "www.163.com///";
   char host[32], uri[64];
 
-  parse_http_url(url,host,32,NULL,0L);
+  parse_http_url(url,host,32,NULL,NULL,0L,NULL);
 
   printf("host111: %s, uri: %s\n",host,uri);
 }

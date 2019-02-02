@@ -82,7 +82,7 @@ int ssl_connect(ssl_item_t ps, int fd)
 
   ps->state = s_error ;
 
-  SSL_LOG_ERROR();
+  //SSL_LOG_ERROR();
   return -1;
 }
 

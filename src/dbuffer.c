@@ -189,6 +189,34 @@ dbuffer_t append_dbuffer(dbuffer_t b, void *in, size_t inlen)
   return b;
 }
 
+dbuffer_t write_dbuffer_string(dbuffer_t b, char *in, size_t inlen)
+{
+  b = write_dbuffer(b,in,inlen);
+
+  if (!b)
+    return NULL ;
+
+  b[inlen] = '\0';
+
+  return b;
+}
+
+dbuffer_t append_dbuffer_string(dbuffer_t b, char *in, size_t inlen)
+{
+  size_t total = 0L ;
+
+
+  b = append_dbuffer(b,in,inlen);
+
+  if (!b)
+    return NULL;
+
+  total = dbuffer_data_size(b);
+  b[total] = '\0';
+
+  return b;
+}
+
 dbuffer_t dbuffer_ptr(dbuffer_t b, int rw)
 {
   dbuf_hdr_t h = DBUF_HDR(b) ;

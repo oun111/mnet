@@ -8,8 +8,10 @@
 
 #define REQ_URL      "req_url"
 #define PARAM_TYPE   "param_type"
-#define REQ_PORT     "port"
 #define PAY_DATA     "pay_data"
+#define CRYPTO       "crypto"
+#define PUBKEY       "public_key"
+#define PRIVKEY      "private_key"
 
 
 struct pay_data_item_s {
@@ -48,8 +50,7 @@ typedef struct pay_channels_entry_s* pay_channels_entry_t ;
 
 extern pay_channel_t get_pay_channel(pay_channels_entry_t entry, const char *chan);
 
-extern pay_data_t get_pay_data(pay_channels_entry_t entry, const char *channel, 
-                               const char *subname);
+extern pay_data_t get_pay_data(pay_channel_t pc, const char *subname);
 
 extern pay_channels_entry_t new_pay_channels_entry();
 

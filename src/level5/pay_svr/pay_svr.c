@@ -87,9 +87,7 @@ int init_pay_data()
     if (!chansub)
       continue ;
 
-    printf("channel: %s\n",pos->key);
     rbtree_postorder_for_each_entry_safe(pos1,n1,&chansub->u.root,node) {
-      printf("subname: %s\n",pos1->key);
       add_pay_data(g_paySvrConf.m_paych,pos->key,pos1->key,pos1->nest_map);
     }
   }
@@ -303,6 +301,8 @@ int pay_svr_rx(Network_t net, connection_t pconn)
 
     inb[sz_in] = '\0';
 
+    log_debug("%s...(size %zu) - %s\n",inb,sz_in,!rc?"ok":"fail");
+
     /* process a whole sub request */
     if (strstr(inb,"POST")) {
       rc = pay_svr_do_post(net,pconn,inb,sz_in);
@@ -310,9 +310,6 @@ int pay_svr_rx(Network_t net, connection_t pconn)
     else {
       rc = pay_svr_do_get(net,pconn,inb,sz_in);
     }
-
-    log_debug("%s...(size %zu) - %s\n",inb,sz_in,!rc?"ok":"fail");
-
 
     if (rc==-1) 
       pay_svr_do_error(pconn);

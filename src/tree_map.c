@@ -70,8 +70,8 @@ __put_tree_map(tree_map_t entry, char *k, size_t kLen,
     p->val = alloc_default_dbuffer();
     p->nest_map = NULL ;
 
-    p->key= write_dbuffer(p->key,k,kLen);
-    p->key[kLen] = '\0';
+    p->key= write_dbuffer_string(p->key,k,kLen);
+    //p->key[kLen] = '\0';
 
     if (MY_RB_TREE_INSERT(&entry->u.root,p,key,node,compare)) {
       log_error("insert tree map item fail\n");
@@ -87,8 +87,8 @@ __put_tree_map(tree_map_t entry, char *k, size_t kLen,
     p->nest_map = (void*)v;
   }
   else {
-    p->val= write_dbuffer(p->val,v,vLen);
-    p->val[vLen] = '\0';
+    p->val= write_dbuffer_string(p->val,v,vLen);
+    //p->val[vLen] = '\0';
   }
 
   return 0;
