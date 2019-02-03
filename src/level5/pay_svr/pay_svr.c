@@ -397,7 +397,7 @@ struct module_struct_s g_module = {
 
   .dyn_handle = NULL,
 
-  //.ssl = false,
+  .ssl = false,
 
   .opts[inbound_l5] = {
     .rx = pay_svr_rx,
@@ -448,7 +448,7 @@ struct module_struct_s g_notify_module = {
 
   .dyn_handle = NULL,
 
-  //.ssl = false,
+  .ssl = false,
 
   .opts[inbound_l5] = {
     .rx = pay_svr_notify_rx,
