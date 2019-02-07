@@ -11,7 +11,7 @@ script,opt = argv
 
 
 logFlushInterval = 5
-numConnections = 16
+numConnections = 10
 numWorkers = 0
 logToFile = ""
 

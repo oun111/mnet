@@ -80,12 +80,14 @@ session_t create_empty_session(session_entry_t entry, int cid)
 
   /* already exists */
   if (!MY_RB_TREE_FIND(&entry->u.root,cid,s,fd,node,compare)) {
-  //if (!MY_RB_TREE_FIND(&entry->u.root,cid,s,fd,node)) {
     log_info("client %d session already exists\n",cid);
     return s;
   }
 
   s = obj_pool_alloc(entry->pool,struct client_session_s);
+  if (!s) {
+    s = obj_pool_alloc_slow(entry->pool,struct client_session_s);
+  }
   if (!s) {
     log_error("cant create more sessions!!\n");
     return NULL;
@@ -101,7 +103,6 @@ session_t create_empty_session(session_entry_t entry, int cid)
   snprintf(s->cmd.id,8,"%llu",__sync_fetch_and_add(&entry->increasable_id,1));
 
   if (MY_RB_TREE_INSERT(&entry->u.root,s,fd,node,compare)) {
-  //if (MY_RB_TREE_INSERT(&entry->u.root,s,fd,node)) {
     log_error("insert client %d session fail\n",cid);
     obj_pool_free(entry->pool,s);
     return NULL;

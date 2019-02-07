@@ -39,6 +39,14 @@ task_t alloc_task(task_entry_t entry, int backend_count)
 
 
   if (!ptask) {
+    ptask = obj_pool_alloc_slow(entry->pool,struct task_s);
+    if (ptask) {
+      ptask->backend_numbers = alloc_default_dbuffer();
+      ptask->req = alloc_default_dbuffer();
+    }
+  }
+
+  if (!ptask) {
     log_error("fatal: cant allocate more tasks\n");
     return NULL ;
   }

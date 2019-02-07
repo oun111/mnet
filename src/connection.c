@@ -41,6 +41,14 @@ connection_t alloc_conn(Network_t net, int fd, proto_opt *l4opt,
 
 
   if (!pconn) {
+    pconn = obj_pool_alloc_slow(net->pool,struct connection_s);
+    if (pconn) {
+      pconn->txb = alloc_default_dbuffer();
+      pconn->rxb = alloc_default_dbuffer();
+    }
+  }
+
+  if (!pconn) {
     log_error("fatal: cant allocate more connections\n");
     return NULL ;
   }

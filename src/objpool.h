@@ -14,14 +14,14 @@ struct objPool_s {
 typedef struct objPool_s* objPool_t ;
 
 
-#define MAX_OBJ_POOL  100000
+#define INIT_OBJ_POOL_SIZE  1000
 
 #define create_obj_pool(desc,ps,t)  ({\
   objPool_t p = kmalloc(sizeof(struct objPool_s),0L); \
   if (p) {  \
     INIT_LIST_HEAD(&p->free_pool);  \
     p->cache = kmem_cache_create(desc,sizeof(t),0L,0L,NULL);  \
-    p->pool_size = (ps)<MAX_OBJ_POOL?(ps):MAX_OBJ_POOL ;  \
+    p->pool_size = (ps)<INIT_OBJ_POOL_SIZE?(ps):INIT_OBJ_POOL_SIZE ;  \
     for (int i=0;i<pool_size;i++) {   \
       typeof(t) *po = kmem_cache_alloc(p->cache,0L);  \
       list_add(&po->pool_item,&p->free_pool);  \
@@ -44,6 +44,12 @@ typedef struct objPool_s* objPool_t ;
   typeof(t) *pos = list_first_entry_or_null(&(op)->free_pool,t,pool_item); \
   if (pos) list_del(&pos->pool_item);  \
   pos; \
+})
+
+#define obj_pool_alloc_slow(op,t)  ({ \
+  typeof(t) *pos = kmem_cache_alloc(op->cache,0L);  \
+  list_add(&pos->pool_item,&op->free_pool);  \
+  obj_pool_alloc(op,t); \
 })
 
 #define obj_pool_free(op,item)  ({\
