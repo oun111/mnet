@@ -46,7 +46,7 @@ struct example_http_conf {
   .host = "127.0.0.1",
   .port = 4321,
   .fd = -1,
-  .home = "/home/user1/work/mstore/src/level5/example_http/web/",
+  .home = "/home/user1/work/mnet/src/level5/example_http/web/",
 
   .static_pages[t_404] = { .name = "404.html", },
 };

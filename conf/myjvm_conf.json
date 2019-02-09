@@ -3,7 +3,7 @@
 
     "GnuClassPath" : "/home/user1/work/classpath-0.99/install",
 
-    "ProjectPath" : "/home/user1/work/mstore/src/level5/my_jvm/webapp/:/home/user1/work/java_libs/servlet-api.jar",
+    "ProjectPath" : "/home/user1/work/mnet/src/level5/my_jvm/webapp/:/home/user1/work/java_libs/servlet-api.jar",
 
     "ProjectClass" : "smallWebSvr",
 

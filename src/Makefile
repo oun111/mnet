@@ -1,6 +1,6 @@
 include rules.mak
 
-FRAMEWORK := mstore
+FRAMEWORK := mnet
 GEN_DIR:= $(shell pwd)/.gen/
 
 C_SRCS         := $(notdir $(shell find . -maxdepth 1 -name "*.c"))
