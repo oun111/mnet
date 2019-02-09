@@ -49,6 +49,8 @@ tree_map_t new_tree_map()
   entry->u.root = RB_ROOT ;
   entry->item_count = 0;
 
+  entry->pool = create_obj_pool("treemap-item-pool",-1,struct tree_map_item_s);
+
   return entry;
 }
 
@@ -60,7 +62,12 @@ __put_tree_map(tree_map_t entry, char *k, size_t kLen,
 
 
   if (!p) {
-    p = kmalloc(sizeof(struct tree_map_item_s),0L);
+    //p = kmalloc(sizeof(struct tree_map_item_s),0L);
+    p = obj_pool_alloc(entry->pool,struct tree_map_item_s);
+    if (!p) {
+      p = obj_pool_alloc_slow(entry->pool,struct tree_map_item_s);
+    }
+
     if (!p) {
       log_error("allocate new tree map item fail\n");
       return -1 ;
@@ -75,7 +82,8 @@ __put_tree_map(tree_map_t entry, char *k, size_t kLen,
 
     if (MY_RB_TREE_INSERT(&entry->u.root,p,key,node,compare)) {
       log_error("insert tree map item fail\n");
-      kfree(p);
+      //kfree(p);
+      obj_pool_free(entry->pool,p);
       return -1;
     }
 
@@ -114,7 +122,8 @@ int drop_tree_map_item_internal(tree_map_t entry, tm_item_t p)
   drop_dbuffer(p->key);
   drop_dbuffer(p->val);
 
-  kfree(p);
+  //kfree(p);
+  obj_pool_free(entry->pool,p);
 
   if (entry->item_count>0)
     entry->item_count-- ;
@@ -160,6 +169,8 @@ int release_all_tree_map_items(tree_map_t entry)
       drop_tree_map_item_internal(prt,pos);
     }
 
+    release_obj_pool(prt->pool,struct tree_map_item_s);
+
     kfree(prt);
   }
 
@@ -171,8 +182,6 @@ int release_all_tree_map_items(tree_map_t entry)
 void delete_tree_map(tree_map_t entry)
 {
   release_all_tree_map_items(entry);
-
-  //kfree(entry);
 }
 
 int get_tree_map_item_count(tree_map_t entry)
@@ -308,10 +317,6 @@ void test_tree_map()
     put_tree_map_nest(entry,k,strlen(k),map3);
 
     dump_tree_map(entry);
-
-    delete_tree_map(map2);
-    delete_tree_map(map3);
-
   }
 
   delete_tree_map(entry);

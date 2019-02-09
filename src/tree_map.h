@@ -3,6 +3,7 @@
 
 #include "rbtree.h"
 #include "dbuffer.h"
+#include "objpool.h"
 
 
 struct tree_map_item_s {
@@ -14,6 +15,8 @@ struct tree_map_item_s {
   void *nest_map;
 
   struct rb_node node ;
+
+  struct list_head pool_item ;
 } ;
 typedef struct tree_map_item_s* tm_item_t ;
 
@@ -24,6 +27,8 @@ struct tree_map_entry_s {
   } u;
 
   int item_count ;
+
+  objPool_t pool ;
 } ;
 typedef struct tree_map_entry_s* tree_map_t ;
 

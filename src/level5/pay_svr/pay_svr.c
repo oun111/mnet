@@ -356,7 +356,7 @@ int pay_svr_pre_init(int argc, char *argv[])
   if (init_config(&g_paySvrConf.m_conf,g_paySvrConf.conf_path))
     return -1;
 
-  init_backend_entry(&g_paySvrConf.m_backends);
+  init_backend_entry(&g_paySvrConf.m_backends,-1);
 
   g_paySvrConf.m_pas0 = new_pay_action_entry();
 

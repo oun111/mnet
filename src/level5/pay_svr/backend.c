@@ -31,7 +31,12 @@ backend_t create_empty_backend(backend_entry_t entry, int fd)
     return p ;
   }
 
-  p = kmalloc(sizeof(struct backend_s),0L);
+  //p = kmalloc(sizeof(struct backend_s),0L);
+  p = obj_pool_alloc(entry->pool,struct backend_s);
+  if (!p) {
+    p = obj_pool_alloc_slow(entry->pool,struct backend_s);
+  }
+
   if (!p)
     return NULL ;
 
@@ -41,7 +46,8 @@ backend_t create_empty_backend(backend_entry_t entry, int fd)
 
   if (MY_RB_TREE_INSERT(&entry->u.root,p,fd,node,compare)) {
     log_error("insert backend for fd %d fail\n",fd);
-    kfree(p);
+    //kfree(p);
+    obj_pool_free(entry->pool,p);
     return NULL;
   }
 
@@ -74,7 +80,8 @@ int drop_backend_internal(backend_entry_t entry, backend_t p)
 {
   rb_erase(&p->node,&entry->u.root);
 
-  kfree(p);
+  //kfree(p);
+  obj_pool_free(entry->pool,p);
 
   entry->num_backends --;
 
@@ -94,10 +101,12 @@ int drop_backend(backend_entry_t entry, int fd)
   return 0;
 }
 
-int init_backend_entry(backend_entry_t entry)
+int init_backend_entry(backend_entry_t entry, ssize_t pool_size)
 {
   entry->u.root = RB_ROOT ;
   entry->num_backends = 0L;
+
+  entry->pool = create_obj_pool("paysvr-backend-pool",pool_size,struct backend_s);
 
   log_debug("done!\n");
 
@@ -111,6 +120,8 @@ int release_all_backends(backend_entry_t entry)
   rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
     drop_backend_internal(entry,pos);
   }
+
+  release_obj_pool(entry->pool,struct backend_s);
 
   return 0;
 }

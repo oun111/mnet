@@ -162,8 +162,8 @@ int create_http_post_req(dbuffer_t *inb, const char *url,
            dbuffer_data_size(strParams),host);
 
   // attach whole body
-  *inb = write_dbuffer(*inb,hdr,strlen(hdr));
-  *inb = append_dbuffer(*inb,strParams,dbuffer_data_size(strParams));
+  *inb = write_dbuffer_string(*inb,hdr,strlen(hdr));
+  *inb = append_dbuffer_string(*inb,strParams,dbuffer_data_size(strParams));
 
   log_debug("post req: %s\n",*inb);
 

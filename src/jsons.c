@@ -88,23 +88,23 @@ struct jsonsPtnInfo {
 #define FUNC_TOSTR_0(__p__,__arg__) do{ \
   struct jsonsPtnInfo *ti = (struct jsonsPtnInfo*)(void*)(__arg__); \
   if (strcmp((__p__)->key,"root")) { \
-    ti->str = append_dbuffer(ti->str,(__p__)->key,strlen((__p__)->key)); \
-    ti->str = append_dbuffer(ti->str,":",1); \
+    ti->str = append_dbuffer_string(ti->str,(__p__)->key,strlen((__p__)->key)); \
+    ti->str = append_dbuffer_string(ti->str,":",1); \
   } \
   if ((__p__)->type==keyValue) {  \
-    ti->str = append_dbuffer(ti->str,(__p__)->value,strlen((__p__)->value)); \
+    ti->str = append_dbuffer_string(ti->str,(__p__)->value,strlen((__p__)->value)); \
     if (NOT_LAST_CHILD(__p__,(__p__)->parent)) \
-      ti->str = append_dbuffer(ti->str,",",1); \
+      ti->str = append_dbuffer_string(ti->str,",",1); \
   } \
   else if ((__p__)->type==keyList) \
-    ti->str = append_dbuffer(ti->str,"{",1); \
+    ti->str = append_dbuffer_string(ti->str,"{",1); \
 } while(0)
 
 #define FUNC_TOSTR_1(__p__,__arg__) do{\
   struct jsonsPtnInfo *ti = (struct jsonsPtnInfo*)(void*)(__arg__); \
-  ti->str = append_dbuffer(ti->str,"}",1); \
+  ti->str = append_dbuffer_string(ti->str,"}",1); \
   if (NOT_LAST_CHILD(__p__,(__p__)->parent)) \
-    ti->str = append_dbuffer(ti->str,",",1); \
+    ti->str = append_dbuffer_string(ti->str,",",1); \
 }while(0)
 
 
@@ -303,7 +303,7 @@ int jsons_toString(jsonKV_t *root, dbuffer_t *outb)
   jsons_pattern(root,pToStr,(void*)&ti);
 
   // XXX:
-  *outb = write_dbuffer(*outb,ti.str,strlen(ti.str));
+  *outb = write_dbuffer_string(*outb,ti.str,dbuffer_data_size(ti.str));
 
   drop_dbuffer(ti.str);
 
@@ -668,44 +668,44 @@ void test_jsons()
     tree_map_t map4 = new_tree_map();
     char *key=0, *val = 0;
 
-    key = "\"avv1\"";
-    val = "\"val1\"";
+    key = "avv1";
+    val = "val1";
     put_tree_map(tmap,key,strlen(key),val,strlen(val));
-    key = "\"ba2\"";
-    val = "\"wza\"";
+    key = "ba2";
+    val = "wza";
     put_tree_map(tmap,key,strlen(key),val,strlen(val));
-    key = "\"ca3\"";
-    val = "\"val2\"";
+    key = "ca3";
+    val = "val2";
     put_tree_map(tmap,key,strlen(key),val,strlen(val));
-    key = "\"xa3\"";
-    val = "\"ccl2\"";
+    key = "xa3";
+    val = "ccl2";
     put_tree_map(tmap,key,strlen(key),val,strlen(val));
 
-    key = "\"mp2-test1\"";
-    val = "\"vm11\"";
+    key = "mp2-test1";
+    val = "vm11";
     put_tree_map(map2,key,strlen(key),val,strlen(val));
-    key = "\"mp2-test2\"";
-    val = "\"o21\"";
+    key = "mp2-test2";
+    val = "o21";
     put_tree_map(map2,key,strlen(key),val,strlen(val));
-    key = "\"map2\"";
+    key = "map2";
     put_tree_map_nest(tmap,key,strlen(key),map2);
 
-    key = "\"cmap-test1\"";
-    val = "\"cm1\"";
+    key = "cmap-test1";
+    val = "cm1";
     put_tree_map(map3,key,strlen(key),val,strlen(val));
-    key = "\"cmap-test2\"";
-    val = "\"c21\"";
+    key = "cmap-test2";
+    val = "c21";
     put_tree_map(map3,key,strlen(key),val,strlen(val));
-    key = "\"cmap\"";
+    key = "cmap";
     put_tree_map_nest(tmap,key,strlen(key),map3);
 
-    key = "\"1submap-test0\"";
-    val = "\"sm1\"";
+    key = "1submap-test0";
+    val = "sm1";
     put_tree_map(map4,key,strlen(key),val,strlen(val));
-    key = "\"2submap-test\"";
-    val = "\"sm2\"";
+    key = "2submap-test";
+    val = "sm2";
     put_tree_map(map4,key,strlen(key),val,strlen(val));
-    key = "\"submap\"";
+    key = "submap";
     put_tree_map_nest(map2,key,strlen(key),map4);
 
 
@@ -730,11 +730,6 @@ void test_jsons()
 
     jsons_release(root);
     delete_tree_map(tmap);
-#if 0
-    delete_tree_map(map2);
-    delete_tree_map(map3);
-    delete_tree_map(map4);
-#endif
   }
 
   exit(0);

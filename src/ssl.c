@@ -52,6 +52,8 @@ void ssl_release(ssl_item_t ps)
   if (ps->ctx) {
     SSL_CTX_free(ps->ctx);
   }
+
+  kfree(ps);
 }
 
 int ssl_connect(ssl_item_t ps, int fd)

@@ -5,6 +5,7 @@
 #include "dbuffer.h"
 #include "proto.h"
 #include "pay_data.h"
+#include "objpool.h"
 
 
 struct backend_s {
@@ -15,6 +16,8 @@ struct backend_s {
   pay_data_t pd ;
 
   struct rb_node node ;
+
+  struct list_head pool_item;
 
 } __attribute__((__aligned__(64))) ;
 
@@ -27,6 +30,8 @@ struct backend_entry_s {
   } u;
 
   size_t num_backends ;
+
+  objPool_t pool ;
 } ;
 typedef struct backend_entry_s* backend_entry_t ;
 
@@ -39,7 +44,7 @@ extern int create_backend(backend_entry_t, int, connection_t, pay_data_t) ;
 
 extern int drop_backend(backend_entry_t entry, int fd);
 
-extern int init_backend_entry(backend_entry_t entry);
+extern int init_backend_entry(backend_entry_t entry,ssize_t pool_size);
 
 extern int release_all_backends(backend_entry_t entry);
 
