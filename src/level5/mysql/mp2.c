@@ -61,7 +61,7 @@ struct __attribute__((__aligned__(64))) level5_instance_s {
 
   struct session_entry_s __sessions ;
 
-  size_t max_sessions;
+  //size_t max_sessions;
 
   size_t max_backend_tasks ;
 
@@ -87,7 +87,7 @@ struct __attribute__((__aligned__(64))) level5_instance_s {
 
   .listenfd = -1,
 
-  .max_sessions = 0,
+  //.max_sessions = 0,
 
   .status = SERVER_STATUS_AUTOCOMMIT,
 
@@ -743,7 +743,7 @@ int mp2_pre_init(int argc, char *argv[])
 
   g_mpInst.max_dn_groups     = get_dn_group_count(&g_mpInst.m_conf);
 
-  g_mpInst.max_sessions      = ext_get_max_connections() ;
+  //g_mpInst.max_sessions      = ext_get_max_connections() ;
 
   log_info("done!\n");
 
@@ -1259,7 +1259,7 @@ int parse_cmd_line(int argc, char *argv[])
 
 int mp2_init(Network_t net)
 {
-  init_session_entry(&g_mpInst.__sessions,g_mpInst.max_sessions);
+  init_session_entry(&g_mpInst.__sessions,-1);
 
   register_cmd_handlers();
 
@@ -1317,7 +1317,7 @@ void mp2_dump_params()
 
   log_info("module '%s' param list: =================\n",THIS_MODULE->name);
   log_info("bound to: %s:%d\n",host,port);
-  log_info("max_sessions: %zu\n",g_mpInst.max_sessions);
+  //log_info("max_sessions: %zu\n",g_mpInst.max_sessions);
   log_info("max_backend_tasks: %zu\n",g_mpInst.max_backend_tasks);
   log_info("max_dn_groups: %zu\n",g_mpInst.max_dn_groups);
   log_info("module param list end =================\n");

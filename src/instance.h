@@ -22,7 +22,7 @@ extern int instance_stop();
 
 extern Network_t get_current_net();
 
-extern int ext_get_max_connections();
+//extern int ext_get_max_connections();
 
 
 #endif /* __INSTANCE_H__*/

@@ -6,7 +6,7 @@
 #include "log.h"
 
 
-int init_conn_pool(Network_t net, size_t pool_size)
+int init_conn_pool(Network_t net, ssize_t pool_size)
 {
   connection_t pos,n ;
 
@@ -18,6 +18,8 @@ int init_conn_pool(Network_t net, size_t pool_size)
     pos->txb = alloc_default_dbuffer();
     pos->rxb = alloc_default_dbuffer();
   }
+
+  log_info("connection pool size: %zd\n",net->pool->pool_size);
 
   return 0;
 }

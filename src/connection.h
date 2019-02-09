@@ -59,7 +59,7 @@ struct __attribute__((__aligned__(64))) Network_s {
 
 
 
-extern int init_conn_pool(Network_t net, size_t pool_size);
+extern int init_conn_pool(Network_t net, ssize_t pool_size);
 
 extern void release_conn_pool(Network_t net);
 

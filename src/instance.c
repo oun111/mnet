@@ -32,7 +32,7 @@ struct __attribute__((__aligned__(64))) main_instance_s {
 
   size_t num_workers;
 
-  size_t max_connections ;
+  //size_t max_connections ;
 
   size_t log_flush_intv ;
 
@@ -50,7 +50,7 @@ g_inst =
 {
   .num_workers    = 0,
 
-  .max_connections= 16,
+  //.max_connections= 16,
 
   .g_nets = {
     .reg_local    = register_local_protocol,
@@ -204,7 +204,7 @@ void dump_instance_params()
   log_info("main param list: =================\n");
   log_info("name: %s\n",g_inst.name);
   log_info("num_workers: %zu\n",g_inst.num_workers);
-  log_info("max_connections: %zu\n",g_inst.max_connections);
+  //log_info("max_connections: %zu\n",g_inst.max_connections);
   log_info("log_flush_intv: %zu(s)\n",g_inst.log_flush_intv);
   log_info("main param list ends =================\n");
 }
@@ -217,10 +217,12 @@ int parse_cmd_line(int argc, char *argv[])
     if (!strcmp(argv[i],"-mF")) {
       g_inst.log_flush_intv = atoi(argv[i+1]);
     }
+#if 0
     // max client connections
     else if (!strcmp(argv[i],"-mC")) {
       g_inst.max_connections = atoi(argv[i+1]);
     }
+#endif
     // max workers count
     else if (!strcmp(argv[i],"-mW")) {
       g_inst.num_workers = atoi(argv[i+1]);
@@ -301,7 +303,7 @@ int instance_start(int argc, char *argv[])
       return -1;
     }
 
-    init_conn_pool(&g_inst.g_nets,g_inst.max_connections);
+    init_conn_pool(&g_inst.g_nets,-1);
 
     g_inst.g_nets.m_efd = fd ;
 
@@ -419,10 +421,12 @@ int get_cpu_cores(void)
   return atoi(buf);
 }
 
+#if 0
 int ext_get_max_connections()
 {
   return g_inst.max_connections ;
 }
+#endif
 
 Network_t get_current_net()
 {

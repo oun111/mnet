@@ -74,7 +74,7 @@ enum cmdStat
 } ;
 
 
-extern int init_session_entry(session_entry_t, const size_t);
+extern int init_session_entry(session_entry_t, const ssize_t);
 
 extern int release_all_sessions(session_entry_t entry);
 

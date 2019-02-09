@@ -16,7 +16,7 @@ static int compare(int fd0, int fd1)
 }
 
 static
-int __session_pool_init(session_entry_t entry, size_t pool_size)
+int __session_pool_init(session_entry_t entry, ssize_t pool_size)
 {
   /* FIXME: */
   entry->pool = create_obj_pool("mp2-session-pool",pool_size,struct client_session_s);
@@ -36,7 +36,7 @@ int __session_pool_init(session_entry_t entry, size_t pool_size)
   }
 #endif
 
-  log_info("session pool size: %zu\n",pool_size);
+  log_info("session pool size: %zd\n",entry->pool->pool_size);
 
   return 0;
 }
@@ -64,7 +64,7 @@ int __session_pool_destroy(session_entry_t entry)
   return 0;
 }
 
-int init_session_entry(session_entry_t entry, const size_t pool_size)
+int init_session_entry(session_entry_t entry, const ssize_t pool_size)
 {
   entry->u.root = RB_ROOT ;
   entry->num_sessions = 0L;
