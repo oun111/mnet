@@ -133,7 +133,7 @@ struct config_s {
 typedef struct config_s* config_t ;
 
 
-extern int get_max_backend_tasks(config_t conf);
+//extern int get_max_backend_tasks(config_t conf);
 
 extern size_t get_dn_group_count(config_t conf) ;
 

@@ -63,7 +63,7 @@ struct __attribute__((__aligned__(64))) level5_instance_s {
 
   //size_t max_sessions;
 
-  size_t max_backend_tasks ;
+  //size_t max_backend_tasks ;
 
   size_t max_dn_groups ;
 
@@ -739,7 +739,7 @@ int mp2_pre_init(int argc, char *argv[])
     return -1;
   }
 
-  g_mpInst.max_backend_tasks = get_max_backend_tasks(&g_mpInst.m_conf);
+  //g_mpInst.max_backend_tasks = get_max_backend_tasks(&g_mpInst.m_conf);
 
   g_mpInst.max_dn_groups     = get_dn_group_count(&g_mpInst.m_conf);
 
@@ -1276,7 +1276,7 @@ int mp2_backend_init(Network_t net)
   int fd = 0;
 
 
-  init_task_pool(&g_mpInst.tasks,g_mpInst.max_backend_tasks);
+  init_task_pool(&g_mpInst.tasks,-1);
 
   init_backend_entry(&g_mpInst.backend);
 
@@ -1318,7 +1318,7 @@ void mp2_dump_params()
   log_info("module '%s' param list: =================\n",THIS_MODULE->name);
   log_info("bound to: %s:%d\n",host,port);
   //log_info("max_sessions: %zu\n",g_mpInst.max_sessions);
-  log_info("max_backend_tasks: %zu\n",g_mpInst.max_backend_tasks);
+  //log_info("max_backend_tasks: %zu\n",g_mpInst.max_backend_tasks);
   log_info("max_dn_groups: %zu\n",g_mpInst.max_dn_groups);
   log_info("module param list end =================\n");
 }

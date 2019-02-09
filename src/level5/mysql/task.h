@@ -45,7 +45,7 @@ typedef struct task_entry_s* task_entry_t ;
 
 
 
-extern int init_task_pool(task_entry_t entry, size_t pool_size);
+extern int init_task_pool(task_entry_t entry, ssize_t pool_size);
 
 extern void release_task_pool(task_entry_t entry);
 

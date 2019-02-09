@@ -3,7 +3,7 @@
 #include "log.h"
 
 
-int init_task_pool(task_entry_t entry, size_t pool_size)
+int init_task_pool(task_entry_t entry, ssize_t pool_size)
 {
   task_t pos,n ;
 

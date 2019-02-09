@@ -43,7 +43,7 @@ struct global_config_keywords {
   const char *idleSecs ;
   const char *bndAddrSec ;
   const char *lstnPortSec ;
-  const char *maxBkTskSec ;
+  //const char *maxBkTskSec ;
 } 
 g_confKW = {
   .dnSec       = "DataNodes",
@@ -68,7 +68,7 @@ g_confKW = {
   .idleSecs    = "IdleSeconds",
   .bndAddrSec  = "BindAddr",
   .lstnPortSec = "ListenPort",
-  .maxBkTskSec = "MaxBackendTaskCount",
+  //.maxBkTskSec = "MaxBackendTaskCount",
 } ;
 
 
@@ -697,18 +697,22 @@ int parse_global_settings(config_t conf)
     else if (!strncmp(pv,g_confKW.lstnPortSec,vl)) {
       ps->listenPort = jsons_integer(p->value);
     }
+#if 0
     else if (!strncmp(pv,g_confKW.maxBkTskSec,vl)) {
       ps->maxBkTasks = jsons_integer(p->value);
     }
+#endif
   }
 
   return 0;
 }
 
+#if 0
 int get_max_backend_tasks(config_t conf)
 {
   return conf->m_globSettings.maxBkTasks ;
 }
+#endif
 
 size_t get_dn_group_count(config_t conf) 
 {
