@@ -25,7 +25,7 @@ g_confKW = {
 } ;
 
 
-const char* get_bind_address(paySvr_config_t conf)
+const char* get_bind_address(httpSvr_config_t conf)
 {
   size_t vl= 0L ;
   jsonKV_t *pg = jsons_find(conf->m_root,g_confKW.gsSec), *p= 0;
@@ -45,7 +45,7 @@ const char* get_bind_address(paySvr_config_t conf)
   return jsons_string(p->value,&vl);
 }
 
-int get_listen_port(paySvr_config_t conf)
+int get_listen_port(httpSvr_config_t conf)
 {
   jsonKV_t *pg = jsons_find(conf->m_root,g_confKW.gsSec), *p= 0;
 
@@ -64,7 +64,7 @@ int get_listen_port(paySvr_config_t conf)
   return jsons_integer(p->value);
 }
 
-int get_notify_port(paySvr_config_t conf)
+int get_notify_port(httpSvr_config_t conf)
 {
   jsonKV_t *pg = jsons_find(conf->m_root,g_confKW.gsSec), *p= 0;
 
@@ -83,7 +83,7 @@ int get_notify_port(paySvr_config_t conf)
   return jsons_integer(p->value);
 }
 
-int init_config(paySvr_config_t conf, const char *infile)
+int init_config(httpSvr_config_t conf, const char *infile)
 {
   dbuffer_t content = NULL ;
   int err = 0;
@@ -114,7 +114,7 @@ int init_config(paySvr_config_t conf, const char *infile)
   return 0;
 }
 
-int free_config(paySvr_config_t conf)
+int free_config(httpSvr_config_t conf)
 {
   jsons_release(conf->m_root);
 

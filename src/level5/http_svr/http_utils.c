@@ -97,13 +97,13 @@ char* get_http_body_ptr(char *inb, size_t sz_in)
   return inb+szhdr ;
 }
 
-dbuffer_t create_json_params(tree_map_t pay_data)
+dbuffer_t create_json_params(tree_map_t map)
 {
   jsonKV_t *pr = 0;
   dbuffer_t strParams = 0;
 
 
-  pr = jsons_parse_tree_map(pay_data);
+  pr = jsons_parse_tree_map(map);
   strParams = alloc_default_dbuffer();
 
   jsons_toString(pr,&strParams);
@@ -112,14 +112,14 @@ dbuffer_t create_json_params(tree_map_t pay_data)
   return strParams;
 }
 
-dbuffer_t create_html_params(tree_map_t pay_data)
+dbuffer_t create_html_params(tree_map_t map)
 {
   dbuffer_t strParams = alloc_default_dbuffer();
   tm_item_t pos, n ;
   size_t ln = 0L;
 
 
-  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&pay_data->u.root,node) {
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&map->u.root,node) {
 
     // construct 'key=value'
     ln = dbuffer_data_size(pos->key); 
@@ -137,23 +137,23 @@ dbuffer_t create_html_params(tree_map_t pay_data)
 }
 
 int create_http_post_req(dbuffer_t *inb, const char *url, 
-                         int param_type, tree_map_t pay_data)
+                         int param_type, tree_map_t map)
 {
   char hdr[1024] = "";
   dbuffer_t strParams = 0;
   char host[128] = "", uri[256]="";
   const char hdrFmt[] = "GET %s HTTP/1.1\r\n"
-                        "User-Agent: pay-svr/0.1\r\n"
+                        "User-Agent: normal-svr/0.1\r\n"
                         "Content-Type: %s\r\n"
                         "Content-Length: %zu\r\n"
                         "Host: %s\r\n\r\n";
 
 
   if (param_type==pt_html) {
-    strParams = create_html_params(pay_data);
+    strParams = create_html_params(map);
   }
   else {
-    strParams = create_json_params(pay_data);
+    strParams = create_json_params(map);
   }
 
   // http header
@@ -176,7 +176,7 @@ int create_http_post_req(dbuffer_t *inb, const char *url,
 int create_http_simple_res(dbuffer_t *inb, const char *res)
 {
   const char normalHdr[] = "HTTP/1.1\r\n"
-                           "Server: pay-svr/0.1\r\n"
+                           "Server: normal-svr/0.1\r\n"
                            "Content-Type: text/html;charset=GBK\r\n"
                            "Content-Length:%zu      \r\n"
                            "Date: %s\r\n\r\n";

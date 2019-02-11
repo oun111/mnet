@@ -6,6 +6,7 @@
 #include "kernel.h"
 #include "mm_porting.h"
 #include "myrbtree.h"
+#include "config.h"
 
 
 static int compare(const char *s0, const char *s1)
@@ -180,5 +181,29 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan)
   }
 
   return NULL ;
+}
+
+int init_pay_data(pay_channels_entry_t *paych)
+{
+  tm_item_t pos,n;
+  tm_item_t pos1,n1;
+  extern httpSvr_config_t get_current_configs();
+  tree_map_t entry = get_current_configs()->chan_cfg;
+
+
+  *paych = new_pay_channels_entry();
+
+  rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
+    tree_map_t chansub = pos->nest_map ;
+
+    if (!chansub)
+      continue ;
+
+    rbtree_postorder_for_each_entry_safe(pos1,n1,&chansub->u.root,node) {
+      add_pay_data(*paych,pos->key,pos1->key,pos1->nest_map);
+    }
+  }
+
+  return 0;
 }
 

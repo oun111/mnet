@@ -2,7 +2,7 @@ FRAMEWORK_SRC := ../../
 
 include $(FRAMEWORK_SRC)/rules.mak
 
-MOD_NAME      := pay_svr
+MOD_NAME      := http_svr
 
 C_SRCS        := $(shell find ./ -name "*.c" )
 C_OBJS        := $(patsubst %.c,%.o,$(C_SRCS))
@@ -10,7 +10,7 @@ C_OBJS        := $(patsubst %.c,%.o,$(C_SRCS))
 OBJS            := $(C_OBJS)
 
 LDFLAG          :=  
-CFLAG_OBJS      := -Wall -Werror -I. -g  -fPIC -Wno-error=unused-function -Wno-error=format-truncation -DTEST_CASES=0
+CFLAG_OBJS      := -Wall -Werror -I. -I./channels/ -g  -fPIC -Wno-error=unused-function -Wno-error=format-truncation -DTEST_CASES=0
 CFLAG_OBJS      += -I$(FRAMEWORK_SRC) -I$(FRAMEWORK_SRC)/lib/ 
 TARGET_SO       := $(MOD_NAME)$(DY_MOD_EXT)
 

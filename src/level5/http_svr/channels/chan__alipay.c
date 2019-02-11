@@ -1,15 +1,17 @@
 
 #include <time.h>
 #include <string.h>
-#include "pay_action.h"
+#include "action.h"
 #include "log.h"
 #include "instance.h"
 #include "module.h"
 #include "socket.h"
 #include "ssl.h"
-#include "pay_svr.h"
+#include "config.h"
+#include "http_svr.h"
 #include "http_utils.h"
 #include "backend.h"
+#include "chan.h"
 
 
 static const char normalHdr[] = "HTTP/1.1 %s\r\n"
@@ -22,6 +24,8 @@ static const char normalHdr[] = "HTTP/1.1 %s\r\n"
 
 
 static int alipay_ssl_outbound_init(Network_t net);
+
+static struct http_action_s action__alipay_order;
 
 
 static 
@@ -63,7 +67,7 @@ int alipay_ssl_outbound_rx(Network_t net, connection_t pconn)
   }
 #endif
 
-  if ((sz_in=pay_svr_http_rx(net,pconn))>0) {
+  if ((sz_in=http_svr_rx_raw(net,pconn))>0) {
 
     backend_entry_t bentry = get_backend_entry();
     backend_t be = get_backend(bentry,pconn->fd);
@@ -96,7 +100,7 @@ void alipay_ssl_outbound_release()
 
 struct module_struct_s g_alipay_ssl_outbound_mod = {
 
-  .name = "alipay outbound",
+  .name = "pay channel alipay",
 
   .id = -1,
 
@@ -135,17 +139,24 @@ int deal_crypto(tree_map_t pay_params)
 
 static 
 int do_alipay_order(Network_t net,connection_t pconn,
-                    pay_data_t pd,tree_map_t postParams)
+                    tree_map_t postParams)
 {
   int fd = 0;
   connection_t out_conn = pconn ;
   char host[128]="", *str = 0, *url = 0;
   unsigned long addr = 0L;
-  tree_map_t pay_params = pd->pay_params ;
   tree_map_t pay_data  = NULL ;
   int param_type = 0; 
-  backend_entry_t bentry = get_backend_entry();
+  const char *payChan = action__alipay_order.channel ;
+  pay_data_t pd = get_pay_route(get_pay_channels_entry(),payChan);
+  tree_map_t pay_params = NULL ;
 
+
+  if (!pd) {
+    return -1;
+  }
+
+  pay_params = pd->pay_params ;
 
   url = get_tree_map_value(pay_params,REQ_URL,strlen(REQ_URL));
 
@@ -184,7 +195,7 @@ int do_alipay_order(Network_t net,connection_t pconn,
     out_conn = net->reg_outbound(net,fd,g_alipay_ssl_outbound_mod.id);
 
     // save backend info
-    create_backend(bentry,fd,pconn,pd);
+    create_backend(get_backend_entry(),fd,pconn,pd);
   }
 
   str  = get_tree_map_value(pay_params,PARAM_TYPE,strlen(PARAM_TYPE));
@@ -210,7 +221,7 @@ int do_alipay_order(Network_t net,connection_t pconn,
 }
 
 static
-struct pay_action_s action__alipay_order = 
+struct http_action_s action__alipay_order = 
 {
   .key = "alipay/payApi/pay",
   .channel = "alipay",
@@ -222,11 +233,11 @@ struct pay_action_s action__alipay_order =
 static
 int alipay_ssl_outbound_init(Network_t net)
 {
-  pay_action_entry_t pe = get_pay_action_entry();
-  pay_action_t pa = &action__alipay_order;
+  http_action_entry_t pe = get_http_action_entry();
+  http_action_t pa = &action__alipay_order;
   
 
-  add_pay_action(pe,pa);
+  add_http_action(pe,pa);
 
   log_info("registering '%s: %s'...\n",pa->channel,pa->action);
   return 0;

@@ -6,10 +6,15 @@
 // TODO: extra modules here
 extern struct module_struct_s g_alipay_ssl_outbound_mod ;
 
+extern struct module_struct_s g_chan_global_mod;
+
+
 
 static
 module_t g_module_list[] = 
 {
+  &g_chan_global_mod,
+
   &g_alipay_ssl_outbound_mod,
 };
 

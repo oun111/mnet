@@ -61,4 +61,6 @@ extern void delete_pay_channels_entry(pay_channels_entry_t entry);
 
 extern pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan);
 
+extern int init_pay_data(pay_channels_entry_t *paych);
+
 #endif /* __PAY_DATA_H__*/
