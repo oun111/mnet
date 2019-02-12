@@ -26,7 +26,6 @@
 
 
 
-
 struct http_svr_conf {
   char host[32];
 
@@ -443,7 +442,7 @@ void http_svr_dump_params()
   log_info("module param list end =================\n");
 }
 
-void http_svr_module_init(int argc, char *argv[])
+void __http_svr_module_init(int argc, char *argv[])
 {
   if (http_svr_pre_init(argc,argv))
     return ;
@@ -455,7 +454,8 @@ void http_svr_module_init(int argc, char *argv[])
   register_extra_modules();
 }
 
-void http_svr_module_exit()
+void __http_svr_module_exit()
 {
   http_svr_release();
 }
+

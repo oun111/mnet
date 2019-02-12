@@ -12,7 +12,7 @@ C_OBJS        := $(patsubst %.c,%.o,$(C_SRCS))
 OBJS            := $(C_OBJS)
 
 LDFLAG          :=  
-CFLAG_OBJS      := -Wall -Werror -I. -I./channels/ -I./svr/ -g  -fPIC -Wno-error=unused-function -Wno-error=format-truncation -DTEST_CASES=0
+CFLAG_OBJS      := -Wall -Werror -I. -I./channels/ -I./svr/ -g  -fPIC -Wno-error=unused-function -Wno-error=format-truncation -DTEST_CASES=0 
 CFLAG_OBJS      += -I$(FRAMEWORK_SRC) -I$(FRAMEWORK_SRC)/lib/ 
 TARGET_SO       := $(MOD_NAME)$(DY_MOD_EXT)
 
