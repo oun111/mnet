@@ -98,7 +98,7 @@ void alipay_ssl_outbound_release()
 {
 }
 
-struct module_struct_s g_alipay_ssl_outbound_mod = {
+struct module_struct_s g_alipay_mod = {
 
   .name = "pay channel alipay",
 
@@ -176,7 +176,7 @@ int do_alipay_order(Network_t net,connection_t pconn,
       if (port==-1) 
         port = 80 ;
 
-      g_alipay_ssl_outbound_mod.ssl = false ;
+      g_alipay_mod.ssl = false ;
     }
     else {
       if (port==-1)
@@ -192,7 +192,7 @@ int do_alipay_order(Network_t net,connection_t pconn,
       return -1;
     }
 
-    out_conn = net->reg_outbound(net,fd,g_alipay_ssl_outbound_mod.id);
+    out_conn = net->reg_outbound(net,fd,g_alipay_mod.id);
 
     // save backend info
     create_backend(get_backend_entry(),fd,pconn,pd);

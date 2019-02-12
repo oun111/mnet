@@ -1,16 +1,18 @@
+include rules.mk
+
 FRAMEWORK_SRC := ../../
 
 include $(FRAMEWORK_SRC)/rules.mak
 
-MOD_NAME      := http_svr
+MOD_NAME      := $(MOD_NAME)
 
-C_SRCS        := $(shell find ./ -name "*.c" )
+C_SRCS        := $(shell find ./ ./svr/ -name "*.c" )
 C_OBJS        := $(patsubst %.c,%.o,$(C_SRCS))
 
 OBJS            := $(C_OBJS)
 
 LDFLAG          :=  
-CFLAG_OBJS      := -Wall -Werror -I. -I./channels/ -g  -fPIC -Wno-error=unused-function -Wno-error=format-truncation -DTEST_CASES=0
+CFLAG_OBJS      := -Wall -Werror -I. -I./channels/ -I./svr/ -g  -fPIC -Wno-error=unused-function -Wno-error=format-truncation -DTEST_CASES=0
 CFLAG_OBJS      += -I$(FRAMEWORK_SRC) -I$(FRAMEWORK_SRC)/lib/ 
 TARGET_SO       := $(MOD_NAME)$(DY_MOD_EXT)
 
