@@ -187,8 +187,8 @@ int init_pay_data(pay_channels_entry_t *paych)
 {
   tm_item_t pos,n;
   tm_item_t pos1,n1;
-  extern httpSvr_config_t get_current_configs();
-  tree_map_t entry = get_current_configs()->chan_cfg;
+  extern paySvr_config_t get_running_configs();
+  tree_map_t entry = get_running_configs()->chan_cfg;
 
 
   *paych = new_pay_channels_entry();

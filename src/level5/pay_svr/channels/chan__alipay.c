@@ -23,7 +23,7 @@ static const char normalHdr[] = "HTTP/1.1 %s\r\n"
 
 
 
-static int alipay_ssl_outbound_init(Network_t net);
+static int alipay_init(Network_t net);
 
 static struct http_action_s action__alipay_order;
 
@@ -47,7 +47,7 @@ int do_ok(connection_t pconn)
 
 
 static
-int alipay_ssl_outbound_tx(Network_t net, connection_t pconn)
+int alipay_tx(Network_t net, connection_t pconn)
 {
   log_debug("tx: \n");
   pconn->l4opt.tx(net,pconn);
@@ -55,7 +55,7 @@ int alipay_ssl_outbound_tx(Network_t net, connection_t pconn)
 }
 
 static
-int alipay_ssl_outbound_rx(Network_t net, connection_t pconn)
+int alipay_rx(Network_t net, connection_t pconn)
 {
   ssize_t sz_in = 0L;
   dbuffer_t b = NULL;
@@ -94,7 +94,7 @@ int alipay_ssl_outbound_rx(Network_t net, connection_t pconn)
 }
 
 static
-void alipay_ssl_outbound_release()
+void alipay_release()
 {
 }
 
@@ -109,10 +109,10 @@ struct module_struct_s g_alipay_mod = {
   .ssl = true,
 
   .opts[outbound_l5] = {
-    .rx = alipay_ssl_outbound_rx,
-    .tx = alipay_ssl_outbound_tx,
-    .init = alipay_ssl_outbound_init,
-    .release = alipay_ssl_outbound_release,
+    .rx = alipay_rx,
+    .tx = alipay_tx,
+    .init = alipay_init,
+    .release = alipay_release,
   },
 };
 
@@ -214,7 +214,7 @@ int do_alipay_order(Network_t net,connection_t pconn,
   }
 
   if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
-    alipay_ssl_outbound_tx(net,out_conn);
+    alipay_tx(net,out_conn);
   }
 
   return 0;
@@ -231,7 +231,7 @@ struct http_action_s action__alipay_order =
 
 
 static
-int alipay_ssl_outbound_init(Network_t net)
+int alipay_init(Network_t net)
 {
   http_action_entry_t pe = get_http_action_entry();
   http_action_t pa = &action__alipay_order;

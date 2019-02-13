@@ -19,8 +19,6 @@
 #include "tree_map.h"
 #include "kernel.h"
 #include "myrbtree.h"
-#include "config.h"
-#include "extra_modules.h"
 #include "http_utils.h"
 #include "jsons.h"
 
@@ -34,10 +32,6 @@ struct http_svr_conf {
 
   int notify_fd ;
   int notify_port ;
-
-  char conf_path[PATH_MAX];
-
-  struct httpSvr_config_s m_conf;
 
   http_action_entry_t m_act0 ;
 
@@ -64,11 +58,6 @@ static int http_svr_init(Network_t net);
 
 static int http_svr_notify_init(Network_t net);
 
-
-httpSvr_config_t get_current_configs()
-{
-  return &g_httpSvrConf.m_conf;
-}
 
 http_action_entry_t get_http_action_entry()
 {
@@ -291,43 +280,30 @@ int http_svr_tx(Network_t net, connection_t pconn)
   return 0;
 }
 
-static
-int parse_cmd_line(int argc, char *argv[])
+static int http_svr_pre_init()
 {
-  //char *ptr = 0;
+  g_httpSvrConf.m_act0 = new_http_action_entry();
 
-  for (int i=1; i<argc; i++) {
-    if (!strcmp(argv[i],"-cp") && i+1<argc) {
-      strcpy(g_httpSvrConf.conf_path,argv[i+1]);
-    }
-    else if (!strcmp(argv[i],"-h")) {
-      printf("help message\n");
-      return 1;
-    }
+  if (g_httpSvrConf.port>0) {
+    g_httpSvrConf.fd = new_tcp_svr(__net_atoi(g_httpSvrConf.host),g_httpSvrConf.port);
   }
+
+  if (g_httpSvrConf.notify_port>0) {
+    g_httpSvrConf.notify_fd = new_tcp_svr(__net_atoi(g_httpSvrConf.host),g_httpSvrConf.notify_port);
+  }
+
   return 0;
 }
 
-int http_svr_pre_init(int argc, char *argv[])
+static
+void http_svr_save_host_info(const char *host, int listen_port,
+                             int notify_port)
 {
-  if (parse_cmd_line(argc,argv))
-    return 1;
+  g_httpSvrConf.port        = listen_port ;
 
-  if (init_config(&g_httpSvrConf.m_conf,g_httpSvrConf.conf_path))
-    return -1;
+  g_httpSvrConf.notify_port = notify_port ;
 
-  g_httpSvrConf.m_act0 = new_http_action_entry();
-
-  strcpy(g_httpSvrConf.host,get_bind_address(&g_httpSvrConf.m_conf));
-
-  g_httpSvrConf.notify_port = get_notify_port(&g_httpSvrConf.m_conf);
-  g_httpSvrConf.port        = get_listen_port(&g_httpSvrConf.m_conf);
-
-  g_httpSvrConf.fd          = new_tcp_svr(__net_atoi(g_httpSvrConf.host),g_httpSvrConf.port);
-
-  g_httpSvrConf.notify_fd   = new_tcp_svr(__net_atoi(g_httpSvrConf.host),g_httpSvrConf.notify_port);
-
-  return 0;
+  strncpy(g_httpSvrConf.host,host,sizeof(g_httpSvrConf.host));
 }
 
 static
@@ -336,8 +312,6 @@ void http_svr_release()
   close(g_httpSvrConf.fd);
 
   delete_http_action_entry(g_httpSvrConf.m_act0);
-
-  free_config(&g_httpSvrConf.m_conf);
 }
 
 static
@@ -442,19 +416,20 @@ void http_svr_dump_params()
   log_info("module param list end =================\n");
 }
 
-void __http_svr_module_init(int argc, char *argv[])
+void __http_svr_entry(const char *host, int port, int notify_port)
 {
-  if (http_svr_pre_init(argc,argv))
+  http_svr_save_host_info(host,port,notify_port);
+
+  if (http_svr_pre_init())
     return ;
 
   http_svr_dump_params();
 
   register_module(&g_module);
   register_module(&g_notify_module);
-  register_extra_modules();
 }
 
-void __http_svr_module_exit()
+void __http_svr_exit()
 {
   http_svr_release();
 }
