@@ -538,6 +538,7 @@ jsonKV_t* jsons_parse_tree_map(tree_map_t entry)
 
     b1stItem = false ;
     MY_RBTREE_SORTORDER_REMAINING_ENTRIES(pos,n,m_root,node) {
+
       if (pos->nest_map) {
 
         sstack_push(&stk_s,js_root);
@@ -557,8 +558,14 @@ jsonKV_t* jsons_parse_tree_map(tree_map_t entry)
       jstr = create_jsons_string(jstr,pos->key);
       pj = attach_parent(js_root,jstr,keyValue);
 
-      jstr = create_jsons_string(jstr,pos->val);
-      strncpy(pj->value,jstr,strlen(jstr));
+      // integer
+      if (pos->val[0]=='$') {
+        jstr = write_dbuffer_string(jstr,pos->val+1,strlen(pos->val)-1);
+      }
+      else {
+        jstr = create_jsons_string(jstr,pos->val);
+      }
+      pj->value = write_dbuffer(pj->value,jstr,strlen(jstr));
     }
 
     if (!b1stItem) {

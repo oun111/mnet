@@ -15,12 +15,29 @@
           "public_key":"123456",
           "private_key":"123456"
         },
+        "pay_biz_content": {
+          "body":"a",
+          "subject":"b",
+          "out_trade_no":"0010",
+          "total_amount":"0",
+          "product_code":"QUICK_WAP_PAY",
+          "timeout_express":"30m"
+        },
         "pay_data": {
           "app_id" : "123",
           "method" : "alipay.trade.wap.pay",
-          "format" : "JSON"
+          "format" : "JSON",
+          "charset": "utf-8",
+          "sign_type": "RSA2",
+          "timestamp": "",
+          "version": "1.0",
+          "biz_content": "",
+          "notify_url": "https://127.0.0.1/notify/xxx",
+          "return_url": "http://127.0.0.1/return/index",
+          "sign": ""
         }
       },
+      /*
       "m1" : {
         "req_url": "http://www.163.com:443/test1",
         "param_type": "json",
@@ -34,6 +51,7 @@
           "format" : "JSON"
         }
       }
+      */
     },
 
     "wxpay": {

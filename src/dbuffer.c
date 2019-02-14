@@ -197,6 +197,7 @@ dbuffer_t write_dbuffer_string(dbuffer_t b, char *in, size_t inlen)
     return NULL ;
 
   b[inlen] = '\0';
+  //b = append_dbuffer(b,"\0",1);
 
   return b;
 }
@@ -213,6 +214,7 @@ dbuffer_t append_dbuffer_string(dbuffer_t b, char *in, size_t inlen)
 
   total = dbuffer_data_size(b);
   b[total] = '\0';
+  //b = append_dbuffer(b,"\0",1);
 
   return b;
 }

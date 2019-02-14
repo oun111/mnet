@@ -105,6 +105,9 @@ dbuffer_t create_json_params(tree_map_t map)
 
   pr = jsons_parse_tree_map(map);
   strParams = alloc_default_dbuffer();
+  dump_tree_map(map);
+  printf("xxxxxxx\n");
+  jsons_dump(pr);
 
   jsons_toString(pr,&strParams);
   jsons_release(pr);
@@ -162,9 +165,10 @@ int create_http_post_req(dbuffer_t *inb, const char *url,
            dbuffer_data_size(strParams),host);
 
   // attach whole body
-  *inb = write_dbuffer_string(*inb,hdr,strlen(hdr));
+  *inb = write_dbuffer(*inb,hdr,strlen(hdr));
   *inb = append_dbuffer_string(*inb,strParams,dbuffer_data_size(strParams));
 
+  printf("strParams: %s\n",strParams);
   log_debug("post req: %s\n",*inb);
 
 

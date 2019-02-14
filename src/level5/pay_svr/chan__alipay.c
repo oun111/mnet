@@ -138,8 +138,76 @@ int deal_crypto(tree_map_t pay_params)
 }
 
 static 
-int do_alipay_order(Network_t net,connection_t pconn,
-                    tree_map_t postParams)
+int update_alipay_biz(tree_map_t userParams, tree_map_t pay_params)
+{
+  tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA,strlen(PAY_DATA));
+  tree_map_t biz_content = get_tree_map_nest(pay_params,"pay_biz_content",strlen("pay_biz_content"));
+  time_t curr = time(NULL);
+  struct tm *tm = localtime(&curr);
+  char tb[96] = "";
+  char *body = 0, *subject = 0, *out_trade_no = 0, *amount=0;
+
+
+  if (!biz_content) {
+    log_error("no 'biz_content' found\n");
+    return -1;
+  }
+
+  body = get_tree_map_value(userParams,"body",4);
+  if (!body) {
+    log_error("no 'body' given\n");
+    return -1;
+  }
+
+  subject = get_tree_map_value(userParams,"subject",strlen("subject"));
+  if (!body) {
+    log_error("no 'subject' given\n");
+    return -1;
+  }
+
+  out_trade_no = get_tree_map_value(userParams,"out_trade_no",strlen("out_trade_no"));
+  if (!body) {
+    log_error("no 'out_trade_no' given\n");
+    return -1;
+  }
+
+  amount = get_tree_map_value(userParams,"total_amount",strlen("total_amount"));
+  if (!body) {
+    log_error("no 'amount' given\n");
+    return -1;
+  }
+
+  snprintf(tb,96,"%d-%d-%d %d:%d:%d",tm->tm_year+1900,tm->tm_mon+1,
+           tm->tm_mday,tm->tm_hour,tm->tm_min,tm->tm_sec);
+  put_tree_map(pay_data,"timestamp",strlen("timestamp"),tb,strlen(tb));
+
+  put_tree_map(biz_content,"body",strlen("body"),body,strlen(body));
+  put_tree_map(biz_content,"subject",strlen("subject"),subject,strlen(subject));
+  put_tree_map(biz_content,"out_trade_no",strlen("out_trade_no"),out_trade_no,strlen(out_trade_no));
+
+  // $ express an integer
+  snprintf(tb,96,"$%s",amount);
+  put_tree_map(biz_content,"total_amount",strlen("total_amount"),tb,strlen(tb));
+
+
+  jsonKV_t *pr = jsons_parse_tree_map(biz_content);
+  dbuffer_t strBiz = alloc_default_dbuffer();
+
+  jsons_toString(pr,&strBiz);
+
+  put_tree_map(pay_data,"biz_content",strlen("biz_content"),strBiz,strlen(strBiz));
+
+  // deals with cryptographic
+  deal_crypto(pay_params);
+
+  jsons_release(pr);
+  drop_dbuffer(strBiz);
+
+  return 0;
+}
+
+static 
+int do_alipay_order(Network_t net,connection_t pconn,tree_map_t userParams)
 {
   int fd = 0;
   connection_t out_conn = pconn ;
@@ -203,8 +271,8 @@ int do_alipay_order(Network_t net,connection_t pconn,
     param_type = !strcmp(str,"html")?pt_html:pt_json;
   }
 
-  // deals with cryptographic
-  deal_crypto(pay_params);
+  //
+  update_alipay_biz(userParams,pay_params);
 
   // construct pay request
   pay_data = get_tree_map_nest(pay_params,PAY_DATA,strlen(PAY_DATA));
