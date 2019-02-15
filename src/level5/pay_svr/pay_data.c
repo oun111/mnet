@@ -176,7 +176,7 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan)
 
   // TODO: get best pay route
   list_for_each_entry(pos,&pc->pay_data_list,upper) {
-    if (!(pos->weight%2))
+    if (1|| !(pos->weight%2))
       return pos ;
   }
 

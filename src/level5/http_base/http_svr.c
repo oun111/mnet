@@ -430,8 +430,8 @@ void __http_svr_entry(const char *host, int port, int notify_port)
 
 #if 0
   {
-    extern void test_base64();
-    test_base64();
+    extern void test_crypto();
+    test_crypto();
   }
 #endif
 }

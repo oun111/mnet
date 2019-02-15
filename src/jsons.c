@@ -295,7 +295,7 @@ int jsons_release(jsonKV_t *root)
 
 int jsons_toString(jsonKV_t *root, dbuffer_t *outb)
 {
-  struct jsonsPtnInfo ti = {NULL};
+  struct jsonsPtnInfo ti ;
 
 
   ti.str = alloc_default_dbuffer();

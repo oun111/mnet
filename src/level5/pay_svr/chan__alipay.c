@@ -137,7 +137,7 @@ int deal_crypto(tree_map_t pay_params)
     return 1;
   }
 
-  privkeypath= get_tree_map_value(crypto_map,PRIVKEY,strlen(PRIVKEY));
+  privkeypath = get_tree_map_value(crypto_map,PRIVKEY,strlen(PRIVKEY));
 
   sign_params = create_html_params(pay_data);
   log_debug("sign string: %s, size: %zu\n",sign_params,strlen(sign_params));
@@ -163,7 +163,6 @@ __done:
 
   if (sign)
     free(sign);
-
   return ret;
 }
 
@@ -224,7 +223,7 @@ int update_alipay_biz(tree_map_t userParams, tree_map_t pay_params)
   dbuffer_t strBiz = alloc_default_dbuffer();
 
   jsons_toString(pr,&strBiz);
-  put_tree_map(pay_data,"biz_content",strlen("biz_content"),strBiz,strlen(strBiz));
+  put_tree_map(pay_data,"biz_content",strlen("biz_content"),strBiz,dbuffer_data_size(strBiz));
 
   jsons_release(pr);
   drop_dbuffer(strBiz);
