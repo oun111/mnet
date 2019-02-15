@@ -29,4 +29,6 @@ extern int create_http_simple_res(dbuffer_t *inb, const char *res);
 extern int parse_http_url(const char *url, char *host, size_t szhost,
                           int *port, char *uri, size_t szuri, bool *is_ssl);
 
+extern dbuffer_t create_html_params(tree_map_t map);
+
 #endif /* __HTTP_UTILS_H__*/

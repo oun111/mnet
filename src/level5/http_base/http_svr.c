@@ -427,6 +427,13 @@ void __http_svr_entry(const char *host, int port, int notify_port)
 
   register_module(&g_module);
   register_module(&g_notify_module);
+
+#if 0
+  {
+    extern void test_base64();
+    test_base64();
+  }
+#endif
 }
 
 void __http_svr_exit()

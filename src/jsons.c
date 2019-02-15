@@ -565,7 +565,7 @@ jsonKV_t* jsons_parse_tree_map(tree_map_t entry)
       else {
         jstr = create_jsons_string(jstr,pos->val);
       }
-      pj->value = write_dbuffer(pj->value,jstr,strlen(jstr));
+      pj->value = write_dbuffer_string(pj->value,jstr,strlen(jstr));
     }
 
     if (!b1stItem) {

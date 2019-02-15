@@ -11,8 +11,8 @@ int main(int argc, char *argv[])
   instance_start(argc,argv);
 #else
   {
-    extern void test_jsons();
-    test_jsons();
+    extern void test_crypto();
+    test_crypto();
   }
 #endif
 

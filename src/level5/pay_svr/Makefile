@@ -5,6 +5,7 @@ include $(FRAMEWORK_SRC)/rules.mak
 MOD_NAME      := pay_svr
 
 HTTP_BASE := ../http_base/
+HTTP_BASE_LIB := libhb
 
 C_SRCS        := $(shell find ./ -name "*.c" )
 C_OBJS        := $(patsubst %.c,%.o,$(C_SRCS))
@@ -17,11 +18,16 @@ CFLAG_OBJS      += -I$(FRAMEWORK_SRC) -I$(FRAMEWORK_SRC)/lib/
 TARGET_SO       := $(MOD_NAME)$(DY_MOD_EXT)
 
 
+
 .PHONY: all
 all: $(TARGET_SO) 
 
-$(TARGET_SO):$(OBJS)
+$(TARGET_SO):$(HTTP_BASE_LIB) $(OBJS) 
 	$(CC) $(OBJS) $(LDFLAG) -shared -o $@
+
+$(HTTP_BASE_LIB):
+	make -C $(HTTP_BASE) 
+	rm -f $(TARGET_SO) 
 
 $(C_OBJS):%.o:%.c
 	$(CC) $(CFLAG_OBJS) -c $< -o $@

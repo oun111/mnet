@@ -105,9 +105,6 @@ dbuffer_t create_json_params(tree_map_t map)
 
   pr = jsons_parse_tree_map(map);
   strParams = alloc_default_dbuffer();
-  dump_tree_map(map);
-  printf("xxxxxxx\n");
-  jsons_dump(pr);
 
   jsons_toString(pr,&strParams);
   jsons_release(pr);
@@ -122,7 +119,10 @@ dbuffer_t create_html_params(tree_map_t map)
   size_t ln = 0L;
 
 
-  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&map->u.root,node) {
+  MY_RBTREE_SORTORDER_FOR_EACH_ENTRY_SAFE(pos,n,&map->u.root,node) {
+
+    if (dbuffer_data_size(pos->val)==0L)
+      continue ;
 
     // construct 'key=value'
     ln = dbuffer_data_size(pos->key); 
@@ -168,9 +168,7 @@ int create_http_post_req(dbuffer_t *inb, const char *url,
   *inb = write_dbuffer(*inb,hdr,strlen(hdr));
   *inb = append_dbuffer_string(*inb,strParams,dbuffer_data_size(strParams));
 
-  printf("strParams: %s\n",strParams);
   log_debug("post req: %s\n",*inb);
-
 
   drop_dbuffer(strParams);
 

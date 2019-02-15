@@ -9,17 +9,17 @@
 
     "alipay": {
       "m0" : {
-        "req_url": "https://www.163.com",
-        "param_type": "json",
+        "req_url": "https://openapi.alipay.com/gateway.do",
+        "param_type": "html",
         "crypto": {
-          "public_key":"123456",
-          "private_key":"123456"
+          "public_key":"/home/user1/work/mnet/conf/rsa_public_key.pem",
+          "private_key":"/home/user1/work/mnet/conf/rsa_private_key.pem"
         },
-        "pay_biz_content": {
-          "body":"a",
-          "subject":"b",
-          "out_trade_no":"0010",
-          "total_amount":"0",
+        "pay_biz": {
+          "body":"",
+          "subject":"",
+          "out_trade_no":"",
+          "total_amount":0,
           "product_code":"QUICK_WAP_PAY",
           "timeout_express":"30m"
         },

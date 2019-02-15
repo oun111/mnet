@@ -12,6 +12,8 @@
 #include "http_utils.h"
 #include "backend.h"
 #include "chan.h"
+#include "crypto.h"
+#include "base64.h"
 
 
 static const char normalHdr[] = "HTTP/1.1 %s\r\n"
@@ -121,35 +123,63 @@ static
 int deal_crypto(tree_map_t pay_params)
 {
   tree_map_t crypto_map = get_tree_map_nest(pay_params,CRYPTO,strlen(CRYPTO));
-  char *privkey = 0, *pubkey = 0;
+  tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA,strlen(PAY_DATA));
+  char *privkeypath = 0;
+  dbuffer_t sign_params = 0; 
+  unsigned char *sign = 0;
+  unsigned int sz_out = 0;
+  unsigned char *final_res = 0;
+  int sz_res = 0;
+  int ret = 0;
 
 
   if (!crypto_map) {
     return 1;
   }
 
-  pubkey = get_tree_map_value(crypto_map,PUBKEY,strlen(PUBKEY));
-  privkey= get_tree_map_value(crypto_map,PRIVKEY,strlen(PRIVKEY));
+  privkeypath= get_tree_map_value(crypto_map,PRIVKEY,strlen(PRIVKEY));
 
-  printf("public key: %s, private key: %s\n",pubkey,privkey);
+  sign_params = create_html_params(pay_data);
+  log_debug("sign string: %s, size: %zu\n",sign_params,strlen(sign_params));
 
+  if (rsa_private_sign(privkeypath,sign_params,&sign,&sz_out)<0) {
+    ret = -1;
+    goto __done;
+  }
 
-  return 0;
+  sz_res = sz_out<<2 ;
+  final_res = alloca(sz_res);
+
+  if (base64_encode(sign,sz_out,final_res,&sz_res)<0) {
+    log_error("base64 error\n");
+    ret = -1;
+    goto __done;
+  }
+
+  put_tree_map(pay_data,"sign",4,(char*)final_res,sz_res);
+
+__done:
+  drop_dbuffer(sign_params);
+
+  if (sign)
+    free(sign);
+
+  return ret;
 }
 
 static 
 int update_alipay_biz(tree_map_t userParams, tree_map_t pay_params)
 {
   tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA,strlen(PAY_DATA));
-  tree_map_t biz_content = get_tree_map_nest(pay_params,"pay_biz_content",strlen("pay_biz_content"));
+  tree_map_t pay_biz = get_tree_map_nest(pay_params,"pay_biz",strlen("pay_biz"));
   time_t curr = time(NULL);
   struct tm *tm = localtime(&curr);
   char tb[96] = "";
   char *body = 0, *subject = 0, *out_trade_no = 0, *amount=0;
 
 
-  if (!biz_content) {
-    log_error("no 'biz_content' found\n");
+  if (!pay_biz) {
+    log_error("no 'pay_biz' found\n");
     return -1;
   }
 
@@ -181,27 +211,28 @@ int update_alipay_biz(tree_map_t userParams, tree_map_t pay_params)
            tm->tm_mday,tm->tm_hour,tm->tm_min,tm->tm_sec);
   put_tree_map(pay_data,"timestamp",strlen("timestamp"),tb,strlen(tb));
 
-  put_tree_map(biz_content,"body",strlen("body"),body,strlen(body));
-  put_tree_map(biz_content,"subject",strlen("subject"),subject,strlen(subject));
-  put_tree_map(biz_content,"out_trade_no",strlen("out_trade_no"),out_trade_no,strlen(out_trade_no));
+  put_tree_map(pay_biz,"body",strlen("body"),body,strlen(body));
+  put_tree_map(pay_biz,"subject",strlen("subject"),subject,strlen(subject));
+  put_tree_map(pay_biz,"out_trade_no",strlen("out_trade_no"),out_trade_no,strlen(out_trade_no));
 
   // $ express an integer
   snprintf(tb,96,"$%s",amount);
-  put_tree_map(biz_content,"total_amount",strlen("total_amount"),tb,strlen(tb));
+  put_tree_map(pay_biz,"total_amount",strlen("total_amount"),tb,strlen(tb));
 
 
-  jsonKV_t *pr = jsons_parse_tree_map(biz_content);
+  jsonKV_t *pr = jsons_parse_tree_map(pay_biz);
   dbuffer_t strBiz = alloc_default_dbuffer();
 
   jsons_toString(pr,&strBiz);
-
   put_tree_map(pay_data,"biz_content",strlen("biz_content"),strBiz,strlen(strBiz));
-
-  // deals with cryptographic
-  deal_crypto(pay_params);
 
   jsons_release(pr);
   drop_dbuffer(strBiz);
+
+  // deals with cryptographic
+  if (deal_crypto(pay_params)<0) {
+    return -1;
+  }
 
   return 0;
 }
