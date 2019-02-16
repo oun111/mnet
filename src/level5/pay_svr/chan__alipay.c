@@ -16,14 +16,6 @@
 #include "base64.h"
 
 
-static const char normalHdr[] = "HTTP/1.1 %s\r\n"
-                         "Server: pay-svr/0.1\r\n"
-                         //"Content-Type: text/html;charset=GBK\r\n"
-                         "Content-Type: text/json;charset=GBK\r\n"
-                         "Content-Length:%zu      \r\n"
-                         "Date: %s\r\n\r\n";
-
-
 
 static int alipay_init(Network_t net);
 
@@ -34,15 +26,8 @@ static
 int do_ok(connection_t pconn)
 {
   const char *bodyPage = "{\"status\":\"success\"}\r\n" ;
-  char hdr[256] = "";
-  time_t t = time(NULL);
-  char tb[64];
 
-  ctime_r(&t,tb);
-  snprintf(hdr,256,normalHdr,"200",strlen(bodyPage),tb);
-
-  pconn->txb = write_dbuffer(pconn->txb,hdr,strlen(hdr));
-  pconn->txb = append_dbuffer(pconn->txb,(char*)bodyPage,strlen(bodyPage));
+  create_http_normal_res(&pconn->txb,pt_json,bodyPage);
 
   return 0;
 }
@@ -51,7 +36,6 @@ int do_ok(connection_t pconn)
 static
 int alipay_tx(Network_t net, connection_t pconn)
 {
-  log_debug("tx: \n");
   pconn->l4opt.tx(net,pconn);
   return 0;
 }
@@ -137,11 +121,13 @@ int deal_crypto(tree_map_t pay_params)
     return 1;
   }
 
-  privkeypath = get_tree_map_value(crypto_map,PRIVKEY,strlen(PRIVKEY));
+  // reset 'sign' field
+  put_tree_map(pay_data,"sign",4,(char*)"",0);
 
   sign_params = create_html_params(pay_data);
-  log_debug("sign string: %s, size: %zu\n",sign_params,strlen(sign_params));
+  //log_debug("sign string: %s, size: %zu\n",sign_params,strlen(sign_params));
 
+  privkeypath = get_tree_map_value(crypto_map,PRIVKEY,strlen(PRIVKEY));
   if (rsa_private_sign(privkeypath,sign_params,&sign,&sz_out)<0) {
     ret = -1;
     goto __done;
@@ -236,13 +222,83 @@ int update_alipay_biz(tree_map_t userParams, tree_map_t pay_params)
   return 0;
 }
 
+//static 
+connection_t 
+do_out_connect(Network_t net, connection_t peer_conn, 
+               const char *url, pay_data_t pd)
+{
+  bool is_ssl = true ;
+  int port = -1, fd = 0 ;
+  char host[128] = "";
+  unsigned long addr = 0L;
+  connection_t out_conn = NULL;
+
+
+  parse_http_url(url,host,128,&port,NULL,0L,&is_ssl);
+  //printf("url: %s, isssl: %d, host: %s, port: %d\n",url,is_ssl,host,port);
+
+  // just 'http' connection
+  if (!(is_ssl || port==443)) {
+
+    if (port==-1) 
+      port = 80 ;
+
+    g_alipay_mod.ssl = false ;
+  }
+  else {
+    if (port==-1)
+      port = 443 ;
+  }
+
+  addr = hostname_to_uladdr(host) ;
+
+  // connect to server 
+  fd = new_tcp_client(addr,port);
+
+  if (fd<0) {
+    return NULL;
+  }
+
+  out_conn = net->reg_outbound(net,fd,g_alipay_mod.id);
+
+  // save backend info
+  create_backend(get_backend_entry(),fd,peer_conn,pd);
+
+  return out_conn;
+}
+
+static
+int create_alipay_link(connection_t out_conn, const char *url, tree_map_t pay_data)
+{
+  dbuffer_t wholeUrl = alloc_default_dbuffer();
+  dbuffer_t strParams = create_html_params(pay_data);
+  size_t sz_res = 0L;
+  dbuffer_t resbody = 0;
+
+
+  wholeUrl = write_dbuffer(wholeUrl,(char*)url,strlen(url));
+  wholeUrl = append_dbuffer(wholeUrl,"?",1);
+  wholeUrl = append_dbuffer_string(wholeUrl,strParams,strlen(strParams));
+
+  sz_res = strlen(wholeUrl)+strlen(strParams)+20;
+  resbody = alloc_dbuffer(sz_res);
+
+  snprintf(resbody,sz_res,"{\"location\":\"%s\"}",wholeUrl);
+
+  create_http_normal_res(&out_conn->txb,pt_json,resbody);
+
+  drop_dbuffer(wholeUrl);
+  drop_dbuffer(strParams);
+  drop_dbuffer(resbody);
+  
+  return 0;
+}
+
 static 
 int do_alipay_order(Network_t net,connection_t pconn,tree_map_t userParams)
 {
-  int fd = 0;
   connection_t out_conn = pconn ;
-  char host[128]="", *str = 0, *url = 0;
-  unsigned long addr = 0L;
+  char *str = 0, *url = 0;
   tree_map_t pay_data  = NULL ;
   int param_type = 0; 
   const char *payChan = action__alipay_order.channel ;
@@ -251,55 +307,26 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t userParams)
 
 
   if (!pd) {
+    log_error("no pay data for channel '%s'\n",payChan);
     return -1;
   }
 
   pay_params = pd->pay_params ;
-
   url = get_tree_map_value(pay_params,REQ_URL,strlen(REQ_URL));
 
-  // connect to remote host
-  if (url) {
-
-    bool is_ssl = true ;
-    int port = -1 ;
-
-
-    parse_http_url(url,host,128,&port,NULL,0L,&is_ssl);
-    //printf("url: %s, isssl: %d, host: %s, port: %d\n",url,is_ssl,host,port);
-
-    // just 'http' connection
-    if (!(is_ssl || port==443)) {
-
-      if (port==-1) 
-        port = 80 ;
-
-      g_alipay_mod.ssl = false ;
-    }
-    else {
-      if (port==-1)
-        port = 443 ;
-    }
-
-    addr = hostname_to_uladdr(host) ;
-
-    // connect to server 
-    fd = new_tcp_client(addr,port);
-
-    if (fd<0) {
-      return -1;
-    }
-
-    out_conn = net->reg_outbound(net,fd,g_alipay_mod.id);
-
-    // save backend info
-    create_backend(get_backend_entry(),fd,pconn,pd);
+  if (!url) {
+    log_error("no 'url' configs\n");
+    return -1;
   }
 
-  str  = get_tree_map_value(pay_params,PARAM_TYPE,strlen(PARAM_TYPE));
-  if (str) {
-    param_type = !strcmp(str,"html")?pt_html:pt_json;
+#if 0
+  // connect to remote host if needed
+  out_conn = do_out_connect(net,pconn,url,pd);
+  if (!out_conn) {
+    log_error("connect to '%s' fail\n",url);
+    return -1;
   }
+#endif
 
   //
   update_alipay_biz(userParams,pay_params);
@@ -307,9 +334,20 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t userParams)
   // construct pay request
   pay_data = get_tree_map_nest(pay_params,PAY_DATA,strlen(PAY_DATA));
 
-  if (create_http_post_req(&out_conn->txb,url,param_type,pay_data)) {
+#if 1
+  str  = get_tree_map_value(pay_params,PARAM_TYPE,strlen(PARAM_TYPE));
+  if (str) {
+    param_type = !strcmp(str,"html")?pt_html:pt_json;
+  }
+
+  if (create_browser_redirect_req(&out_conn->txb,url,param_type,pay_data)) {
     return -1;
   }
+#else
+  if (create_alipay_link(out_conn,url,pay_data)) {
+    return -1;
+  }
+#endif
 
   if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
     alipay_tx(net,out_conn);

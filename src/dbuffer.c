@@ -165,7 +165,8 @@ dbuffer_t write_dbuffer(dbuffer_t b, void *in, size_t inlen)
     h = newh;
   }
 
-  memcpy(b,in,inlen);
+  if (inlen>0)
+    memcpy(b,in,inlen);
   h->rp = 0;
   h->wp = inlen ;
 

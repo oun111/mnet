@@ -69,7 +69,7 @@ int http_svr_do_error(connection_t pconn)
 {
   const char *bodyPage = "{ \"status\":\"error\" }\r\n" ;
 
-  create_http_simple_res(&pconn->txb,bodyPage);
+  create_http_normal_res(&pconn->txb,pt_json,bodyPage);
   return 0;
 }
 

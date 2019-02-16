@@ -126,17 +126,116 @@ dbuffer_t create_html_params(tree_map_t map)
 
     // construct 'key=value'
     ln = dbuffer_data_size(pos->key); 
-    strParams = append_dbuffer(strParams,pos->key,ln);
+    strParams = append_dbuffer_string(strParams,pos->key,ln);
 
-    strParams = append_dbuffer(strParams,"=",1);
+    strParams = append_dbuffer_string(strParams,"=",1);
 
     ln = dbuffer_data_size(pos->val); 
-    strParams = append_dbuffer(strParams,pos->val,ln);
+    strParams = append_dbuffer_string(strParams,pos->val,ln);
 
-    strParams = append_dbuffer(strParams,"&",1);
+    strParams = append_dbuffer_string(strParams,"&",1);
   }
 
   return strParams ;
+}
+
+int create_http_normal_res(dbuffer_t *inb, int type, const char *strParams)
+{
+  char *hdr = 0;
+  size_t sz_hdr = 0L;
+  const char hdrFmt[] = "HTTP/1.1 %d\r\n"
+                         "Content-Type: %s\r\n"
+                         "Content-Length:%zu\r\n\r\n";
+
+
+  sz_hdr = sizeof(hdrFmt)+strlen(strParams)+10;
+  hdr = alloca(sz_hdr);
+
+  snprintf(hdr,sz_hdr,hdrFmt,200,type==pt_html?"text/html":"text/json",
+           strlen(strParams));
+
+  // attach whole body
+  *inb = write_dbuffer_string(*inb,hdr,strlen(hdr));
+  *inb = append_dbuffer_string(*inb,(char*)strParams,strlen(strParams));
+
+  log_debug("normal res: %s\n",*inb);
+
+  return 0;
+}
+
+int create_browser_redirect_req(dbuffer_t *inb, const char *url, 
+                             int param_type, tree_map_t map)
+{
+  char *hdr = 0;
+  size_t sz_hdr = 0L;
+  dbuffer_t strParams = 0;
+  const char *body = "success";
+  const char hdrFmt[] = "HTTP/1.1 302 \r\n"
+                        "Content-Length: %zu\r\n"
+                        "Location: %s?%s \r\n\r\n";
+
+
+  if (param_type==pt_html) {
+    strParams = create_html_params(map);
+  }
+  else {
+    strParams = create_json_params(map);
+  }
+
+
+  sz_hdr = sizeof(hdrFmt)+strlen(strParams)+strlen(url);
+  hdr = alloca(sz_hdr);
+
+  snprintf(hdr,sz_hdr,hdrFmt,strlen(body),url,strParams);
+
+  // attach whole body
+  *inb = write_dbuffer_string(*inb,hdr,strlen(hdr));
+  *inb = append_dbuffer_string(*inb,(char*)body,strlen(body));
+
+  log_debug("REDIRECT req: %s\n",*inb);
+
+  drop_dbuffer(strParams);
+
+  return 0;
+}
+
+int create_http_get_req(dbuffer_t *inb, const char *url, 
+                        int param_type, tree_map_t map)
+{
+  char *hdr = 0;
+  size_t sz_hdr = 0L;
+  dbuffer_t strParams = 0;
+  char host[128] = "", uri[256]="";
+  const char hdrFmt[] = "GET %s?%s HTTP/1.1\r\n"
+                        "Host: %s\r\n"
+                        "User-Agent: normal-svr/0.1\r\n"
+                        "Content-Type: %s\r\n\r\n";
+
+
+  if (param_type==pt_html) {
+    strParams = create_html_params(map);
+  }
+  else {
+    strParams = create_json_params(map);
+  }
+
+  // http header
+  parse_http_url(url,host,128,NULL,uri,256,NULL);
+
+  sz_hdr = sizeof(hdrFmt)+strlen(strParams)+strlen(uri)+strlen(host);
+  hdr = alloca(sz_hdr);
+
+  snprintf(hdr,sz_hdr,hdrFmt,uri,strParams,host,
+           param_type==pt_html?"text/html":"text/json");
+
+  // attach whole body
+  *inb = write_dbuffer_string(*inb,hdr,strlen(hdr));
+
+  log_debug("GET req: %s\n",*inb);
+
+  drop_dbuffer(strParams);
+
+  return 0;
 }
 
 int create_http_post_req(dbuffer_t *inb, const char *url, 
@@ -168,30 +267,9 @@ int create_http_post_req(dbuffer_t *inb, const char *url,
   *inb = write_dbuffer(*inb,hdr,strlen(hdr));
   *inb = append_dbuffer_string(*inb,strParams,dbuffer_data_size(strParams));
 
-  log_debug("post req: %s\n",*inb);
+  log_debug("POST req: %s\n",*inb);
 
   drop_dbuffer(strParams);
-
-  return 0;
-}
-
-int create_http_simple_res(dbuffer_t *inb, const char *res)
-{
-  const char normalHdr[] = "HTTP/1.1\r\n"
-                           "Server: normal-svr/0.1\r\n"
-                           "Content-Type: text/html;charset=GBK\r\n"
-                           "Content-Length:%zu      \r\n"
-                           "Date: %s\r\n\r\n";
-  char hdr[256] = "";
-  time_t t = time(NULL);
-  char tb[64];
-
-
-  ctime_r(&t,tb);
-  snprintf(hdr,sizeof(hdr),normalHdr,strlen(res),tb);
-
-  *inb = write_dbuffer(*inb,hdr,strlen(hdr));
-  *inb = append_dbuffer(*inb,(char*)res,strlen(res));
 
   return 0;
 }
