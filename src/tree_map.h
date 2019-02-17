@@ -38,13 +38,15 @@ extern tree_map_t new_tree_map();
 
 extern void delete_tree_map(tree_map_t entry);
 
-extern dbuffer_t get_tree_map_value(tree_map_t entry, char *k, size_t kLen);
+extern dbuffer_t get_tree_map_value(tree_map_t entry, char *k);
 
-extern tree_map_t get_tree_map_nest(tree_map_t entry, char *k, size_t kLen);
+extern tree_map_t get_tree_map_nest(tree_map_t entry, char *k);
 
 extern int put_tree_map(tree_map_t entry, char *k, size_t kLen, char *v, size_t vLen);
 
 extern int put_tree_map_nest(tree_map_t entry, char *k, size_t kLen, void *nest_map);
+
+extern int put_tree_map_string(tree_map_t entry, char *k, char *v);
 
 extern int drop_tree_map_item(tree_map_t entry, char *k, size_t kLen);
 

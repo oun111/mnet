@@ -14,14 +14,14 @@ int url_encode(char *inb, size_t sz_in, dbuffer_t *outb)
     unsigned char c = inb[i] ;
 
     if (c==' ') {
-      *outb = append_dbuffer_string(*outb,"+",1);
+      append_dbuf_str(*outb,"+");
     }
     else if ((c < '0' && c != '-' && c != '.') ||
       (c < 'A' && c > '9') ||
       (c > 'Z' && c < 'a' && c != '_') ||
       (c > 'z')) 
     {
-      *outb = append_dbuffer_string(*outb,"%",1);
+      append_dbuf_str(*outb,"%");
       *outb = append_dbuffer_string(*outb,(char*)&hex[c>>4],1);
       *outb = append_dbuffer_string(*outb,(char*)&hex[c&15],1);
     }

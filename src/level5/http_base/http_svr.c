@@ -40,16 +40,6 @@ struct http_svr_conf {
   .port = 4321,
   .fd = -1,
   .notify_fd = -1,
-
-};
-
-
-static struct http_svr_keywords_t {
-  const char *channel ;
-
-} g_httpSvrKeywords = {
-  .channel = "channel",
-
 };
 
 
@@ -122,21 +112,21 @@ int process_param_list(Network_t net, connection_t pconn,
 
 
   uri_to_map(kvlist,strlen(kvlist),map);
-  chan = get_tree_map_value(map,(char*)g_httpSvrKeywords.channel,
-                               strlen(g_httpSvrKeywords.channel));
+  chan = get_tree_map_value(map,"channel");
   if (!chan) {
-    log_error("no '%s' param found\n",g_httpSvrKeywords.channel);
-    goto __end;
+    log_info("no '%s' param found\n","channel");
+    snprintf(key,256,"%s",action);
   }
-
-  // construct the 'key'
-  snprintf(key,256,"%s/%s",chan,action);
+  else {
+    // construct the 'key'
+    snprintf(key,256,"%s/%s",chan,action);
+  }
 
   if ((pos=get_http_action(g_httpSvrConf.m_act0,key))) {
     ret = pos->cb(net,pconn,map);
   }
 
-__end:
+//__end:
   delete_tree_map(map);
 
   return ret;
@@ -156,8 +146,11 @@ int http_svr_do_get(Network_t net, connection_t pconn,
    */
   ln = sizeof(action);
   if (get_http_hdr_field_str(req,sz_in,"/","?",action,&ln)==-1) {
-    log_error("get action fail!");
-    return -1;
+
+    if (get_http_hdr_field_str(req,sz_in,"/"," ",action,&ln)==-1) {
+      log_error("found no action\n");
+      return -1;
+    }
   }
 
   log_debug("action: %s\n",action);
@@ -167,8 +160,8 @@ int http_svr_do_get(Network_t net, connection_t pconn,
    */
   ln = sizeof(body);
   if (get_http_hdr_field_str(req,sz_in,"?"," ",body,&ln)==-1) {
-    log_error("get body fail!");
-    return -1;
+    log_info("found no body\n");
+    //return -1;
   }
 
   log_debug("values: %s\n",body);
@@ -334,70 +327,12 @@ struct module_struct_s g_module = {
 } ;
 
 
-static 
-void http_svr_notify_release()
-{
-}
-
-static 
-int http_svr_notify_rx(Network_t net, connection_t pconn)
-{
-  size_t datalen = dbuffer_data_size(pconn->rxb);
-  dbuffer_t next = dbuffer_ptr(pconn->rxb,0);
-
-
-  if (datalen==0L)
-    return 0;
-
-  http_svr_do_error(pconn);
-  pconn->l5opt.tx(net,pconn);
-
-  log_debug("content: %s(%ld)\n",next,datalen);
-  dbuffer_lseek(pconn->rxb,datalen,SEEK_CUR,0);
-
-  return 0;
-}
-
-static 
-int http_svr_notify_tx(Network_t net, connection_t pconn)
-{
-  pconn->l4opt.tx(net,pconn);
-  return 0;
-}
-
-static 
-struct module_struct_s g_notify_module = {
-
-  .name = "http server notify",
-
-  .id = -1,
-
-  .dyn_handle = NULL,
-
-  .ssl = false,
-
-  .opts[inbound_l5] = {
-    .rx = http_svr_notify_rx,
-    .tx = http_svr_notify_tx,
-    .init = http_svr_notify_init,
-    .release = http_svr_notify_release,
-  },
-};
-
-static 
-int http_svr_notify_init(Network_t net)
-{
-  net->reg_local(net,g_httpSvrConf.notify_fd,g_notify_module.id);
-
-  log_info("done!\n");
-  return 0;
-}
-
-
 static
 int http_svr_init(Network_t net)
 {
   net->reg_local(net,g_httpSvrConf.fd,THIS_MODULE->id);
+
+  net->reg_local(net,g_httpSvrConf.notify_fd,THIS_MODULE->id);
 
   log_info("done!\n");
 
@@ -426,7 +361,6 @@ void __http_svr_entry(const char *host, int port, int notify_port)
   http_svr_dump_params();
 
   register_module(&g_module);
-  register_module(&g_notify_module);
 
 #if 0
   {

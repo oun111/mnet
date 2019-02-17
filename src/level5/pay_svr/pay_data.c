@@ -51,16 +51,13 @@ pay_channels_entry_t new_pay_channels_entry()
 
 pay_channel_t new_pay_channel(const char *chan)
 {
-  size_t vl = 0L;
   char *pv  = NULL;
   pay_channel_t pc = kmalloc(sizeof(struct pay_channel_item_s),0L);
 
 
   pv = (char*)chan ;
-  vl = strlen(chan);
   pc->channel = alloc_default_dbuffer();
-  pc->channel = write_dbuffer_string(pc->channel,pv,vl);
-  //pc->channel[vl] = '\0';
+  write_dbuf_str(pc->channel,pv);
   INIT_LIST_HEAD(&pc->pay_data_list);
 
   return pc ;
@@ -71,7 +68,6 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
              const char *subname, tree_map_t params)
 {
   char *pv = 0;
-  size_t ln = 0L ;
   pay_channel_t pc = get_pay_channel(entry,chan);
   pay_data_t p = NULL;
 
@@ -104,9 +100,7 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
   }
 
   pv = (char*)subname ;
-  ln = strlen(subname);
-  p->subname= write_dbuffer_string(p->subname,pv,ln);
-  //p->subname[ln] = '\0';
+  write_dbuf_str(p->subname,pv);
 
   return p;
 }

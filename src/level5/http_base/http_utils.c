@@ -37,6 +37,11 @@ int get_http_hdr_field_str(char *inb, size_t sz_in, const char *field,
   }
 
   fend = strstr(pf,endstr);
+  if (!fend) {
+    log_error("cant find field ending '%s'\n",endstr);
+    return -1;
+  }
+
   vlen = fend-pf-strlen(field) ;
   if (vlen>*sz_out) {
     log_error("res size %zu > %zu\n",vlen,*sz_out);
@@ -116,7 +121,7 @@ dbuffer_t create_html_params(tree_map_t map)
 {
   dbuffer_t strParams = alloc_default_dbuffer();
   tm_item_t pos, n ;
-  size_t ln = 0L;
+  //size_t ln = 0L;
 
 
   MY_RBTREE_SORTORDER_FOR_EACH_ENTRY_SAFE(pos,n,&map->u.root,node) {
@@ -125,15 +130,10 @@ dbuffer_t create_html_params(tree_map_t map)
       continue ;
 
     // construct 'key=value'
-    ln = dbuffer_data_size(pos->key); 
-    strParams = append_dbuffer_string(strParams,pos->key,ln);
-
-    strParams = append_dbuffer_string(strParams,"=",1);
-
-    ln = dbuffer_data_size(pos->val); 
-    strParams = append_dbuffer_string(strParams,pos->val,ln);
-
-    strParams = append_dbuffer_string(strParams,"&",1);
+    append_dbuf_str(strParams,pos->key);
+    append_dbuf_str(strParams,"=");
+    append_dbuf_str(strParams,pos->val);
+    append_dbuf_str(strParams,"&");
   }
 
   return strParams ;
@@ -155,8 +155,8 @@ int create_http_normal_res(dbuffer_t *inb, int type, const char *strParams)
            strlen(strParams));
 
   // attach whole body
-  *inb = write_dbuffer_string(*inb,hdr,strlen(hdr));
-  *inb = append_dbuffer_string(*inb,(char*)strParams,strlen(strParams));
+  write_dbuf_str(*inb,hdr);
+  append_dbuf_str(*inb,strParams);
 
   log_debug("normal res: %s\n",*inb);
 
@@ -189,8 +189,8 @@ int create_browser_redirect_req(dbuffer_t *inb, const char *url,
   snprintf(hdr,sz_hdr,hdrFmt,strlen(body),url,strParams);
 
   // attach whole body
-  *inb = write_dbuffer_string(*inb,hdr,strlen(hdr));
-  *inb = append_dbuffer_string(*inb,(char*)body,strlen(body));
+  write_dbuf_str(*inb,hdr);
+  append_dbuf_str(*inb,body);
 
   log_debug("REDIRECT req: %s\n",*inb);
 
@@ -229,7 +229,7 @@ int create_http_get_req(dbuffer_t *inb, const char *url,
            param_type==pt_html?"text/html":"text/json");
 
   // attach whole body
-  *inb = write_dbuffer_string(*inb,hdr,strlen(hdr));
+  write_dbuf_str(*inb,hdr);
 
   log_debug("GET req: %s\n",*inb);
 
@@ -264,8 +264,8 @@ int create_http_post_req(dbuffer_t *inb, const char *url,
            dbuffer_data_size(strParams),host);
 
   // attach whole body
-  *inb = write_dbuffer(*inb,hdr,strlen(hdr));
-  *inb = append_dbuffer_string(*inb,strParams,dbuffer_data_size(strParams));
+  write_dbuf_str(*inb,hdr);
+  append_dbuf_str(*inb,strParams);
 
   log_debug("POST req: %s\n",*inb);
 

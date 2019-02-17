@@ -88,23 +88,23 @@ struct jsonsPtnInfo {
 #define FUNC_TOSTR_0(__p__,__arg__) do{ \
   struct jsonsPtnInfo *ti = (struct jsonsPtnInfo*)(void*)(__arg__); \
   if (strcmp((__p__)->key,"root")) { \
-    ti->str = append_dbuffer_string(ti->str,(__p__)->key,strlen((__p__)->key)); \
-    ti->str = append_dbuffer_string(ti->str,":",1); \
+    append_dbuf_str(ti->str,(__p__)->key); \
+    append_dbuf_str(ti->str,":"); \
   } \
   if ((__p__)->type==keyValue) {  \
-    ti->str = append_dbuffer_string(ti->str,(__p__)->value,strlen((__p__)->value)); \
+    append_dbuf_str(ti->str,(__p__)->value); \
     if (NOT_LAST_CHILD(__p__,(__p__)->parent)) \
-      ti->str = append_dbuffer_string(ti->str,",",1); \
+      append_dbuf_str(ti->str,","); \
   } \
   else if ((__p__)->type==keyList) \
-    ti->str = append_dbuffer_string(ti->str,"{",1); \
+    append_dbuf_str(ti->str,"{"); \
 } while(0)
 
 #define FUNC_TOSTR_1(__p__,__arg__) do{\
   struct jsonsPtnInfo *ti = (struct jsonsPtnInfo*)(void*)(__arg__); \
-  ti->str = append_dbuffer_string(ti->str,"}",1); \
+  append_dbuf_str(ti->str,"}"); \
   if (NOT_LAST_CHILD(__p__,(__p__)->parent)) \
-    ti->str = append_dbuffer_string(ti->str,",",1); \
+    append_dbuf_str(ti->str,","); \
 }while(0)
 
 
@@ -154,7 +154,7 @@ jsonKV_t* new_node(char *key)
   node->key  = alloc_default_dbuffer();
   node->value= alloc_default_dbuffer();
 
-  node->key = write_dbuffer_string(node->key,key,strlen(key));
+  write_dbuf_str(node->key,key);
 
   return node ;
 }
@@ -303,7 +303,7 @@ int jsons_toString(jsonKV_t *root, dbuffer_t *outb)
   jsons_pattern(root,pToStr,(void*)&ti);
 
   // XXX:
-  *outb = write_dbuffer_string(*outb,ti.str,dbuffer_data_size(ti.str));
+  write_dbuf_str(*outb,ti.str);
 
   drop_dbuffer(ti.str);
 
@@ -342,13 +342,7 @@ int jsons_lex_read(char *s, dbuffer_t *tkn, int pos)
   /* get a symbol */
   if (s[p]=='{' || s[p]=='}' || s[p]=='[' ||
      s[p]==']' || s[p]==':' || s[p]==',') {
-#if 0
-    *tkn = s[p] ;
-    tkn[1] = '\0';
-#else
     *tkn = write_dbuffer_string(*tkn,&s[p],1);
-    //*tkn = append_dbuffer(*tkn,"\0",1);
-#endif
     return p+1 ;
   }
   /* 
@@ -359,18 +353,9 @@ int jsons_lex_read(char *s, dbuffer_t *tkn, int pos)
     for (++p,p0=p;p<strlen(s)&&s[p]!=endc;p++);
     if (p>=strlen(s))
       return p;
-#if 0
-    sz = (p-p0)>MAX_VAL_LEN?(MAX_VAL_LEN-1):(p-p0);
-    tkn[0] = endc;
-    strncpy(tkn+1,s+p0,sz);
-    tkn[sz+1] = endc;
-    tkn[sz+2] = '\0';
-#else
     *tkn = write_dbuffer(*tkn,&endc,1);
     *tkn = append_dbuffer(*tkn,s+p0,(p-p0));
     *tkn = append_dbuffer_string(*tkn,&endc,1);
-    //*tkn = append_dbuffer(*tkn,"\0",1);
-#endif
     return p+1 ;
   }
   /* 
@@ -381,14 +366,7 @@ int jsons_lex_read(char *s, dbuffer_t *tkn, int pos)
          &&s[p]!='}'&&!isspace(s[p]);p++);
     if (p>=strlen(s))
       return p;
-#if 0
-    sz = (p-p0)>MAX_VAL_LEN?(MAX_VAL_LEN-1):(p-p0);
-    strncpy(tkn,s+p0,sz);
-    tkn[sz] = '\0';
-#else
     *tkn = write_dbuffer_string(*tkn,s+p0,(p-p0));
-    //*tkn = append_dbuffer(*tkn,"\0",1);
-#endif
     return p+1 ;
   }
 
@@ -465,7 +443,7 @@ jsonKV_t* jsons_parse(char *s)
         if (bEval) {
           p = (jsonKV_t*)sstack_top(&stk);
           sstack_pop(&stk);
-          p->value = write_dbuffer_string(p->value,tkn,strlen(tkn));
+          write_dbuf_str(p->value,tkn);
           p->type  = keyValue ;
         } else {
           /* it's a key */
@@ -507,9 +485,9 @@ jsonKV_t* attach_parent(jsonKV_t *parent, const char *key, int nodeType)
 static
 dbuffer_t create_jsons_string(dbuffer_t jstr, const char *s)
 {
-  jstr = write_dbuffer(jstr,"\"",1);
-  jstr = append_dbuffer(jstr,(char*)s,strlen(s));
-  jstr = append_dbuffer_string(jstr,"\"",1);
+  write_dbuf_str(jstr,"\"");
+  append_dbuf_str(jstr,s);
+  append_dbuf_str(jstr,"\"");
 
   return jstr;
 }
@@ -565,7 +543,7 @@ jsonKV_t* jsons_parse_tree_map(tree_map_t entry)
       else {
         jstr = create_jsons_string(jstr,pos->val);
       }
-      pj->value = write_dbuffer_string(pj->value,jstr,strlen(jstr));
+      write_dbuf_str(pj->value,jstr);
     }
 
     if (!b1stItem) {
@@ -677,41 +655,41 @@ void test_jsons()
 
     key = "avv1";
     val = "val1";
-    put_tree_map(tmap,key,strlen(key),val,strlen(val));
+    put_tree_map_string(tmap,key,val);
     key = "ba2";
     val = "wza";
-    put_tree_map(tmap,key,strlen(key),val,strlen(val));
+    put_tree_map_string(tmap,key,val);
     key = "ca3";
     val = "val2";
-    put_tree_map(tmap,key,strlen(key),val,strlen(val));
+    put_tree_map_string(tmap,key,val);
     key = "xa3";
     val = "ccl2";
-    put_tree_map(tmap,key,strlen(key),val,strlen(val));
+    put_tree_map_string(tmap,key,val);
 
     key = "mp2-test1";
     val = "vm11";
-    put_tree_map(map2,key,strlen(key),val,strlen(val));
+    put_tree_map_string(map2,key,val);
     key = "mp2-test2";
     val = "o21";
-    put_tree_map(map2,key,strlen(key),val,strlen(val));
+    put_tree_map_string(map2,key,val);
     key = "map2";
     put_tree_map_nest(tmap,key,strlen(key),map2);
 
     key = "cmap-test1";
     val = "cm1";
-    put_tree_map(map3,key,strlen(key),val,strlen(val));
+    put_tree_map_string(map3,key,val);
     key = "cmap-test2";
     val = "c21";
-    put_tree_map(map3,key,strlen(key),val,strlen(val));
+    put_tree_map_string(map3,key,val);
     key = "cmap";
     put_tree_map_nest(tmap,key,strlen(key),map3);
 
     key = "1submap-test0";
     val = "sm1";
-    put_tree_map(map4,key,strlen(key),val,strlen(val));
+    put_tree_map_string(map4,key,val);
     key = "2submap-test";
     val = "sm2";
-    put_tree_map(map4,key,strlen(key),val,strlen(val));
+    put_tree_map_string(map4,key,val);
     key = "submap";
     put_tree_map_nest(map2,key,strlen(key),map4);
 

@@ -27,14 +27,14 @@ tm_item_t get_tree_map(tree_map_t entry, const char *k)
 }
 
 
-dbuffer_t get_tree_map_value(tree_map_t entry, char *k, size_t kLen)
+dbuffer_t get_tree_map_value(tree_map_t entry, char *k)
 {
   tm_item_t p = get_tree_map(entry,k);
 
   return p?p->val:NULL;
 }
 
-tree_map_t get_tree_map_nest(tree_map_t entry, char *k, size_t kLen)
+tree_map_t get_tree_map_nest(tree_map_t entry, char *k)
 {
   tm_item_t p = get_tree_map(entry,k);
 
@@ -62,7 +62,6 @@ __put_tree_map(tree_map_t entry, char *k, size_t kLen,
 
 
   if (!p) {
-    //p = kmalloc(sizeof(struct tree_map_item_s),0L);
     p = obj_pool_alloc(entry->pool,struct tree_map_item_s);
     if (!p) {
       p = obj_pool_alloc_slow(entry->pool,struct tree_map_item_s);
@@ -78,11 +77,9 @@ __put_tree_map(tree_map_t entry, char *k, size_t kLen,
     p->nest_map = NULL ;
 
     p->key= write_dbuffer_string(p->key,k,kLen);
-    //p->key[kLen] = '\0';
 
     if (MY_RB_TREE_INSERT(&entry->u.root,p,key,node,compare)) {
       log_error("insert tree map item fail\n");
-      //kfree(p);
       obj_pool_free(entry->pool,p);
       return -1;
     }
@@ -96,10 +93,14 @@ __put_tree_map(tree_map_t entry, char *k, size_t kLen,
   }
   else {
     p->val= write_dbuffer_string(p->val,v,vLen);
-    //p->val[vLen] = '\0';
   }
 
   return 0;
+}
+
+int put_tree_map_string(tree_map_t entry, char *k, char *v)
+{
+  return put_tree_map(entry,k,strlen(k),v,strlen(v));
 }
 
 int put_tree_map(tree_map_t entry, char *k, size_t kLen, 
@@ -253,33 +254,33 @@ void test_tree_map()
   // test put
   char *k = "base1";
   char *v = "val1";
-  put_tree_map(entry,k,strlen(k),v,strlen(v));
+  put_tree_map_string(entry,k,v);
   k = "mch_id";
   v = "ll002";
-  put_tree_map(entry,k,strlen(k),v,strlen(v));
+  put_tree_map_string(entry,k,v);
   k = "arch";
   v = "x86";
-  put_tree_map(entry,k,strlen(k),v,strlen(v));
+  put_tree_map_string(entry,k,v);
   k = "99level";
   v = "up";
-  put_tree_map(entry,k,strlen(k),v,strlen(v));
+  put_tree_map_string(entry,k,v);
   k = "weight";
   v = "130g";
-  put_tree_map(entry,k,strlen(k),v,strlen(v));
+  put_tree_map_string(entry,k,v);
   k = "version";
   v = "v001";
-  put_tree_map(entry,k,strlen(k),v,strlen(v));
+  put_tree_map_string(entry,k,v);
   k = "req1";
   v = "ual2";
-  put_tree_map(entry,k,strlen(k),v,strlen(v));
+  put_tree_map_string(entry,k,v);
 
   // test get
   k = "req1";
-  printf("get: key %s -> %s\n",k,get_tree_map_value(entry,k,strlen(k)));
+  printf("get: key %s -> %s\n",k,get_tree_map_value(entry,k));
   k = "version";
-  printf("get: key %s -> %s\n",k,get_tree_map_value(entry,k,strlen(k)));
+  printf("get: key %s -> %s\n",k,get_tree_map_value(entry,k));
   k = "reqp1";
-  printf("get: key %s -> %s\n",k,get_tree_map_value(entry,k,strlen(k)));
+  printf("get: key %s -> %s\n",k,get_tree_map_value(entry,k));
 
   // test iteration
   tm_item_t pos,n;
@@ -300,19 +301,19 @@ void test_tree_map()
 
     k = "mp2-1";
     v = "v001";
-    put_tree_map(map2,k,strlen(k),v,strlen(v));
+    put_tree_map_string(map2,k,v);
     k = "mp2-2";
     v = "ual2";
-    put_tree_map(map2,k,strlen(k),v,strlen(v));
+    put_tree_map_string(map2,k,v);
     k = "map2";
     put_tree_map_nest(entry,k,strlen(k),map2);
 
     k = "test_mpp3-1";
     v = "v011";
-    put_tree_map(map3,k,strlen(k),v,strlen(v));
+    put_tree_map_string(map3,k,v);
     k = "test_mpp3-2";
     v = "ua12";
-    put_tree_map(map3,k,strlen(k),v,strlen(v));
+    put_tree_map_string(map3,k,v);
     k = "test-map3";
     put_tree_map_nest(entry,k,strlen(k),map3);
 

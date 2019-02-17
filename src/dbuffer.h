@@ -40,4 +40,12 @@ extern dbuffer_t write_dbuffer_string(dbuffer_t b, char *in, size_t inlen);
 extern dbuffer_t append_dbuffer_string(dbuffer_t b, char *in, size_t inlen);
 
 
+#define write_dbuf_str(dbuf,s) ({ \
+  dbuf = write_dbuffer_string(dbuf,(char*)s,strlen(s)); \
+})
+
+#define append_dbuf_str(dbuf,s) ({ \
+  dbuf = append_dbuffer_string(dbuf,(char*)s,strlen(s)); \
+})
+
 #endif /* __DBUFFER_H__*/

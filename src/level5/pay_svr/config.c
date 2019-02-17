@@ -102,8 +102,7 @@ int init_config(paySvr_config_t conf, const char *infile)
 
   if (cc) {
     tree_map_t tm = jsons_to_treemap(cc);
-    tree_map_t tm_chan = get_tree_map_nest(tm,(char*)g_confKW.channels,
-                                           strlen(g_confKW.channels));
+    tree_map_t tm_chan = get_tree_map_nest(tm,(char*)g_confKW.channels);
 
     if (tm_chan) {
       conf->chan_cfg = tm_chan;

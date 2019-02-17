@@ -41,7 +41,6 @@ add_http_action(http_action_entry_t entry, http_action_t pact)
 {
   http_action_t p = get_http_action(entry,pact->key);
   char *pv = 0;
-  //size_t ln = 0L ;
 
 
   if (!p) {
@@ -56,9 +55,7 @@ add_http_action(http_action_entry_t entry, http_action_t pact)
     p->channel = alloc_default_dbuffer();
 
     pv = pact->key ;
-    //ln = strlen(pact->key);
-    p->key= write_dbuffer_string(p->key,pv,strlen(pact->key));
-    //p->key[ln] = '\0';
+    write_dbuf_str(p->key,pv);
 
     if (MY_RB_TREE_INSERT(&entry->u.root,p,key,node,compare)) {
       log_error("insert tree map item fail\n");
@@ -70,16 +67,14 @@ add_http_action(http_action_entry_t entry, http_action_t pact)
   }
 
   pv = pact->action ;
-  //ln = strlen(pact->action);
-  p->action= write_dbuffer_string(p->action,pv,strlen(pact->key));
-  //p->action[ln] = '\0';
+  write_dbuf_str(p->action,pv);
 
   pv = pact->channel ;
-  //ln = strlen(pact->channel);
-  p->channel= write_dbuffer_string(p->channel,pv,strlen(pact->key));
-  //p->channel[ln] = '\0';
+  write_dbuf_str(p->channel,pv);
 
   p->cb = pact->cb;
+
+  log_info("registering action '%s: %s'...\n",pact->channel,pact->action);
 
   return 0;
 }

@@ -16,6 +16,8 @@
 #include "base64.h"
 
 
+#define ALIPAY_DBG  0
+
 
 static int alipay_init(Network_t net);
 
@@ -31,7 +33,6 @@ int do_ok(connection_t pconn)
 
   return 0;
 }
-
 
 static
 int alipay_tx(Network_t net, connection_t pconn)
@@ -106,8 +107,8 @@ struct module_struct_s g_alipay_mod = {
 static
 int deal_crypto(tree_map_t pay_params)
 {
-  tree_map_t crypto_map = get_tree_map_nest(pay_params,CRYPTO,strlen(CRYPTO));
-  tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA,strlen(PAY_DATA));
+  tree_map_t crypto_map = get_tree_map_nest(pay_params,CRYPTO);
+  tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA);
   char *privkeypath = 0;
   dbuffer_t sign_params = 0; 
   unsigned char *sign = 0;
@@ -122,12 +123,12 @@ int deal_crypto(tree_map_t pay_params)
   }
 
   // reset 'sign' field
-  put_tree_map(pay_data,"sign",4,(char*)"",0);
+  put_tree_map_string(pay_data,"sign",(char*)"");
 
   sign_params = create_html_params(pay_data);
   //log_debug("sign string: %s, size: %zu\n",sign_params,strlen(sign_params));
 
-  privkeypath = get_tree_map_value(crypto_map,PRIVKEY,strlen(PRIVKEY));
+  privkeypath = get_tree_map_value(crypto_map,PRIVKEY);
   if (rsa_private_sign(privkeypath,sign_params,&sign,&sz_out)<0) {
     ret = -1;
     goto __done;
@@ -142,7 +143,7 @@ int deal_crypto(tree_map_t pay_params)
     goto __done;
   }
 
-  put_tree_map(pay_data,"sign",4,(char*)final_res,sz_res);
+  put_tree_map_string(pay_data,"sign",(char*)final_res);
 
 __done:
   drop_dbuffer(sign_params);
@@ -155,8 +156,8 @@ __done:
 static 
 int update_alipay_biz(tree_map_t userParams, tree_map_t pay_params)
 {
-  tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA,strlen(PAY_DATA));
-  tree_map_t pay_biz = get_tree_map_nest(pay_params,"pay_biz",strlen("pay_biz"));
+  tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA);
+  tree_map_t pay_biz = get_tree_map_nest(pay_params,"pay_biz");
   time_t curr = time(NULL);
   struct tm *tm = localtime(&curr);
   char tb[96] = "";
@@ -168,48 +169,49 @@ int update_alipay_biz(tree_map_t userParams, tree_map_t pay_params)
     return -1;
   }
 
-  body = get_tree_map_value(userParams,"body",4);
+  body = get_tree_map_value(userParams,"body");
   if (!body) {
     log_error("no 'body' given\n");
     return -1;
   }
 
-  subject = get_tree_map_value(userParams,"subject",strlen("subject"));
+  subject = get_tree_map_value(userParams,"subject");
   if (!body) {
     log_error("no 'subject' given\n");
     return -1;
   }
 
-  out_trade_no = get_tree_map_value(userParams,"out_trade_no",strlen("out_trade_no"));
+  out_trade_no = get_tree_map_value(userParams,"out_trade_no");
   if (!body) {
     log_error("no 'out_trade_no' given\n");
     return -1;
   }
 
-  amount = get_tree_map_value(userParams,"total_amount",strlen("total_amount"));
+  amount = get_tree_map_value(userParams,"total_amount");
   if (!body) {
     log_error("no 'amount' given\n");
     return -1;
   }
 
-  snprintf(tb,96,"%d-%d-%d %d:%d:%d",tm->tm_year+1900,tm->tm_mon+1,
-           tm->tm_mday,tm->tm_hour,tm->tm_min,tm->tm_sec);
-  put_tree_map(pay_data,"timestamp",strlen("timestamp"),tb,strlen(tb));
+  snprintf(tb,96,"%d-%d-%d %d:%d:%d",tm->tm_year+1900,
+           tm->tm_mon+1,tm->tm_mday,tm->tm_hour,tm->tm_min,
+           tm->tm_sec);
+  put_tree_map_string(pay_data,"timestamp",tb);
 
-  put_tree_map(pay_biz,"body",strlen("body"),body,strlen(body));
-  put_tree_map(pay_biz,"subject",strlen("subject"),subject,strlen(subject));
-  put_tree_map(pay_biz,"out_trade_no",strlen("out_trade_no"),out_trade_no,strlen(out_trade_no));
+  put_tree_map_string(pay_biz,"body",body);
+  put_tree_map_string(pay_biz,"subject",subject);
+  put_tree_map_string(pay_biz,"out_trade_no",out_trade_no);
 
   // $ express an integer
   snprintf(tb,96,"$%s",amount);
-  put_tree_map(pay_biz,"total_amount",strlen("total_amount"),tb,strlen(tb));
+  put_tree_map_string(pay_biz,"total_amount",tb);
 
 
   jsonKV_t *pr = jsons_parse_tree_map(pay_biz);
   dbuffer_t strBiz = alloc_default_dbuffer();
 
   jsons_toString(pr,&strBiz);
-  put_tree_map(pay_data,"biz_content",strlen("biz_content"),strBiz,dbuffer_data_size(strBiz));
+  put_tree_map_string(pay_data,"biz_content",strBiz);
 
   jsons_release(pr);
   drop_dbuffer(strBiz);
@@ -276,14 +278,14 @@ int create_alipay_link(connection_t out_conn, const char *url, tree_map_t pay_da
   dbuffer_t resbody = 0;
 
 
-  wholeUrl = write_dbuffer(wholeUrl,(char*)url,strlen(url));
-  wholeUrl = append_dbuffer(wholeUrl,"?",1);
-  wholeUrl = append_dbuffer_string(wholeUrl,strParams,strlen(strParams));
+  write_dbuf_str(wholeUrl,url);
+  append_dbuf_str(wholeUrl,"?");
+  append_dbuf_str(wholeUrl,strParams);
 
   sz_res = strlen(wholeUrl)+strlen(strParams)+20;
   resbody = alloc_dbuffer(sz_res);
 
-  snprintf(resbody,sz_res,"{\"location\":\"%s\"}",wholeUrl);
+  snprintf(resbody,sz_res,"{\"location\":\"%s\",\"status\":0}",wholeUrl);
 
   create_http_normal_res(&out_conn->txb,pt_json,resbody);
 
@@ -297,10 +299,9 @@ int create_alipay_link(connection_t out_conn, const char *url, tree_map_t pay_da
 static 
 int do_alipay_order(Network_t net,connection_t pconn,tree_map_t userParams)
 {
+  char *url = 0;
   connection_t out_conn = pconn ;
-  char *str = 0, *url = 0;
   tree_map_t pay_data  = NULL ;
-  int param_type = 0; 
   const char *payChan = action__alipay_order.channel ;
   pay_data_t pd = get_pay_route(get_pay_channels_entry(),payChan);
   tree_map_t pay_params = NULL ;
@@ -312,7 +313,7 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t userParams)
   }
 
   pay_params = pd->pay_params ;
-  url = get_tree_map_value(pay_params,REQ_URL,strlen(REQ_URL));
+  url = get_tree_map_value(pay_params,REQ_URL);
 
   if (!url) {
     log_error("no 'url' configs\n");
@@ -331,11 +332,12 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t userParams)
   //
   update_alipay_biz(userParams,pay_params);
 
-  // construct pay request
-  pay_data = get_tree_map_nest(pay_params,PAY_DATA,strlen(PAY_DATA));
+  pay_data = get_tree_map_nest(pay_params,PAY_DATA);
 
-#if 1
-  str  = get_tree_map_value(pay_params,PARAM_TYPE,strlen(PARAM_TYPE));
+#if ALIPAY_DBG==1
+  int param_type = 0;
+  char *str = get_tree_map_value(pay_params,PARAM_TYPE);
+
   if (str) {
     param_type = !strcmp(str,"html")?pt_html:pt_json;
   }
@@ -356,6 +358,18 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t userParams)
   return 0;
 }
 
+
+static 
+int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t userParams)
+{
+  const char *dummy_res = "{\"status\":\"ok\"}";
+
+  create_http_normal_res(&pconn->txb,pt_json,dummy_res);
+  log_debug("returns dummy res\n");
+
+  return 0;
+}
+
 static
 struct http_action_s action__alipay_order = 
 {
@@ -365,17 +379,25 @@ struct http_action_s action__alipay_order =
   .cb      = do_alipay_order,
 } ;
 
+static
+struct http_action_s action__alipay_notify = 
+{
+  .key = "alipay/notify",
+  .channel = "alipay",
+  .action  = "notify",
+  .cb      = do_alipay_notify,
+} ;
+
 
 static
 int alipay_init(Network_t net)
 {
   http_action_entry_t pe = get_http_action_entry();
-  http_action_t pa = &action__alipay_order;
   
 
-  add_http_action(pe,pa);
+  add_http_action(pe,&action__alipay_order);
+  add_http_action(pe,&action__alipay_notify);
 
-  log_info("registering '%s: %s'...\n",pa->channel,pa->action);
   return 0;
 }
 
