@@ -367,6 +367,8 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t userParams)
   create_http_normal_res(&pconn->txb,pt_json,dummy_res);
   log_debug("returns dummy res\n");
 
+  dump_tree_map(userParams);
+
   return 0;
 }
 

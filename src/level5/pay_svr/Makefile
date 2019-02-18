@@ -13,7 +13,7 @@ C_OBJS        := $(patsubst %.c,%.o,$(C_SRCS))
 OBJS            := $(C_OBJS)
 
 LDFLAG          := -L$(HTTP_BASE) -lhb
-CFLAG_OBJS      := -Wall -Werror -I. -I$(HTTP_BASE) -g  -fPIC -Wno-error=unused-function  -Wno-error=format-truncation
+CFLAG_OBJS      := -Wall -Werror -I. -I$(HTTP_BASE) -I$(HTTP_BASE)/crypto/ -g  -fPIC -Wno-error=unused-function  -Wno-error=format-truncation
 CFLAG_OBJS      += -I$(FRAMEWORK_SRC) -I$(FRAMEWORK_SRC)/lib/ 
 TARGET_SO       := $(MOD_NAME)$(DY_MOD_EXT)
 
