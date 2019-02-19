@@ -289,24 +289,52 @@ int create_alipay_link(connection_t out_conn, const char *url, tree_map_t pay_da
 {
   dbuffer_t wholeUrl = alloc_default_dbuffer();
   dbuffer_t strParams = create_html_params(pay_data);
-  size_t sz_res = 0L;
+  //size_t sz_res = 0L;
   dbuffer_t resbody = 0;
+  tree_map_t res_map = new_tree_map();
+  order_entry_t pe = get_order_entry();
+  char *odrid = aid_add_and_fetch(&g_alipayData.aid,0L);
+  order_info_t po = get_order(pe,odrid);
+  char st[6] = "";
 
+
+  if (!po) {
+    log_error("found no order info by id %s\n",odrid);
+    return -1;
+  }
 
   write_dbuf_str(wholeUrl,url);
   append_dbuf_str(wholeUrl,"?");
   append_dbuf_str(wholeUrl,strParams);
 
+  set_order_status(po,s_paying);
+  snprintf(st,sizeof(st),"$%d",po->status);
+
+#if 0
   sz_res = strlen(wholeUrl)+strlen(strParams)+20;
   resbody = alloc_dbuffer(sz_res);
 
   snprintf(resbody,sz_res,"{\"location\":\"%s\",\"status\":0}",wholeUrl);
+#endif
+
+  put_tree_map_string(res_map,"location",wholeUrl);
+  put_tree_map_string(res_map,"status",st);
+  put_tree_map_string(res_map,"out_trade_no",po->mch.out_trade_no);
+  put_tree_map_string(res_map,"trade_no",po->id);
+
+  jsonKV_t *pr = jsons_parse_tree_map(res_map);
+
+  resbody = alloc_default_dbuffer();
+  jsons_toString(pr,&resbody);
 
   create_http_normal_res(&out_conn->txb,pt_json,resbody);
 
   drop_dbuffer(wholeUrl);
   drop_dbuffer(strParams);
   drop_dbuffer(resbody);
+
+  delete_tree_map(res_map);
+  jsons_release(pr);
   
   return 0;
 }
@@ -400,6 +428,10 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
 
   pay_data = get_tree_map_nest(pay_params,PAY_DATA);
 
+  if (create_order(pay_params,user_params)) {
+    return -1;
+  }
+
 #if ALIPAY_DBG==1
   int param_type = 0;
   char *str = get_tree_map_value(pay_params,PARAM_TYPE);
@@ -417,10 +449,6 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   }
 #endif
 
-  if (create_order(pay_params,user_params)) {
-    return -1;
-  }
-
   if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
     alipay_tx(net,out_conn);
   }
@@ -433,16 +461,60 @@ static
 int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
 {
   const char *alipay_notify_res = "success";
+  char *tno = get_tree_map_value(user_params,"out_trade_no");
+  order_entry_t pe = get_order_entry();
+  order_info_t po = 0;
+  connection_t out_conn = 0;
+  tree_map_t notify = 0;
+  char tmp[64] = "";
+
+
+  if (!tno) {
+    log_error("no 'out_trade_no' field found\n");
+    return -1;
+  }
+
+  po = get_order(pe,tno);
+  if (!po) {
+    log_error("found no order info by id %s\n",tno);
+    return -1;
+  }
 
   create_http_normal_res(&pconn->txb,pt_json,alipay_notify_res);
 
-  dump_tree_map(user_params);
+  //dump_tree_map(user_params);
 
-  /**
-   * TODO: 
-   * 1. connect merchant server(treat as 'backend')
-   * 2. post notify to merchant
-   */
+  /* connect merchant server(treat as 'backend')  */
+  out_conn = do_out_connect(net,NULL,po->mch.notify_url,po);
+  if (!out_conn) {
+    return -1;
+  }
+
+  // TODO: update order status
+
+  // TODO: construct the 'merchant notify'
+
+  notify = new_tree_map();
+  put_tree_map_string(notify,"trade_no",po->id);
+  put_tree_map_string(notify,"out_trade_no",po->mch.out_trade_no);
+  snprintf(tmp,sizeof(tmp),"$%d",po->status);
+  put_tree_map_string(notify,"status",tmp);
+  snprintf(tmp,sizeof(tmp),"$%.2f",po->amount);
+  put_tree_map_string(notify,"amount",tmp);
+
+  jsonKV_t *pr = jsons_parse_tree_map(notify);
+  dbuffer_t resbody = alloc_default_dbuffer();
+
+  jsons_toString(pr,&resbody);
+  create_http_normal_res(&out_conn->txb,pt_json,resbody);
+
+  drop_dbuffer(resbody);
+  delete_tree_map(notify);
+  jsons_release(pr);
+
+  if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
+    alipay_tx(net,out_conn);
+  }
 
   return 0;
 }

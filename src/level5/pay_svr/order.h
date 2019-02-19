@@ -9,6 +9,14 @@
 
 #define ODR_ID_SIZE  32
 
+
+enum order_status {
+  s_unpay=0,
+  s_paid =2,
+  s_paying =1,
+  s_err=-1,
+} ;
+
 struct order_info_s {
 
   char id[ODR_ID_SIZE];
@@ -28,6 +36,8 @@ struct order_info_s {
   } chan ;
 
   double amount ;
+
+  int status;
 
   struct rb_node node ;
 
@@ -62,7 +72,10 @@ extern int init_order_entry(order_entry_t entry, ssize_t pool_size);
 
 extern int release_all_orders(order_entry_t entry);
 
-size_t get_order_count(order_entry_t entry);
+extern size_t get_order_count(order_entry_t entry);
 
+extern void set_order_status(order_info_t p, int st);
+
+extern int get_order_status(order_info_t p);
 
 #endif /* __ORDER_H__*/

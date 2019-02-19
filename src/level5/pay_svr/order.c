@@ -70,6 +70,8 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
 
   p->amount = amount ;
 
+  p->status = s_unpay;
+
 
   if (MY_RB_TREE_INSERT(&entry->u.root,p,id,node,compare)) {
     log_error("insert order id %s fail\n",order_id);
@@ -162,6 +164,15 @@ int release_all_orders(order_entry_t entry)
   return 0;
 }
 
+void set_order_status(order_info_t p, int st)
+{
+  p->status = st ;
+}
+
+int get_order_status(order_info_t p)
+{
+  return p->status;
+}
 
 size_t get_order_count(order_entry_t entry)
 {
