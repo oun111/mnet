@@ -44,9 +44,9 @@ int parse_cmd_line(int argc, char *argv[])
 static void register_extra_modules()
 {
   extern struct module_struct_s g_alipay_mod ;
-  extern struct module_struct_s g_chan_global_mod;
+  extern struct module_struct_s g_pay_global_mod;
 
-  register_module(&g_chan_global_mod);
+  register_module(&g_pay_global_mod);
   register_module(&g_alipay_mod);
 }
 

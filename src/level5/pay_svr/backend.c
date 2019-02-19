@@ -42,7 +42,7 @@ backend_t create_empty_backend(backend_entry_t entry, int fd)
 
   p->fd  = fd; 
   p->peer= NULL ;
-  p->pd  = NULL ;
+  p->data= NULL ;
 
   if (MY_RB_TREE_INSERT(&entry->u.root,p,fd,node,compare)) {
     log_error("insert backend for fd %d fail\n",fd);
@@ -57,7 +57,7 @@ backend_t create_empty_backend(backend_entry_t entry, int fd)
 }
 
 int 
-create_backend(backend_entry_t entry, int fd, connection_t peer, pay_data_t pd)
+create_backend(backend_entry_t entry, int fd, connection_t peer, void *d)
 {
   backend_t p = create_empty_backend(entry,fd);
 
@@ -68,7 +68,7 @@ create_backend(backend_entry_t entry, int fd, connection_t peer, pay_data_t pd)
 
   p->fd  = fd ;
   p->peer= peer ;
-  p->pd  = pd ;
+  p->data= d ;
   log_info("new backend fd %d\n",fd);
 
   return 0;

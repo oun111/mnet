@@ -11,12 +11,21 @@
 #include "http_svr.h"
 #include "http_utils.h"
 #include "backend.h"
-#include "chan.h"
+#include "order.h"
+#include "global.h"
 #include "crypto.h"
 #include "base64.h"
+#include "auto_id.h"
 
 
 #define ALIPAY_DBG  0
+
+
+struct alipay_data_s {
+
+  struct auto_id_s aid ;
+
+} g_alipayData  ;
 
 
 static int alipay_init(Network_t net);
@@ -59,7 +68,7 @@ int alipay_rx(Network_t net, connection_t pconn)
     backend_entry_t bentry = get_backend_entry();
     backend_t be = get_backend(bentry,pconn->fd);
     connection_t peer = be->peer ;
-    pay_data_t pd = be->pd ;
+    pay_data_t pd = be->data ;
 
     b = dbuffer_ptr(pconn->rxb,0);
     b[sz_in] = '\0' ;
@@ -154,7 +163,7 @@ __done:
 }
 
 static 
-int update_alipay_biz(tree_map_t userParams, tree_map_t pay_params)
+int update_alipay_biz(tree_map_t user_params, tree_map_t pay_params)
 {
   tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA);
   tree_map_t pay_biz = get_tree_map_nest(pay_params,"pay_biz");
@@ -169,25 +178,29 @@ int update_alipay_biz(tree_map_t userParams, tree_map_t pay_params)
     return -1;
   }
 
-  body = get_tree_map_value(userParams,"body");
+  body = get_tree_map_value(user_params,"body");
   if (!body) {
     log_error("no 'body' given\n");
     return -1;
   }
 
-  subject = get_tree_map_value(userParams,"subject");
+  subject = get_tree_map_value(user_params,"subject");
   if (!body) {
     log_error("no 'subject' given\n");
     return -1;
   }
 
-  out_trade_no = get_tree_map_value(userParams,"out_trade_no");
+#if 0
+  out_trade_no = get_tree_map_value(user_params,"out_trade_no");
   if (!body) {
     log_error("no 'out_trade_no' given\n");
     return -1;
   }
+#else
+  out_trade_no = aid_add_and_fetch(&g_alipayData.aid,1L);
+#endif
 
-  amount = get_tree_map_value(userParams,"total_amount");
+  amount = get_tree_map_value(user_params,"total_amount");
   if (!body) {
     log_error("no 'amount' given\n");
     return -1;
@@ -227,7 +240,7 @@ int update_alipay_biz(tree_map_t userParams, tree_map_t pay_params)
 //static 
 connection_t 
 do_out_connect(Network_t net, connection_t peer_conn, 
-               const char *url, pay_data_t pd)
+               const char *url, void *data)
 {
   bool is_ssl = true ;
   int port = -1, fd = 0 ;
@@ -264,7 +277,7 @@ do_out_connect(Network_t net, connection_t peer_conn,
   out_conn = net->reg_outbound(net,fd,g_alipay_mod.id);
 
   // save backend info
-  create_backend(get_backend_entry(),fd,peer_conn,pd);
+  create_backend(get_backend_entry(),fd,peer_conn,data);
 
   return out_conn;
 }
@@ -297,7 +310,58 @@ int create_alipay_link(connection_t out_conn, const char *url, tree_map_t pay_da
 }
 
 static 
-int do_alipay_order(Network_t net,connection_t pconn,tree_map_t userParams)
+int create_order(tree_map_t pay_params, tree_map_t user_params)
+{
+  int ret = 0;
+  char odrid[ODR_ID_SIZE] = "";
+  order_entry_t pe = get_order_entry();
+  char *pOdrId = aid_add_and_fetch(&g_alipayData.aid,0L);
+  char *mch_no = get_tree_map_value(user_params,"mch_id");
+  char *nurl = get_tree_map_value(user_params,"notify_url");
+  char *tno = get_tree_map_value(user_params,"out_trade_no");
+  char *amt = get_tree_map_value(user_params,"total_amount");
+  char *chan = action__alipay_order.channel;
+  tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA);
+  char *chan_mch_no = NULL;
+
+  if (!mch_no) {
+    log_error("no merchant id supplied!\n");
+    return -1;
+  }
+
+  if (!nurl) {
+    log_error("no notify url supplied!\n");
+    return -1;
+  }
+
+  if (!tno) {
+    log_error("no out trade number supplied!\n");
+    return -1;
+  }
+
+  if (!amt) {
+    log_error("no amount supplied!\n");
+    return -1;
+  }
+
+  if (!pay_data) {
+    log_error("no pay data in config!\n");
+    return -1;
+  }
+
+  chan_mch_no = get_tree_map_value(pay_data,"app_id");
+
+  ret = save_order(pe,pOdrId,mch_no,nurl,tno,chan,chan_mch_no,atof(amt));
+  if (ret) {
+    log_error("save new order(id: %s) fail!\n",odrid);
+    return -1;
+  }
+
+  return 0;
+}
+
+static 
+int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
 {
   char *url = 0;
   connection_t out_conn = pconn ;
@@ -330,7 +394,7 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t userParams)
 #endif
 
   //
-  update_alipay_biz(userParams,pay_params);
+  update_alipay_biz(user_params,pay_params);
 
   pay_data = get_tree_map_nest(pay_params,PAY_DATA);
 
@@ -351,6 +415,10 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t userParams)
   }
 #endif
 
+  if (create_order(pay_params,user_params)) {
+    return -1;
+  }
+
   if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
     alipay_tx(net,out_conn);
   }
@@ -360,14 +428,21 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t userParams)
 
 
 static 
-int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t userParams)
+int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
 {
   const char *dummy_res = "{\"status\":\"ok\"}";
 
   create_http_normal_res(&pconn->txb,pt_json,dummy_res);
   log_debug("returns dummy res\n");
 
-  dump_tree_map(userParams);
+  dump_tree_map(user_params);
+
+  /**
+   * TODO: 
+   * 1. send reply to ALI
+   * 2. connect merchant server(treat as 'backend')
+   * 3. post notify to merchant
+   */
 
   return 0;
 }
@@ -396,6 +471,8 @@ int alipay_init(Network_t net)
 {
   http_action_entry_t pe = get_http_action_entry();
   
+
+  aid_reset(&g_alipayData.aid,"alp_id");
 
   add_http_action(pe,&action__alipay_order);
   add_http_action(pe,&action__alipay_notify);

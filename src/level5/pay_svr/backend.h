@@ -13,7 +13,7 @@ struct backend_s {
 
   connection_t peer ;
 
-  pay_data_t pd ;
+  void *data ;
 
   struct rb_node node ;
 
@@ -40,7 +40,7 @@ typedef struct backend_entry_s* backend_entry_t ;
   rbtree_postorder_for_each_entry_safe(pos,n,&(entry)->u.root,node) 
 
 
-extern int create_backend(backend_entry_t, int, connection_t, pay_data_t) ;
+extern int create_backend(backend_entry_t, int, connection_t, void*) ;
 
 extern int drop_backend(backend_entry_t entry, int fd);
 
