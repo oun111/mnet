@@ -79,8 +79,10 @@ int alipay_rx(Network_t net, connection_t pconn)
     dbuffer_lseek(pconn->rxb,sz_in,SEEK_CUR,0);
 
     // reply to client
-    do_ok(peer);
-    peer->l4opt.tx(net,peer);
+    if (peer) {
+      do_ok(peer);
+      peer->l4opt.tx(net,peer);
+    }
 
     // accumulate weight
     pd->weight ++ ;
@@ -430,18 +432,16 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
 static 
 int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
 {
-  const char *dummy_res = "{\"status\":\"ok\"}";
+  const char *alipay_notify_res = "success";
 
-  create_http_normal_res(&pconn->txb,pt_json,dummy_res);
-  log_debug("returns dummy res\n");
+  create_http_normal_res(&pconn->txb,pt_json,alipay_notify_res);
 
   dump_tree_map(user_params);
 
   /**
    * TODO: 
-   * 1. send reply to ALI
-   * 2. connect merchant server(treat as 'backend')
-   * 3. post notify to merchant
+   * 1. connect merchant server(treat as 'backend')
+   * 2. post notify to merchant
    */
 
   return 0;
