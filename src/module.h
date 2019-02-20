@@ -42,6 +42,13 @@ typedef struct module_struct_s* module_t ;
 #define THIS_MODULE   (&g_module)
 
 
+#define UPDATE_MODULE(m,memb,v)  do{\
+  module_t p = get_module((m)->id); \
+  if (p) { \
+    (m)->memb = p->memb = v; \
+  } \
+}while(0)
+
 extern int init_module_list(int argc, char *argv[]);
 
 extern void release_module_list();
@@ -51,6 +58,8 @@ extern int register_module(module_t src_mod);
 extern module_t get_module(int mod_id);
 
 extern int get_module_id(const char *mod_name);
+
+extern void update_module_l4_opts(module_t pmod, bool ssl);
 
 #endif /* __MODULE_H__*/
 

@@ -369,7 +369,7 @@ connection_t register_protocols(Network_t net, int fd, int mod_id, int l4proto, 
   if (pconn)
     pconn->module_id = mod_id ;
 
-  //log_debug("fd %d modid %d done!\n",fd,mod_id);
+  log_debug("fd %d modid %d (%s) done!\n",fd,mod_id,pmod->name);
 
   return pconn ;
 }

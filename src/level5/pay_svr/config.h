@@ -13,6 +13,8 @@ struct paySvr_config_s {
 
   tree_map_t chan_cfg ;
 
+  tree_map_t merchant_cfg ;
+
 } __attribute__((__aligned__(64))) ;
 
 typedef struct paySvr_config_s* paySvr_config_t ;

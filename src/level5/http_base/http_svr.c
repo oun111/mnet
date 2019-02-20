@@ -116,6 +116,9 @@ int process_param_list(Network_t net, connection_t pconn,
   if ((pos=get_http_action(g_httpSvrConf.m_act0,key))) {
     ret = pos->cb(net,pconn,map);
   }
+  else {
+    log_error("no such action: %s\n",action);
+  }
 
   delete_tree_map(map);
 

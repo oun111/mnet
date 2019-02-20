@@ -15,6 +15,7 @@ struct global_config_keywords {
   const char *listenPort;
   const char *notifyPort;
   const char *channels;
+  const char *merchants;
 } 
 g_confKW = {
   .gsSec        = "Globals",
@@ -22,6 +23,7 @@ g_confKW = {
   .listenPort   = "ListenPort",
   .notifyPort   = "NotifyPort",
   .channels     = "channels",
+  .merchants    = "merchants",
 } ;
 
 
@@ -110,6 +112,19 @@ int init_config(paySvr_config_t conf, const char *infile)
     }
   }
 
+  // merchants configs
+  cc = jsons_find(conf->m_root,g_confKW.merchants);
+
+  if (cc) {
+    tree_map_t tm     = jsons_to_treemap(cc);
+    tree_map_t tm_mch = get_tree_map_nest(tm,(char*)g_confKW.merchants);
+
+    if (tm_mch) {
+      conf->merchant_cfg = tm_mch;
+      //dump_tree_map(tm_chan);
+    }
+  }
+
   return 0;
 }
 
@@ -119,6 +134,10 @@ int free_config(paySvr_config_t conf)
 
   if (conf->chan_cfg) {
     delete_tree_map(conf->chan_cfg);
+  }
+
+  if (conf->merchant_cfg) {
+    delete_tree_map(conf->merchant_cfg);
   }
 
   return 0;

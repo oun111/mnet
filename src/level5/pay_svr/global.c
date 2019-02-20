@@ -3,6 +3,7 @@
 #include "module.h"
 #include "backend.h"
 #include "order.h"
+#include "merchant.h"
 #include "global.h"
 
 
@@ -13,6 +14,8 @@ struct pay_global_s {
   pay_channels_entry_t m_paych ;
 
   struct order_entry_s m_orders ;
+
+  struct merchant_entry_s m_merchant ;
 
 } g_payGlobal ;
 
@@ -32,6 +35,11 @@ order_entry_t get_order_entry()
   return &g_payGlobal.m_orders ;
 }
 
+merchant_entry_t get_merchant_entry()
+{
+  return &g_payGlobal.m_merchant ;
+}
+
 static 
 int pay_global_init(Network_t net)
 {
@@ -40,6 +48,8 @@ int pay_global_init(Network_t net)
   init_pay_data(&g_payGlobal.m_paych);
 
   init_order_entry(&g_payGlobal.m_orders,-1);
+
+  init_merchant_data(&g_payGlobal.m_merchant);
 
   log_info("done!\n");
   return 0;
@@ -53,6 +63,8 @@ void pay_global_release()
   delete_pay_channels_entry(g_payGlobal.m_paych);
 
   release_all_backends(&g_payGlobal.m_backends);
+
+  release_all_merchants(&g_payGlobal.m_merchant);
 }
 
 

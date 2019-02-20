@@ -269,3 +269,18 @@ void* get_module_extra(int mod_id)
   return NULL ;
 }
 
+void update_module_l4_opts(module_t pmod, bool ssl)
+{
+  if (ssl) {
+    UPDATE_MODULE(pmod,ssl,true);
+    UPDATE_MODULE(pmod,opts[normal_l4].rx,ssl_rx);
+    UPDATE_MODULE(pmod,opts[normal_l4].tx,ssl_tx);
+    UPDATE_MODULE(pmod,opts[normal_l4].close,ssl_close);
+  }
+  else {
+    UPDATE_MODULE(pmod,ssl,false);
+    UPDATE_MODULE(pmod,opts[normal_l4].rx,tcp_rx);
+    UPDATE_MODULE(pmod,opts[normal_l4].tx,tcp_tx);
+    UPDATE_MODULE(pmod,opts[normal_l4].close,tcp_close);
+  }
+}

@@ -12,10 +12,12 @@
 #include "http_utils.h"
 #include "backend.h"
 #include "order.h"
+#include "merchant.h"
 #include "global.h"
 #include "crypto.h"
 #include "base64.h"
 #include "auto_id.h"
+#include "L4.h"
 
 
 #define ALIPAY_DBG  0
@@ -213,10 +215,8 @@ int update_alipay_biz(tree_map_t user_params, tree_map_t pay_params)
   snprintf(tb,96,"$%s",amount);
   put_tree_map_string(pay_biz,"total_amount",tb);
 
+  dbuffer_t strBiz = create_json_params(pay_biz);
 
-  dbuffer_t strBiz = alloc_default_dbuffer();
-
-  treemap_to_jsons_str(pay_biz,&strBiz);
   put_tree_map_string(pay_data,"biz_content",strBiz);
   drop_dbuffer(strBiz);
 
@@ -249,12 +249,19 @@ do_out_connect(Network_t net, connection_t peer_conn,
     if (port==-1) 
       port = 80 ;
 
-    g_alipay_mod.ssl = false ;
+    // fixup
+    is_ssl = false ;
   }
   else {
     if (port==-1)
       port = 443 ;
+
+    // fixup
+    is_ssl = true ;
   }
+
+  // use ssl or not
+  update_module_l4_opts(&g_alipay_mod,is_ssl);
 
   addr = hostname_to_uladdr(host) ;
 
@@ -304,9 +311,8 @@ int create_alipay_link(connection_t out_conn, const char *url, tree_map_t pay_da
   snprintf(tmp,sizeof(tmp),"$%.2f",po->amount);
   put_tree_map_string(res_map,"amount",tmp);
 
-  dbuffer_t resbody = alloc_default_dbuffer();
+  dbuffer_t resbody = create_json_params(res_map);
 
-  treemap_to_jsons_str(res_map,&resbody);
   create_http_normal_res(&out_conn->txb,pt_json,resbody);
 
   drop_dbuffer(wholeUrl);
@@ -393,16 +399,9 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
     return -1;
   }
 
-#if 0
-  // connect to remote host if needed
-  out_conn = do_out_connect(net,pconn,url,pd);
-  if (!out_conn) {
-    log_error("connect to '%s' fail\n",url);
+  if (update_alipay_biz(user_params,pay_params)) {
     return -1;
   }
-#endif
-
-  update_alipay_biz(user_params,pay_params);
 
   pay_data = get_tree_map_nest(pay_params,PAY_DATA);
   if (create_order(pay_params,user_params)) {
@@ -446,6 +445,8 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   char tmp[64] = "", *trade_st = 0;
 
 
+  // FIXME: verify params 
+
   if (!tno) {
     log_error("no 'out_trade_no' field found\n");
     return -1;
@@ -457,9 +458,7 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
     return -1;
   }
 
-  create_http_normal_res(&pconn->txb,pt_json,alipay_notify_res);
-
-  //dump_tree_map(user_params);
+  create_http_normal_res(&pconn->txb,pt_html,alipay_notify_res);
 
   /* connect merchant server(treat as 'backend')  */
   out_conn = do_out_connect(net,NULL,po->mch.notify_url,po);
@@ -467,7 +466,7 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
     return -1;
   }
 
-  // TODO: update order status
+  // update order status by ALI status
   trade_st = get_tree_map_value(user_params,"trade_status");
   if (!strcmp(trade_st,"TRADE_SUCCESS")) {
     set_order_status(po,s_paid);
@@ -476,25 +475,67 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
     set_order_status(po,s_timeout);
   }
 
-  // TODO: construct the 'merchant notify'
-
+  // construct the 'merchant notify'
   notify = new_tree_map();
   put_tree_map_string(notify,"trade_no",po->id);
   put_tree_map_string(notify,"out_trade_no",po->mch.out_trade_no);
   put_tree_map_string(notify,"status",get_pay_status_str(po->status));
-  snprintf(tmp,sizeof(tmp),"$%.2f",po->amount);
+  snprintf(tmp,sizeof(tmp),"%.2f",po->amount);
   put_tree_map_string(notify,"amount",tmp);
 
-  dbuffer_t resbody = alloc_default_dbuffer();
+  //dbuffer_t resbody = create_json_params(notify);
+  dbuffer_t resbody = create_html_params(notify);
 
-  treemap_to_jsons_str(notify,&resbody);
-  create_http_normal_res(&out_conn->txb,pt_json,resbody);
+  create_http_normal_res(&out_conn->txb,pt_html,resbody);
 
   drop_dbuffer(resbody);
   delete_tree_map(notify);
 
   if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
     alipay_tx(net,out_conn);
+  }
+
+  return 0;
+}
+
+static 
+int do_alipay_query(Network_t net,connection_t pconn,tree_map_t user_params)
+{
+  char *tno = get_tree_map_value(user_params,"out_trade_no");
+  order_entry_t pe = get_order_entry();
+  order_info_t po = 0;
+  tree_map_t qry_res = 0;
+  char tmp[64] = "";
+
+
+  if (!tno) {
+    log_error("no 'out_trade_no' field supplied!\n");
+    return -1;
+  }
+
+  po = get_order_by_outTradeNo(pe,tno);
+  if (!po) {
+    log_error("found no order info by out_trade_no %s\n",tno);
+    return -1;
+  }
+
+  qry_res = new_tree_map();
+  put_tree_map_string(qry_res,"trade_no",po->id);
+  put_tree_map_string(qry_res,"out_trade_no",po->mch.out_trade_no);
+  put_tree_map_string(qry_res,"status",get_pay_status_str(po->status));
+  snprintf(tmp,sizeof(tmp),"%.2f",po->amount);
+  put_tree_map_string(qry_res,"amount",tmp);
+
+
+  dbuffer_t resbody = create_html_params(qry_res);
+
+  create_http_normal_res(&pconn->txb,pt_html,resbody);
+
+  drop_dbuffer(resbody);
+  delete_tree_map(qry_res);
+
+  if (!pconn->ssl || pconn->ssl->state==s_ok) {
+    alipay_tx(net,pconn);
   }
 
   return 0;
@@ -518,6 +559,15 @@ struct http_action_s action__alipay_notify =
   .cb      = do_alipay_notify,
 } ;
 
+static
+struct http_action_s action__alipay_query = 
+{
+  .key = "alipay/query",
+  .channel = "alipay",
+  .action  = "query",
+  .cb      = do_alipay_query,
+} ;
+
 
 static
 int alipay_init(Network_t net)
@@ -529,6 +579,7 @@ int alipay_init(Network_t net)
 
   add_http_action(pe,&action__alipay_order);
   add_http_action(pe,&action__alipay_notify);
+  add_http_action(pe,&action__alipay_query);
 
   return 0;
 }

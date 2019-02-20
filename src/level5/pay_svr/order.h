@@ -42,14 +42,17 @@ struct order_info_s {
 
   struct rb_node node ;
 
+  struct rb_node idx_node ;
+
   struct list_head pool_item;
 } ;
 typedef struct order_info_s* order_info_t ;
 
 
 struct order_entry_s {
-  union {
+  struct {
     struct rb_root root;
+    struct rb_root index_root;
   } u;
 
   size_t num_orders ;
@@ -60,6 +63,8 @@ typedef struct order_entry_s* order_entry_t ;
 
 
 extern order_info_t get_order(order_entry_t entry, char *order_id);
+
+extern order_info_t get_order_by_outTradeNo(order_entry_t entry, char *out_trade_no);
 
 extern int save_order(order_entry_t entry, char *order_id, char *mch_no, 
                       char *notify_url, char *out_trade_no, char *chan, 

@@ -62,7 +62,7 @@ void pay_svr_module_init(int argc, char *argv[])
   if (init_config(&g_paySvrConf.m_conf,g_paySvrConf.conf_path))
     return ;
 
-  host = get_bind_address(&g_paySvrConf.m_conf);
+  host        = get_bind_address(&g_paySvrConf.m_conf);
   notify_port = get_notify_port(&g_paySvrConf.m_conf);
   port        = get_listen_port(&g_paySvrConf.m_conf);
 

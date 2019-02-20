@@ -38,6 +38,17 @@ order_info_t get_order(order_entry_t entry, char *order_id)
   return NULL ;
 }
 
+order_info_t get_order_by_outTradeNo(order_entry_t entry, char *out_trade_no)
+{
+  order_info_t p = 0;
+
+  if (!MY_RB_TREE_FIND(&entry->u.index_root,out_trade_no,
+                       p,mch.out_trade_no,idx_node,compare)) 
+    return p ;
+
+  return NULL ;
+}
+
 int 
 save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
            char *out_trade_no, char *chan, char *chan_mch_no, double amount)
@@ -95,6 +106,13 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
     return -1;
   }
 
+  // add index by 'out_trade_no' of merchant
+  if (MY_RB_TREE_INSERT(&entry->u.index_root,p,mch.out_trade_no,idx_node,compare)) {
+    log_error("insert index by out trade no %s fail\n",p->mch.out_trade_no);
+    obj_pool_free(entry->pool,p);
+    return -1;
+  }
+
   entry->num_orders ++;
 
   return 0;
@@ -112,6 +130,7 @@ static
 int drop_order_internal(order_entry_t entry, order_info_t p, bool fast)
 {
   rb_erase(&p->node,&entry->u.root);
+  rb_erase(&p->idx_node,&entry->u.index_root);
 
   if (!fast) {
     drop_dbuffer(p->mch.out_trade_no);
@@ -149,6 +168,8 @@ int init_order_entry(order_entry_t entry, ssize_t pool_size)
 
 
   entry->u.root = RB_ROOT ;
+  entry->u.index_root = RB_ROOT ;
+
   entry->num_orders = 0L;
 
   entry->pool = create_obj_pool("order pool",pool_size,struct order_info_s);

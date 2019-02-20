@@ -32,7 +32,7 @@
           "timestamp": "",
           "version": "1.0",
           "biz_content": "",
-          "notify_url": "https://127.0.0.1/notify/xxx",
+          "notify_url": "https://127.0.0.1/alipay/notify",
           "return_url": "http://127.0.0.1/return/index",
           "sign": ""
         }
@@ -60,6 +60,19 @@
       "apikey": "1234"
     }
 
+  },
+
+  "merchants": {
+    "mch_001": {
+      "sign_type": "md5",
+      "key":"12345",
+      "param_type":"html"
+    },
+    "mch_002": {
+      "sign_type": "md5",
+      "key":"123456",
+      "param_type":"json"
+    }
   }
 
 }
