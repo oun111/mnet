@@ -53,6 +53,8 @@ extern jsonKV_t* jsons_parse_tree_map(tree_map_t entry);
 
 extern int jsons_toString(jsonKV_t *root, dbuffer_t *outb);
 
+extern int treemap_to_jsons_str(tree_map_t in, dbuffer_t *outb);
+
 extern tree_map_t jsons_to_treemap(jsonKV_t *root);
 
 #endif /* __JSONS_H__*/

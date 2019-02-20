@@ -327,6 +327,16 @@ tree_map_t jsons_to_treemap(jsonKV_t *root)
   return base_map;
 }
 
+int treemap_to_jsons_str(tree_map_t in, dbuffer_t *outb)
+{
+  jsonKV_t *pr = jsons_parse_tree_map(in);
+
+  jsons_toString(pr,outb);
+  jsons_release(pr);
+
+  return 0;
+}
+
 static
 int jsons_lex_read(char *s, dbuffer_t *tkn, int pos)
 {

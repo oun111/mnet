@@ -104,15 +104,10 @@ char* get_http_body_ptr(char *inb, size_t sz_in)
 
 dbuffer_t create_json_params(tree_map_t map)
 {
-  jsonKV_t *pr = 0;
-  dbuffer_t strParams = 0;
+  dbuffer_t strParams  = alloc_default_dbuffer();
 
 
-  pr = jsons_parse_tree_map(map);
-  strParams = alloc_default_dbuffer();
-
-  jsons_toString(pr,&strParams);
-  jsons_release(pr);
+  treemap_to_jsons_str(map,&strParams);
 
   return strParams;
 }

@@ -107,26 +107,16 @@ int process_param_list(Network_t net, connection_t pconn,
 {
   int ret = -1;
   http_action_t pos ;
-  char key[256] = "", *chan = 0;
+  char *key = (char*)action ;
   tree_map_t map = new_tree_map();
 
 
   uri_to_map(kvlist,strlen(kvlist),map);
-  chan = get_tree_map_value(map,"channel");
-  if (!chan) {
-    log_info("no '%s' param found\n","channel");
-    snprintf(key,256,"%s",action);
-  }
-  else {
-    // construct the 'key'
-    snprintf(key,256,"%s/%s",chan,action);
-  }
 
   if ((pos=get_http_action(g_httpSvrConf.m_act0,key))) {
     ret = pos->cb(net,pconn,map);
   }
 
-//__end:
   delete_tree_map(map);
 
   return ret;

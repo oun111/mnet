@@ -11,10 +11,11 @@
 
 
 enum order_status {
-  s_unpay=0,
-  s_paid =2,
-  s_paying =1,
-  s_err=-1,
+  s_unpay = 0,
+  s_paying= 1,
+  s_paid  = 2,
+  s_err   = 3,
+  s_timeout = 4,
 } ;
 
 struct order_info_s {
@@ -77,5 +78,7 @@ extern size_t get_order_count(order_entry_t entry);
 extern void set_order_status(order_info_t p, int st);
 
 extern int get_order_status(order_info_t p);
+
+extern char* get_pay_status_str(int st);
 
 #endif /* __ORDER_H__*/

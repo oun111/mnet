@@ -13,4 +13,6 @@ extern int aid_reset(auto_id_t id, char *name);
 
 extern char* aid_add_and_fetch(auto_id_t id,unsigned long v);
 
+extern char* aid_fetch(auto_id_t id);
+
 #endif /* __AUTO_ID_H__*/

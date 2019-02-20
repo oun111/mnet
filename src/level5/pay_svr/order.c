@@ -7,6 +7,22 @@
 #include "log.h"
 
 
+static const char *g_orderStatusStr[] = 
+{
+  "unpay",
+  "paying",
+  "paid ok",
+  "pay error",
+  "pay timeout",
+} ;
+
+char* get_pay_status_str(int st)
+{
+  return (char*)
+         (st>=s_unpay && st<=s_err?g_orderStatusStr[st]:
+         g_orderStatusStr[s_err]);
+}
+
 static int compare(char *s0, char *s1)
 {
   return strcmp(s0,s1) ;

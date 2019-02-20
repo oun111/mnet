@@ -27,3 +27,8 @@ unsigned long aid_add_and_fetch_long(auto_id_t id,unsigned long v)
 {
   return id->val+=v ;
 }
+
+char* aid_fetch(auto_id_t id)
+{
+  return id->alias_val ;
+}
