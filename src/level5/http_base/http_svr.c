@@ -219,6 +219,8 @@ ssize_t http_svr_rx_raw(Network_t net, connection_t pconn)
     //log_info("no body size\n");
   }
 
+  //log_debug("szreq: %zd, sz_in: %zu, szhdr: %zd\n",szReq,sz_in,szhdr);
+
   // total req size
   szReq += szhdr ;
 
@@ -228,7 +230,7 @@ ssize_t http_svr_rx_raw(Network_t net, connection_t pconn)
 static
 int http_svr_rx(Network_t net, connection_t pconn)
 {
-  size_t sz_in = 0L;
+  ssize_t sz_in = 0L;
   int rc = 0;
 
   while ((sz_in=http_svr_rx_raw(net,pconn))>0) {
@@ -246,7 +248,7 @@ int http_svr_rx(Network_t net, connection_t pconn)
       rc = http_svr_do_get(net,pconn,inb,sz_in);
     }
 
-    if (rc==-1) 
+    if (rc==-1 && dbuffer_data_size(pconn->txb)==0L) 
       http_svr_do_error(pconn);
 
     pconn->l5opt.tx(net,pconn);

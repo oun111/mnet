@@ -56,8 +56,7 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
   order_info_t p = 0;
 
   if (!MY_RB_TREE_FIND(&entry->u.root,order_id,p,id,node,compare)) {
-    log_debug("order id %s already exists\n",order_id);
-    return 0 ;
+    return 1 ;
   }
 
   p = obj_pool_alloc(entry->pool,struct order_info_s);
@@ -73,7 +72,6 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
 
   if (!p)
     return -1 ;
-
 
   strncpy(p->id,order_id,sizeof(p->id));
 

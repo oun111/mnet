@@ -30,11 +30,14 @@ extern int create_browser_redirect_req(dbuffer_t*, const char*, int, tree_map_t)
 
 extern int create_http_normal_res(dbuffer_t*, int, const char*);
 
+extern int create_http_normal_res2(dbuffer_t *, int, tree_map_t);
+
 extern int parse_http_url(const char *url, char *host, size_t szhost,
                           int *port, char *uri, size_t szuri, bool *is_ssl);
 
 extern dbuffer_t create_html_params(tree_map_t map);
 
 extern dbuffer_t create_json_params(tree_map_t map);
+
 
 #endif /* __HTTP_UTILS_H__*/

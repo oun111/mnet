@@ -15,7 +15,7 @@ size_t get_http_hdr_size(char *inb, size_t sz_in)
 {
   char *p = strstr(inb,"\r\n\r\n");
 
-  return p?(p-inb+4):0;
+  return p&&((p-inb)<sz_in)?(p-inb+4):0;
 }
 
 int get_http_hdr_field_str(char *inb, size_t sz_in, const char *field, 
@@ -74,7 +74,7 @@ int get_http_hdr_field_int(char *inb, size_t sz_in, const char *field, const cha
   }
 
   pf = strstr(inb,field);
-  if (!pf) {
+  if (!pf || (pf-inb)>=sz_hdr) {
     return 0;
   }
 
@@ -154,6 +154,25 @@ int create_http_normal_res(dbuffer_t *inb, int type, const char *strParams)
   append_dbuf_str(*inb,strParams);
 
   log_debug("normal res: %s\n",*inb);
+
+  return 0;
+}
+
+int 
+create_http_normal_res2(dbuffer_t *inb, int param_type, tree_map_t map)
+{
+  dbuffer_t strParams = 0;
+
+
+  if (param_type==pt_html) {
+    strParams = create_html_params(map);
+  }
+  else {
+    strParams = create_json_params(map);
+  }
+
+  create_http_normal_res(inb,param_type,strParams);
+  drop_dbuffer(strParams);
 
   return 0;
 }

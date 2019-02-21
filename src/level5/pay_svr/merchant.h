@@ -19,13 +19,7 @@ struct merchant_info_s {
 
   char id[MCH_ID_SIZE];
 
-  int sign_type ;
-
-  dbuffer_t key ;
-
-  dbuffer_t priv_key ;
-
-  int param_type;
+  tree_map_t mch_info ;
 
   struct rb_node node ;
 } ;
@@ -45,8 +39,7 @@ typedef struct merchant_entry_s* merchant_entry_t ;
 
 extern merchant_info_t get_merchant(merchant_entry_t entry, char *merchant_id);
 
-extern int save_merchant(merchant_entry_t entry, char *merchant_id, int sign_type, char *key, 
-                         char *priv_key, int param_type) ;
+extern int save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info) ;
 
 extern int drop_merchant(merchant_entry_t entry, char *merchant_id);
 

@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include "tree_map.h"
 #include "merchant.h"
 #include "kernel.h"
 #include "mm_porting.h"
@@ -26,8 +27,7 @@ merchant_info_t get_merchant(merchant_entry_t entry, char *merchant_id)
 }
 
 int 
-save_merchant(merchant_entry_t entry, char *merchant_id, int sign_type, char *key, 
-              char *priv_key, int param_type)
+save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info)
 {
   merchant_info_t p = 0;
 
@@ -44,19 +44,7 @@ save_merchant(merchant_entry_t entry, char *merchant_id, int sign_type, char *ke
 
   strncpy(p->id,merchant_id,sizeof(p->id));
 
-  p->sign_type = sign_type ;
-
-  p->key = alloc_default_dbuffer();
-  write_dbuf_str(p->key,key);
-
-  p->priv_key = NULL ;
-  if (p->sign_type==t_rsa && priv_key) {
-    p->priv_key = alloc_default_dbuffer();
-    write_dbuf_str(p->priv_key,priv_key);
-  }
-
-  p->param_type = param_type ;
-
+  p->mch_info = mch_info ;
 
   if (MY_RB_TREE_INSERT(&entry->u.root,p,id,node,compare)) {
     log_error("insert merchant id %s fail\n",merchant_id);
@@ -76,11 +64,6 @@ static
 int drop_merchant_internal(merchant_entry_t entry, merchant_info_t p)
 {
   rb_erase(&p->node,&entry->u.root);
-
-  drop_dbuffer(p->key);
-
-  if (is_dbuffer_valid(p->priv_key))
-    drop_dbuffer(p->priv_key);
 
   kfree(p);
 
@@ -141,24 +124,8 @@ int init_merchant_data(merchant_entry_t pm)
   rbtree_postorder_for_each_entry_safe(pos,n,&mcfg->u.root,node) {
     tree_map_t mch_map = pos->nest_map;
     char *mch_id = pos->key ;
-    int stype = 0, ptype = 0;
-    char *key = 0, *priv_key = 0, *ptr=0;
 
-    key = get_tree_map_value(mch_map,"key");
-
-    ptr = get_tree_map_value(mch_map,"sign_type");
-    if (!strcmp(ptr,"md5")) {
-      stype = t_md5;
-    }
-    else if (!strcmp(ptr,"rsa")) {
-      stype = t_rsa ;
-      priv_key = get_tree_map_value(mch_map,"priv_key");
-    }
-
-    ptr = get_tree_map_value(mch_map,"param_type");
-    ptype = !strcmp(ptr,"json")?pt_json:pt_html ;
-
-    save_merchant(pm,mch_id,stype,key,priv_key,ptype);
+    save_merchant(pm,mch_id,mch_map);
   }
 
   return 0;
