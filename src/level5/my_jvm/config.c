@@ -123,9 +123,15 @@ const char* get_prj_class(myJvm_config_t conf)
   return conf->m_globSettings.prjClass ;
 }
 
-const char* get_bind_address(myJvm_config_t conf)
+int get_bind_address(myJvm_config_t conf, char *host)
 {
-  return conf->m_globSettings.bindAddr ;
+  size_t vl = 0L;
+  char *pv =  jsons_string(conf->m_globSettings.bindAddr,&vl);
+
+
+  strncpy(host,pv,vl);
+
+  return 0;
 }
 
 int get_listen_port(myJvm_config_t conf)

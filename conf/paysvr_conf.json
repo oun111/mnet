@@ -2,7 +2,12 @@
   "Globals": {
     "BindAddress" : "127.0.0.1",
     "ListenPort" : 5481,
-    "NotifyPort" : 1366
+    "NotifyPort" : 1366,
+    "Redis" : {
+      "name": "myrds_001",
+      "address" : "127.0.0.1",
+      "port" : 6379
+    }
   },
 
   "channels": {

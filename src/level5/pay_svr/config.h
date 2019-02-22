@@ -20,11 +20,13 @@ struct paySvr_config_s {
 typedef struct paySvr_config_s* paySvr_config_t ;
 
 
-extern const char* get_bind_address(paySvr_config_t conf);
+extern int get_bind_address(paySvr_config_t conf, char *host);
 
 extern int get_listen_port(paySvr_config_t conf);
 
 extern int get_notify_port(paySvr_config_t conf);
+
+extern int get_myredis_info(paySvr_config_t conf, char *host, int *port, char *name);
 
 extern int init_config(paySvr_config_t conf, const char *infile);
 

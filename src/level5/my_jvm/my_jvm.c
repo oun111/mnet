@@ -257,10 +257,12 @@ int my_jvm_pre_init(int argc, char *argv[])
   // the server address is bind/listen within framework, so 
   //  we can have more Jamvm instances to process user requests
   {
-    char *host = (char*)get_bind_address(&g_myJvmInst.m_conf);
     int port = get_listen_port(&g_myJvmInst.m_conf);
     int *pfd = &g_myJvmInst.sock_info.local_listenfd ;
+    char host[32] = "";
 
+
+    get_bind_address(&g_myJvmInst.m_conf,host);
 
     if (port<=0 || strlen(host)==0L || (*pfd=new_tcp_svr(__net_atoi(host),port))<=0)
       g_myJvmInst.sock_info.hook_jni = 0;
