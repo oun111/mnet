@@ -11,7 +11,8 @@ enum myredis_status {
 
 struct myredis_s {
   void *ctx ;
-  char name[32];
+  char cache_name[32];
+  char mq_name[32];
 } ;
 typedef struct myredis_s* myredis_t ;
 
