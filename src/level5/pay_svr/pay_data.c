@@ -195,6 +195,7 @@ int init_pay_data(pay_channels_entry_t *paych)
 
     rbtree_postorder_for_each_entry_safe(pos1,n1,&chansub->u.root,node) {
       add_pay_data(*paych,pos->key,pos1->key,pos1->nest_map);
+      log_debug("adding channel '%s - %s'\n",pos->key,pos1->key);
     }
   }
 

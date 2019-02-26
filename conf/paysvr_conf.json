@@ -61,9 +61,11 @@
     },
 
     "wxpay": {
-      "url": "https://127.0.0.1/xxx",
-      "merchant": "123",
-      "apikey": "1234"
+      "wx0" : {
+        "url": "https://127.0.0.1/xxx",
+        "merchant": "123",
+        "apikey": "1234"
+      }
     }
 
   },

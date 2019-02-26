@@ -68,16 +68,19 @@ int myredis_init(myredis_t mr, const char *host, int port, char *name)
 static
 int myredis_write_cache(myredis_t mr, char *k, char *v)
 {
+  int ret = 0;
   redisReply *rc = (redisReply*)redisCommand(REDIS_CTX,"hset %s %s %s",
                    mr->cache_name,k,v);
 
 
   if (rc->type==REDIS_REPLY_ERROR) {
     log_error("write to cache '%s' fail: %s\n",mr->cache_name,rc->str) ;
-    return -1;
+    ret = -1;
   }
 
-  return 0;
+  freeReplyObject(rc);
+
+  return ret;
 }
 
 static
@@ -109,16 +112,19 @@ int myredis_read_cache_all(myredis_t mr, redisReply **rc)
 static
 int myredis_mq_tx(myredis_t mr, char *m)
 {
+  int ret = 0;
   redisReply *rc = (redisReply*)redisCommand(REDIS_CTX,"lpush %s %s ",
                    mr->mq_name,m);
 
 
   if (rc->type==REDIS_REPLY_ERROR) {
     log_error("write to mq '%s' fail: %s\n", mr->mq_name,rc->str) ;
-    return -1;
+    ret = -1;
   }
 
-  return 0;
+  freeReplyObject(rc);
+
+  return ret;
 }
 
 static
@@ -182,6 +188,7 @@ int myredis_read(myredis_t mr, const char *table, const char *key, dbuffer_t *va
 
   ret = myredis_read_cache(mr,k,&rc);
   if (unlikely(ret==-1)) {
+    freeReplyObject(rc);
     drop_dbuffer(k);
     return -1;
   }
@@ -198,6 +205,7 @@ int myredis_read(myredis_t mr, const char *table, const char *key, dbuffer_t *va
     }
 
     drop_dbuffer(k);
+    freeReplyObject(rc);
     return ret ;
   }
 
@@ -245,6 +253,7 @@ __end:
   drop_dbuffer(v);
   jsons_release(pr);
   delete_tree_map(map);
+  freeReplyObject(rc);
 
   return ret;
 }
@@ -261,6 +270,7 @@ int myredis_read_all(myredis_t mr, char ***rec, int *cnt)
 
   if (rc->type!=REDIS_REPLY_ARRAY) {
     log_error("not redis array type!\n");
+    freeReplyObject(rc);
     return -1;
   }
 
@@ -278,6 +288,8 @@ int myredis_read_all(myredis_t mr, char ***rec, int *cnt)
       n++ ;
     }
   }
+
+  freeReplyObject(rc);
 
   return 0;
 }

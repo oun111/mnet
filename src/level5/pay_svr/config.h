@@ -11,9 +11,9 @@ struct paySvr_config_s {
 
   jsonKV_t *m_root ;
 
-  tree_map_t chan_cfg ;
+  tree_map_t chan_root,chan_cfg ;
 
-  tree_map_t merchant_cfg ;
+  tree_map_t mch_root,merchant_cfg ;
 
 } __attribute__((__aligned__(64))) ;
 
@@ -29,9 +29,9 @@ extern int get_notify_port(paySvr_config_t conf);
 extern int get_myredis_info(paySvr_config_t conf, char *host, int *port, 
                             char *dataTbl, char *cfgTbl);
 
-extern int process_local_merchant_configs(paySvr_config_t conf, dbuffer_t);
+extern int process_merchant_configs(paySvr_config_t conf, dbuffer_t);
 
-extern int process_local_channel_configs(paySvr_config_t conf, dbuffer_t);
+extern int process_channel_configs(paySvr_config_t conf, dbuffer_t);
 
 extern int init_config(paySvr_config_t conf, const char *infile);
 

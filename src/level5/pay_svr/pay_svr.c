@@ -93,33 +93,59 @@ int init_config2(char *host, int port, char *rds_cfg_tbl)
 {
   struct myredis_s rds = {.ctx=NULL,} ;
   dbuffer_t chan_res = 0, mch_res = 0;
+  int ret = 0;
 
 
+  // try read configs from redis
   if (!myredis_init(&rds,host,port,rds_cfg_tbl)) {
+    int rc = 0;
 
+    log_info("try read configs from redis %s:%d - "
+             "%s\n",host,port,rds_cfg_tbl);
+
+    // channels'
+    rc = 1;
     chan_res = alloc_default_dbuffer();
-    if (!myredis_read(&rds,"channels","config",&chan_res,true)) {
+    for (int i=0; rc==1&&i<5;i++) {
+      rc = myredis_read(&rds,"channels","config",&chan_res,false);
+    }
+    if (rc==-1) {
+      log_error("read channels configs from redis fail\n");
     }
 
+    // merchants'
+    rc = 1;
     mch_res = alloc_default_dbuffer();
-    if (!myredis_read(&rds,"merchants","config",&mch_res,true)) {
+    for (int i=0; rc==1&&i<5;i++) {
+      rc = myredis_read(&rds,"merchants","config",&mch_res,false);
     }
+    if (rc==-1) {
+      log_error("read merchants configs from redis fail\n");
+    }
+  }
+  else {
+    log_info("connect to redis %s:%d - %s fail, try read "
+             "local configs\n",host,port,rds_cfg_tbl);
+  }
+
+  if (process_channel_configs(&g_paySvrData.m_conf,chan_res) ||
+      process_merchant_configs(&g_paySvrData.m_conf,mch_res)) {
+    ret = -1;
+    goto __done;
   }
 
   // channels
-  process_local_channel_configs(&g_paySvrData.m_conf,chan_res);
   init_pay_data(&g_paySvrData.m_paych);
 
   // merchant
-  process_local_merchant_configs(&g_paySvrData.m_conf,mch_res);
   init_merchant_data(&g_paySvrData.m_merchant);
 
-
+__done:
   myredis_release(&rds);
   drop_dbuffer(chan_res);
   drop_dbuffer(mch_res);
 
-  return 0;
+  return ret;
 }
 
 void pay_svr_module_init(int argc, char *argv[])
@@ -145,16 +171,17 @@ void pay_svr_module_init(int argc, char *argv[])
   if (!get_myredis_info(&g_paySvrData.m_conf,host,&port,dataTbl,cfgTbl)) {
 
     ret = myredis_init(&g_paySvrData.m_rds,host,port,dataTbl);
-    log_info("connect to redis %s:%d - %s ... \n",host,port,dataTbl);
-    if (ret) log_error("fail!\n");
-    else log_info("ok!\n");
+    log_info("connect to redis %s:%d - %s ... %s\n",host,
+             port,dataTbl,ret?"fail!":"ok!");
+  }
+
+  if (init_config2(host,port,cfgTbl)) {
+    return ;
   }
 
   init_backend_entry(&g_paySvrData.m_backends,-1);
 
   init_order_entry(&g_paySvrData.m_orders,-1);
-
-  init_config2(host,port,cfgTbl);
 
   register_extra_modules();
 }

@@ -7,10 +7,10 @@ MOD_NAME      := pay_svr
 HTTP_BASE := ../http_base/
 HTTP_BASE_LIB := libhb
 
-REDIS_BASE    := /home/user1/work/redis-4.0.10/install/
-#REDIS_BASE    := /home/user1/work/redis-5.0.3/deps/
-REDIS_LIB     := $(REDIS_BASE)/lib
-REDIS_INCLUDE := $(REDIS_BASE)/include/
+#REDIS_BASE    := /home/user1/work/redis-4.0.10/install/
+REDIS_BASE    := /home/user1/work/redis-5.0.3/deps/
+REDIS_LIB     := $(REDIS_BASE)/hiredis
+REDIS_INCLUDE := $(REDIS_BASE)/
 
 C_SRCS        := $(shell find ./ -name "*.c" )
 C_OBJS        := $(patsubst %.c,%.o,$(C_SRCS))
