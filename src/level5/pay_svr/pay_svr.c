@@ -9,6 +9,7 @@
 #include "myredis.h"
 #include "module.h"
 #include "log.h"
+#include "myredis.h"
 
 
 
@@ -88,9 +89,42 @@ static void register_extra_modules()
   register_module(&g_alipay_mod);
 }
 
+int init_config2(char *host, int port, char *rds_cfg_tbl)
+{
+  struct myredis_s rds = {.ctx=NULL,} ;
+  dbuffer_t chan_res = 0, mch_res = 0;
+
+
+  if (!myredis_init(&rds,host,port,rds_cfg_tbl)) {
+
+    chan_res = alloc_default_dbuffer();
+    if (!myredis_read(&rds,"channels","config",&chan_res,true)) {
+    }
+
+    mch_res = alloc_default_dbuffer();
+    if (!myredis_read(&rds,"merchants","config",&mch_res,true)) {
+    }
+  }
+
+  // channels
+  process_local_channel_configs(&g_paySvrData.m_conf,chan_res);
+  init_pay_data(&g_paySvrData.m_paych);
+
+  // merchant
+  process_local_merchant_configs(&g_paySvrData.m_conf,mch_res);
+  init_merchant_data(&g_paySvrData.m_merchant);
+
+
+  myredis_release(&rds);
+  drop_dbuffer(chan_res);
+  drop_dbuffer(mch_res);
+
+  return 0;
+}
+
 void pay_svr_module_init(int argc, char *argv[])
 {
-  char host[32] = "", name[32] = "" ;
+  char host[32] = "", dataTbl[32] = "", cfgTbl[32] = "" ;
   int port = 0, notify_port = 0, ret = 0;
 
 
@@ -107,28 +141,22 @@ void pay_svr_module_init(int argc, char *argv[])
   // the http base entry
   __http_svr_entry(host,port,notify_port);
 
-  init_backend_entry(&g_paySvrData.m_backends,-1);
+  // redis params
+  if (!get_myredis_info(&g_paySvrData.m_conf,host,&port,dataTbl,cfgTbl)) {
 
-  init_pay_data(&g_paySvrData.m_paych);
+    ret = myredis_init(&g_paySvrData.m_rds,host,port,dataTbl);
+    log_info("connect to redis %s:%d - %s ... \n",host,port,dataTbl);
+    if (ret) log_error("fail!\n");
+    else log_info("ok!\n");
+  }
+
+  init_backend_entry(&g_paySvrData.m_backends,-1);
 
   init_order_entry(&g_paySvrData.m_orders,-1);
 
-  init_merchant_data(&g_paySvrData.m_merchant);
-
-  // redis params
-  if (!get_myredis_info(&g_paySvrData.m_conf,host,&port,name)) {
-    ret = myredis_init(&g_paySvrData.m_rds,host,port,name);
-    log_info("connect to redis(%s:%d,name: %s) %s\n",
-             host,port,name,ret?"fail":"ok");
-  }
+  init_config2(host,port,cfgTbl);
 
   register_extra_modules();
-
-  // XXX: test
-  {
-    extern void test_myredis();
-    test_myredis();
-  }
 }
 
 void pay_svr_module_exit()

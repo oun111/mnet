@@ -1,10 +1,12 @@
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <hiredis/hiredis.h>
-#include "myredis.h"
 #include "dbuffer.h"
+#include "myredis.h"
 #include "jsons.h"
 #include "tree_map.h"
+#include "log.h"
 
 /**
  * Redis - Mysql 数据同步策略：
@@ -32,6 +34,11 @@
 #define REDIS_CTX  ((redisContext*)(mr->ctx))
 
 
+bool is_myredis_ok(myredis_t mr)
+{
+  return REDIS_CTX && REDIS_CTX->err==REDIS_OK ;
+}
+
 void myredis_release(myredis_t mr)
 {
   if (REDIS_CTX) {
@@ -47,7 +54,7 @@ int myredis_init(myredis_t mr, const char *host, int port, char *name)
   mr->ctx = redisConnect(host,port);
 
   if (!REDIS_CTX || REDIS_CTX->err!=REDIS_OK) {
-    printf("redis connect fail: %s\n",REDIS_CTX->errstr);
+    log_error("redis connect fail: %s\n",REDIS_CTX->errstr);
     myredis_release(mr);
     return -1;
   }
@@ -66,7 +73,7 @@ int myredis_write_cache(myredis_t mr, char *k, char *v)
 
 
   if (rc->type==REDIS_REPLY_ERROR) {
-    printf("write to cache '%s' fail: %s\n",mr->cache_name,rc->str) ;
+    log_error("write to cache '%s' fail: %s\n",mr->cache_name,rc->str) ;
     return -1;
   }
 
@@ -79,7 +86,20 @@ int myredis_read_cache(myredis_t mr, char *k, redisReply **rc)
   *rc = (redisReply*)redisCommand(REDIS_CTX,"hget %s %s",mr->cache_name,k);
 
   if ((*rc)->type==REDIS_REPLY_ERROR) {
-    printf("read from redis fail: %s\n",(*rc)->str) ;
+    log_error("read from redis fail: %s\n",(*rc)->str) ;
+    return -1 ;
+  }
+
+  return 0;
+}
+
+static
+int myredis_read_cache_all(myredis_t mr, redisReply **rc)
+{
+  *rc = (redisReply*)redisCommand(REDIS_CTX,"hgetall %s",mr->cache_name);
+
+  if ((*rc)->type==REDIS_REPLY_ERROR) {
+    log_error("read from redis fail: %s\n",(*rc)->str) ;
     return -1 ;
   }
 
@@ -94,7 +114,7 @@ int myredis_mq_tx(myredis_t mr, char *m)
 
 
   if (rc->type==REDIS_REPLY_ERROR) {
-    printf("write to mq '%s' fail: %s\n", mr->mq_name,rc->str) ;
+    log_error("write to mq '%s' fail: %s\n", mr->mq_name,rc->str) ;
     return -1;
   }
 
@@ -107,7 +127,7 @@ int myredis_mq_rx(myredis_t mr, redisReply **rc)
   *rc = (redisReply*)redisCommand(REDIS_CTX,"lpop %s ",mr->mq_name);
 
   if ((*rc)->type==REDIS_REPLY_ERROR) {
-    printf("read from redis fail: %s\n",(*rc)->str) ;
+    log_error("read from redis fail: %s\n",(*rc)->str) ;
     return -1 ;
   }
 
@@ -147,7 +167,7 @@ myredis_write(myredis_t mr, const char *table, char *key, char *value, int st)
   return ret;
 }
 
-int myredis_read(myredis_t mr, const char *table, const char *key, dbuffer_t *value)
+int myredis_read(myredis_t mr, const char *table, const char *key, dbuffer_t *value, bool force)
 {
   size_t kl = strlen(table)+strlen(key)+10;
   dbuffer_t k = alloc_dbuffer(kl);
@@ -167,11 +187,11 @@ int myredis_read(myredis_t mr, const char *table, const char *key, dbuffer_t *va
   }
 
   if (rc->type!=REDIS_REPLY_STRING) {
-    printf("not redis string, type=%d\n",rc->type);
+    log_debug("not redis string, type=%d\n",rc->type);
     ret = -1;
 
-    if (rc->type==REDIS_REPLY_NIL) {
-      printf("begin to sync, try read later\n");
+    if (!force && rc->type==REDIS_REPLY_NIL) {
+      log_debug("begin to sync, try read later\n");
       // write dummy record
       myredis_write(mr,table,(char*)key,"",mr__need_sync_back);
       ret = 1;
@@ -193,7 +213,7 @@ int myredis_read(myredis_t mr, const char *table, const char *key, dbuffer_t *va
   pd  = get_tree_map_value(submap,"status");
 
   if (unlikely(!pd)) {
-    printf("fatal: no status found!\n");
+    log_error("fatal: no status found!\n");
     ret = -1;
     goto __end ;
   }
@@ -209,13 +229,13 @@ int myredis_read(myredis_t mr, const char *table, const char *key, dbuffer_t *va
 
   // the record is NOT found
   if (status==mr__na) {
-    printf("record not found!\n");
+    log_error("record not found!\n");
     ret = -1;
     goto __end ;
   }
 
   if (status==mr__need_sync_back) {
-    printf("try read later!\n");
+    log_debug("try read later!\n");
     ret = 1;
     goto __end ;
   }
@@ -229,27 +249,85 @@ __end:
   return ret;
 }
 
+#if 0
+int myredis_read_all(myredis_t mr, char ***rec, int *cnt)
+{
+  redisReply *rc = 0;
+  int ret = myredis_read_cache_all(mr,&rc);
+
+
+  if (ret)
+    return -1;
+
+  if (rc->type!=REDIS_REPLY_ARRAY) {
+    log_error("not redis array type!\n");
+    return -1;
+  }
+
+  *cnt = rc->elements>>1 ;
+  *rec = kmalloc(sizeof(char*)*(*cnt),0L);
+
+  //printf("type: %d, cnt: %d\n",rc->type,*cnt);
+  for (int i=0,n=0;i<rc->elements;i++) {
+    // dont read keys
+    if (rc->element[i]->type==REDIS_REPLY_STRING && (i&0x1)) {
+      (*rec)[n] = kmalloc(rc->element[i]->len+1,0L);
+      strcpy((*rec)[n],rc->element[i]->str);
+
+      //printf("%s\n",(*rec)[n]);
+      n++ ;
+    }
+  }
+
+  return 0;
+}
+
+void myredis_read_all_done(char ***rec, int cnt)
+{
+  if (!rec || !*rec)
+    return ;
+
+  for (int i=0;i<cnt;i++)
+    kfree((*rec)[i]);
+
+  kfree(*rec);
+}
+#endif
+
 #if TEST_CASES==1
 void test_myredis()
 {
   struct myredis_s mr ;
-  dbuffer_t res = alloc_default_dbuffer();
+  dbuffer_t res = alloc_default_dbuffer(); 
+  //char **ary = 0;
   char *k = 0;
+  //int cnt = 0;
 
-  myredis_init(&mr,"127.0.0.1",6379,"rds_example");
+  if (myredis_init(&mr,"127.0.0.1",6379,"rds_example")) {
+    return ;
+  }
 
   myredis_write(&mr,"merchant_info","100","asdfjkasdlfj",-1);
 
   k = "101";
   printf("trying key %s\n",k);
-  if (!myredis_read(&mr,"merchant_info",k,&res)) {
+  if (!myredis_read(&mr,"merchant_info",k,&res,false)) {
     printf("ret string: %s\n",res);
   }
 
   k = "100";
   printf("trying key %s\n",k);
-  if (!myredis_read(&mr,"merchant_info",k,&res)) {
+  if (!myredis_read(&mr,"merchant_info",k,&res,false)) {
     printf("ret string: %s\n",res);
   }
+
+  drop_dbuffer(res);
+
+#if 0
+  if (!myredis_read_all(&mr,&ary,&cnt)) {
+  }
+
+  myredis_read_all_done(&ary,cnt);
+#endif
 }
 #endif

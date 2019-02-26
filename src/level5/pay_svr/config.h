@@ -26,7 +26,12 @@ extern int get_listen_port(paySvr_config_t conf);
 
 extern int get_notify_port(paySvr_config_t conf);
 
-extern int get_myredis_info(paySvr_config_t conf, char *host, int *port, char *name);
+extern int get_myredis_info(paySvr_config_t conf, char *host, int *port, 
+                            char *dataTbl, char *cfgTbl);
+
+extern int process_local_merchant_configs(paySvr_config_t conf, dbuffer_t);
+
+extern int process_local_channel_configs(paySvr_config_t conf, dbuffer_t);
 
 extern int init_config(paySvr_config_t conf, const char *infile);
 

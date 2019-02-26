@@ -4,7 +4,8 @@
     "ListenPort" : 5481,
     "NotifyPort" : 1366,
     "Redis" : {
-      "name": "myrds_001",
+      "dataTable": "myrds_001",
+      "configTable": "myrds_002",
       "address" : "127.0.0.1",
       "port" : 6379
     }

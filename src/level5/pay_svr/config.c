@@ -19,7 +19,8 @@ struct global_config_keywords {
   const char *redis;
   const char *address;
   const char *port;
-  const char *name;
+  const char *dataTbl;
+  const char *cfgTbl;
 } 
 g_confKW = {
   .gsSec        = "Globals",
@@ -31,7 +32,8 @@ g_confKW = {
   .redis        = "Redis",
   .address      = "address",
   .port         = "port",
-  .name         = "name",
+  .dataTbl      = "dataTable",
+  .cfgTbl       = "configTable",
 } ;
 
 
@@ -98,7 +100,8 @@ int get_notify_port(paySvr_config_t conf)
 }
 
 int 
-get_myredis_info(paySvr_config_t conf, char *host, int *port, char *name)
+get_myredis_info(paySvr_config_t conf, char *host, int *port, 
+                 char *dataTbl, char *cfgTbl)
 {
   size_t vl = 0L;
   char *pstr = (char*)g_confKW.redis ;
@@ -129,7 +132,7 @@ get_myredis_info(paySvr_config_t conf, char *host, int *port, char *name)
 
   *port = jsons_integer(p->value);
 
-  pstr = (char*)g_confKW.name ;
+  pstr = (char*)g_confKW.dataTbl ;
   p = jsons_find(pr,pstr);
   if (!p) {
     log_error("entry '%s' not found\n",pstr);
@@ -137,7 +140,82 @@ get_myredis_info(paySvr_config_t conf, char *host, int *port, char *name)
   }
 
   pstr = jsons_string(p->value,&vl);
-  strncpy(name,pstr,vl);
+  strncpy(dataTbl,pstr,vl);
+
+
+  pstr = (char*)g_confKW.cfgTbl ;
+  p = jsons_find(pr,pstr);
+  if (!p) {
+    log_error("entry '%s' not found\n",pstr);
+    return -1;
+  }
+
+  pstr = jsons_string(p->value,&vl);
+  strncpy(cfgTbl,pstr,vl);
+
+  return 0;
+}
+
+int process_local_channel_configs(paySvr_config_t conf, dbuffer_t chanCfgStr)
+{
+  // channels configs
+  jsonKV_t *cc = 0;
+
+
+  if (chanCfgStr) {
+    cc = jsons_parse(chanCfgStr);
+  }
+  else {
+    cc = jsons_find(conf->m_root,g_confKW.channels);
+  }
+
+  if (!cc) {
+    log_error("no channel configs\n");
+    return -1;
+  }
+
+  tree_map_t tm = jsons_to_treemap(cc);
+  tree_map_t tm_chan = get_tree_map_nest(tm,(char*)g_confKW.channels);
+
+  if (tm_chan) {
+    conf->chan_cfg = tm_chan;
+    //dump_tree_map(tm_chan);
+  }
+
+  if (chanCfgStr)
+    jsons_release(cc);
+
+  return 0;
+}
+
+int process_local_merchant_configs(paySvr_config_t conf, dbuffer_t mchCfgStr)
+{
+  // merchants configs
+  jsonKV_t *cc = 0;
+
+
+  if (mchCfgStr) {
+    cc = jsons_parse(mchCfgStr);
+  }
+  else {
+    cc = jsons_find(conf->m_root,g_confKW.merchants);
+  }
+
+  if (!cc) {
+    log_error("no merchant configs\n");
+    return -1;
+  }
+
+  tree_map_t tm     = jsons_to_treemap(cc);
+  tree_map_t tm_mch = get_tree_map_nest(tm,(char*)g_confKW.merchants);
+
+  if (tm_mch) {
+    conf->merchant_cfg = tm_mch;
+    //dump_tree_map(tm_chan);
+  }
+
+  if (mchCfgStr)
+    jsons_release(cc);
 
   return 0;
 }
@@ -155,32 +233,6 @@ int init_config(paySvr_config_t conf, const char *infile)
   
   if (err)
     return -1;
-
-  // channels configs
-  jsonKV_t *cc = jsons_find(conf->m_root,g_confKW.channels);
-
-  if (cc) {
-    tree_map_t tm = jsons_to_treemap(cc);
-    tree_map_t tm_chan = get_tree_map_nest(tm,(char*)g_confKW.channels);
-
-    if (tm_chan) {
-      conf->chan_cfg = tm_chan;
-      //dump_tree_map(tm_chan);
-    }
-  }
-
-  // merchants configs
-  cc = jsons_find(conf->m_root,g_confKW.merchants);
-
-  if (cc) {
-    tree_map_t tm     = jsons_to_treemap(cc);
-    tree_map_t tm_mch = get_tree_map_nest(tm,(char*)g_confKW.merchants);
-
-    if (tm_mch) {
-      conf->merchant_cfg = tm_mch;
-      //dump_tree_map(tm_chan);
-    }
-  }
 
   return 0;
 }
