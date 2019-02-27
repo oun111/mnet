@@ -17,10 +17,13 @@ struct global_config_keywords {
   const char *channels;
   const char *merchants;
   const char *redis;
+  const char *mysql;
   const char *address;
   const char *port;
   const char *dataTbl;
   const char *cfgTbl;
+  const char *chanCfgTbl ;
+  const char *mchCfgTbl ;
 } 
 g_confKW = {
   .gsSec        = "Globals",
@@ -30,10 +33,13 @@ g_confKW = {
   .channels     = "channels",
   .merchants    = "merchants",
   .redis        = "Redis",
+  .mysql        = "Mysql",
   .address      = "address",
   .port         = "port",
   .dataTbl      = "dataTable",
   .cfgTbl       = "configTable",
+  .chanCfgTbl   = "channelConfigTableName",
+  .mchCfgTbl    = "merchantConfigTableName",
 } ;
 
 
@@ -99,13 +105,48 @@ int get_notify_port(paySvr_config_t conf)
   return jsons_integer(p->value);
 }
 
-int 
-get_myredis_info(paySvr_config_t conf, char *host, int *port, 
-                 char *dataTbl, char *cfgTbl)
+static
+int get_conf_str(jsonKV_t *pr, const char *key, char *buf, size_t szbuf)
 {
+  char *pstr = (char*)key ;
+  jsonKV_t *p = jsons_find(pr,pstr);
   size_t vl = 0L;
-  char *pstr = (char*)g_confKW.redis ;
-  jsonKV_t *pr = jsons_find(conf->m_root,pstr), *p= 0;
+
+
+  if (!p) {
+    log_error("entry '%s' not found\n",pstr);
+    return -1;
+  }
+
+  pstr = jsons_string(p->value,&vl);
+  vl   = vl<szbuf?vl:szbuf;
+  strncpy(buf,pstr,vl);
+  buf[vl] = '\0';
+
+  return 0;
+}
+
+static
+int get_conf_int(jsonKV_t *pr, const char *key, int *val)
+{
+  char *pstr = (char*)key ;
+  jsonKV_t *p = jsons_find(pr,pstr);
+
+
+  if (!p) {
+    log_error("entry '%s' not found\n",pstr);
+    return -1;
+  }
+
+  *val = jsons_integer(p->value);
+
+  return 0;
+}
+
+int get_mysql_configs(paySvr_config_t conf, mysql_conf_t pcfg)
+{
+  char *pstr = (char*)g_confKW.mysql ;
+  jsonKV_t *pr = jsons_find(conf->m_root,pstr);
 
 
   if (!pr) {
@@ -113,45 +154,34 @@ get_myredis_info(paySvr_config_t conf, char *host, int *port,
     return -1;
   }
 
-  pstr = (char*)g_confKW.address ;
-  p = jsons_find(pr,pstr);
-  if (!p) {
+  get_conf_str(pr,g_confKW.chanCfgTbl,pcfg->chan_config_table,
+               sizeof(pcfg->chan_config_table));
+
+  get_conf_str(pr,g_confKW.mchCfgTbl,pcfg->mch_config_table,
+               sizeof(pcfg->mch_config_table));
+
+  return 0;
+}
+
+int 
+get_myredis_configs(paySvr_config_t conf, myredis_conf_t pcfg)
+{
+  char *pstr = (char*)g_confKW.redis ;
+  jsonKV_t *pr = jsons_find(conf->m_root,pstr);
+
+
+  if (!pr) {
     log_error("entry '%s' not found\n",pstr);
     return -1;
   }
 
-  pstr = jsons_string(p->value,&vl);
-  strncpy(host,pstr,vl);
+  get_conf_str(pr,g_confKW.address,pcfg->host,sizeof(pcfg->host));
 
-  pstr = (char*)g_confKW.port ;
-  p = jsons_find(pr,pstr);
-  if (!p) {
-    log_error("entry '%s' not found\n",pstr);
-    return -1;
-  }
+  get_conf_int(pr,g_confKW.port,&pcfg->port);
 
-  *port = jsons_integer(p->value);
+  get_conf_str(pr,g_confKW.dataTbl,pcfg->data_table,sizeof(pcfg->data_table));
 
-  pstr = (char*)g_confKW.dataTbl ;
-  p = jsons_find(pr,pstr);
-  if (!p) {
-    log_error("entry '%s' not found\n",pstr);
-    return -1;
-  }
-
-  pstr = jsons_string(p->value,&vl);
-  strncpy(dataTbl,pstr,vl);
-
-
-  pstr = (char*)g_confKW.cfgTbl ;
-  p = jsons_find(pr,pstr);
-  if (!p) {
-    log_error("entry '%s' not found\n",pstr);
-    return -1;
-  }
-
-  pstr = jsons_string(p->value,&vl);
-  strncpy(cfgTbl,pstr,vl);
+  get_conf_str(pr,g_confKW.cfgTbl,pcfg->conf_table,sizeof(pcfg->conf_table));
 
   return 0;
 }

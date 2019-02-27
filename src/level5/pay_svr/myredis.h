@@ -21,8 +21,7 @@ extern void myredis_release(myredis_t mr);
 
 extern int myredis_init(myredis_t mr, const char *host, int port, char *name);
 
-extern int myredis_read(myredis_t mr, const char *table, const char *key, 
-                        dbuffer_t *value, bool force);
+extern int myredis_read(myredis_t mr, const char *table, const char *key, dbuffer_t *value);
 
 extern bool is_myredis_ok(myredis_t mr);
 

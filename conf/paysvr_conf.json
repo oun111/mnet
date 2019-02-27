@@ -8,6 +8,10 @@
       "configTable": "myrds_002",
       "address" : "127.0.0.1",
       "port" : 6379
+    },
+    "Mysql" : {
+      "merchantConfigTableName" : "merchant_configs",
+      "channelConfigTableName" : "channel_configs"
     }
   },
 

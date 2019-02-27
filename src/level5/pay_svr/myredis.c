@@ -173,7 +173,7 @@ myredis_write(myredis_t mr, const char *table, char *key, char *value, int st)
   return ret;
 }
 
-int myredis_read(myredis_t mr, const char *table, const char *key, dbuffer_t *value, bool force)
+int myredis_read(myredis_t mr, const char *table, const char *key, dbuffer_t *value)
 {
   size_t kl = strlen(table)+strlen(key)+10;
   dbuffer_t k = alloc_dbuffer(kl);
@@ -184,6 +184,7 @@ int myredis_read(myredis_t mr, const char *table, const char *key, dbuffer_t *va
   dbuffer_t pd = 0;
 
 
+  // key in redis table
   snprintf(k,kl,"%s_%s",table,key);
 
   ret = myredis_read_cache(mr,k,&rc);
@@ -197,7 +198,7 @@ int myredis_read(myredis_t mr, const char *table, const char *key, dbuffer_t *va
     log_debug("not redis string, type=%d\n",rc->type);
     ret = -1;
 
-    if (!force && rc->type==REDIS_REPLY_NIL) {
+    if (rc->type==REDIS_REPLY_NIL) {
       log_debug("begin to sync, try read later\n");
       // write dummy record
       myredis_write(mr,table,(char*)key,"",mr__need_sync_back);
@@ -323,13 +324,13 @@ void test_myredis()
 
   k = "101";
   printf("trying key %s\n",k);
-  if (!myredis_read(&mr,"merchant_info",k,&res,false)) {
+  if (!myredis_read(&mr,"merchant_info",k,&res)) {
     printf("ret string: %s\n",res);
   }
 
   k = "100";
   printf("trying key %s\n",k);
-  if (!myredis_read(&mr,"merchant_info",k,&res,false)) {
+  if (!myredis_read(&mr,"merchant_info",k,&res)) {
     printf("ret string: %s\n",res);
   }
 

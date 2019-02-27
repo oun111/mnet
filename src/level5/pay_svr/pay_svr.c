@@ -89,7 +89,7 @@ static void register_extra_modules()
   register_module(&g_alipay_mod);
 }
 
-int init_config2(char *host, int port, char *rds_cfg_tbl)
+int init_config2(myredis_conf_t rconf)
 {
   struct myredis_s rds = {.ctx=NULL,} ;
   dbuffer_t chan_res = 0, mch_res = 0;
@@ -97,17 +97,20 @@ int init_config2(char *host, int port, char *rds_cfg_tbl)
 
 
   // try read configs from redis
-  if (!myredis_init(&rds,host,port,rds_cfg_tbl)) {
+  if (!myredis_init(&rds,rconf->host,rconf->port,rconf->conf_table)) {
     int rc = 0;
+    struct mysql_config_s mscfg ;
 
-    log_info("try read configs from redis %s:%d - "
-             "%s\n",host,port,rds_cfg_tbl);
+
+    get_mysql_configs(&g_paySvrData.m_conf,&mscfg);
+    log_info("try read configs from redis %s:%d - %s\n",
+             rconf->host,rconf->port,rconf->conf_table);
 
     // channels'
     rc = 1;
     chan_res = alloc_default_dbuffer();
     for (int i=0; rc==1&&i<5;i++) {
-      rc = myredis_read(&rds,"channels","config",&chan_res,false);
+      rc = myredis_read(&rds,mscfg.chan_config_table,"",&chan_res);
     }
     if (rc==-1) {
       log_error("read channels configs from redis fail\n");
@@ -117,15 +120,15 @@ int init_config2(char *host, int port, char *rds_cfg_tbl)
     rc = 1;
     mch_res = alloc_default_dbuffer();
     for (int i=0; rc==1&&i<5;i++) {
-      rc = myredis_read(&rds,"merchants","config",&mch_res,false);
+      rc = myredis_read(&rds,mscfg.mch_config_table,"",&mch_res);
     }
     if (rc==-1) {
       log_error("read merchants configs from redis fail\n");
     }
   }
   else {
-    log_info("connect to redis %s:%d - %s fail, try read "
-             "local configs\n",host,port,rds_cfg_tbl);
+    log_info("connect to redis %s:%d - %s fail, try read local "
+             "configs\n",rconf->host,rconf->port,rconf->conf_table);
   }
 
   if (process_channel_configs(&g_paySvrData.m_conf,chan_res) ||
@@ -150,8 +153,9 @@ __done:
 
 void pay_svr_module_init(int argc, char *argv[])
 {
-  char host[32] = "", dataTbl[32] = "", cfgTbl[32] = "" ;
+  char host[32] = "" ;
   int port = 0, notify_port = 0, ret = 0;
+  struct myredis_config_s rconf ;
 
 
   if (parse_cmd_line(argc,argv))
@@ -168,14 +172,16 @@ void pay_svr_module_init(int argc, char *argv[])
   __http_svr_entry(host,port,notify_port);
 
   // redis params
-  if (!get_myredis_info(&g_paySvrData.m_conf,host,&port,dataTbl,cfgTbl)) {
+  if (!get_myredis_configs(&g_paySvrData.m_conf,&rconf)) {
 
-    ret = myredis_init(&g_paySvrData.m_rds,host,port,dataTbl);
-    log_info("connect to redis %s:%d - %s ... %s\n",host,
-             port,dataTbl,ret?"fail!":"ok!");
+    ret = myredis_init(&g_paySvrData.m_rds,rconf.host,
+                       rconf.port,rconf.data_table);
+    log_info("connect to redis %s:%d - %s ... %s\n",
+             rconf.host,rconf.port,rconf.data_table,
+             ret?"fail!":"ok!");
   }
 
-  if (init_config2(host,port,cfgTbl)) {
+  if (init_config2(&rconf)) {
     return ;
   }
 
