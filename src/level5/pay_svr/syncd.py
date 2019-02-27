@@ -3,6 +3,7 @@
 import pymysql
 import redis
 import json
+import re
 
 
 class myredis_configs(object):
@@ -30,15 +31,18 @@ class myredis_status(object):
 
 class Mysql(object):
 
-  def __init__(object,host,port,db,usr,pwd):
+  def __init__(self,host,port,db,usr,pwd):
     self.m_conn = pymysql.connect(host=host,port=port,
                   user=usr,password=pwd,database=db)
 
 
-  def query(self,table,key=None):
-    strsql = ("select *from " + table)
+  def query(self,table,cond=""):
+    strsql = ("select *from " + table + cond)
 
-    self.m_conn.execute(strsql)
+    cursor = self.m_conn.cursor()
+    cursor.execute(strsql)
+
+    return cursor.fetchall()
     
 
 
@@ -83,26 +87,50 @@ class syncd(object):
   def __init__(self):
 
     self.rds_status = myredis_status()
-    self.rds_cfg = myredis_configs()
-    self.mysql_cfg = mysql_configs()
-    cfg = self.rds_cfg
+    self.rds_cfg    = myredis_configs()
+    self.mysql_cfg  = mysql_configs()
+    cfg   = self.rds_cfg
     mscfg = self.mysql_cfg
 
-    self.m_rds = myredis(cfg.address,cfg.port)
-
+    self.m_rds   = myredis(cfg.address,cfg.port)
     self.m_mysql = Mysql(mscfg.address,mscfg.port,mscfg.db,
                          mscfg.usr,mscfg.pwd)
 
 
-  def synchronize_configs(self):
-    rst  = self.rds_status
-    cfg = self.rds_cfg
-    mscfg = self.mysql_cfg
-    rds = self.m_rds 
-    mysql = self.m_mysql
-    cfgTbl = cfg.config_table
-    cfgMq  = cfg.config_mq
+  def sync_back_merchant_configs(self,rows):
 
+    """
+    dict0 = {}
+    dict1 = {}
+
+    dict0['a'] = 1
+    dict0['b2'] = 20
+
+    dict1['k92'] = 'abc'
+
+    dict1['mch1'] = dict0
+
+    pj = json.dumps(dict1)
+
+    print("dicts: {0}".format(pj))
+    """
+
+    for r in rows:
+      print("row: {0}".format(r))
+
+
+  def sync_back_channel_configs(self,rows):
+    pass
+
+
+  def synchronize_configs(self):
+    rst   = self.rds_status
+    cfg   = self.rds_cfg
+    mscfg = self.mysql_cfg
+    rds   = self.m_rds 
+    mysql = self.m_mysql
+    cfgTbl= cfg.config_table
+    cfgMq = cfg.config_mq
 
 
     while (True):
@@ -121,8 +149,14 @@ class syncd(object):
 
       if (stat==rst.mr__need_sync_back):
         print("need to sync from mysql, table: {0}!!".format(tbl))
-
-        mysql.query(tbl)
+        rows = mysql.query(tbl)
+   
+        # merchant configs
+        if (re.match("merchant",tbl)!=None):
+          self.sync_back_merchant_configs(rows)
+        # channel configs
+        elif (re.match("channel",tbl)!=None):
+          self.sync_back_channel_configs(rows)
 
       rds.popq(cfgMq)
 

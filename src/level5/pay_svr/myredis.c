@@ -113,7 +113,7 @@ static
 int myredis_mq_tx(myredis_t mr, char *m)
 {
   int ret = 0;
-  redisReply *rc = (redisReply*)redisCommand(REDIS_CTX,"lpush %s %s ",
+  redisReply *rc = (redisReply*)redisCommand(REDIS_CTX,"rpush %s %s ",
                    mr->mq_name,m);
 
 
