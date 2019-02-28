@@ -19,6 +19,7 @@ static const char *commKW = "__comment";
 enum eObjectType {
   keyValue,
   keyList,
+  keyArray,
   keyOnly
 } ;
 
@@ -229,7 +230,7 @@ jsonKV_t* jsons_pattern(jsonKV_t *root, int function, void *arg)
       FUNC_TOTREEMAP_0(p,arg);
 
     /* the node has children list */
-    if (p->type==keyList) {
+    if (p->type==keyList || p->type==keyArray) {
       sstack_push(&stk,p);
       pl = p->children.next ;
       sstack_push(&stk1,pl);
@@ -429,6 +430,16 @@ jsonKV_t* jsons_parse(char *s)
       p = (jsonKV_t*)sstack_top(&stk);
       p->type = keyList ;
       bEval = false ;
+#if 0
+      if (p->type==keyArray) {
+        tmp = new_node("sroot");
+        list_add(&tmp->upper,&p->children);
+        tmp->type = keyList ;
+        p->num_children ++ ;
+        tmp->parent = p ;
+        sstack_push(&stk,tmp);
+      }
+#endif
     } else if (*tkn=='}') {
       sstack_pop(&stk);
     } else if (*tkn==':') {
@@ -603,6 +614,7 @@ int jsons_integer(char *in)
 void test_jsons()
 {
 #if 1
+  /*
   char inb[] = 
   "\"DataNodes\": { "
   "  \"dn1\": {  "
@@ -618,6 +630,8 @@ void test_jsons()
   "   \"ParamB\": \"try\", "
   "  },"
   "}, ";
+  */
+  char inb[] = "[{\"NAME\": \"mch_001\", \"PARAM_TYPE\": \"html\", \"SIGN_TYPE\": \"md5\", \"PUBKEY\": \"123456789\", \"ID\": 1, \"PRIVKEY\": \"\"}, {\"NAME\": \"mch_002\", \"PARAM_TYPE\": \"html\", \"SIGN_TYPE\": \"md5\", \"PUBKEY\": \"absdfsd456\", \"ID\": 2, \"PRIVKEY\": \"\"}]";
 #else
   dbuffer_t inb  = alloc_dbuffer(0);
 
@@ -631,6 +645,8 @@ void test_jsons()
 
   /* XXX: test */
   jsons_dump(root);
+  return;
+
   printf("*************\n");
   jsons_dump(jsons_find(root,(char*)"DataNodes"));
   printf("*************\n");

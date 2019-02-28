@@ -33,11 +33,14 @@ class Mysql(object):
 
   def __init__(self,host,port,db,usr,pwd):
     self.m_conn = pymysql.connect(host=host,port=port,
-                  user=usr,password=pwd,database=db)
+                  user=usr,password=pwd,database=db,
+                  cursorclass=pymysql.cursors.DictCursor)
 
+  def is_connect(self):
+    return self.m_conn.open==True
 
   def query(self,table,cond=""):
-    strsql = ("select *from " + table + cond)
+    strsql = ("select *from " + table + " " + cond)
 
     cursor = self.m_conn.cursor()
     cursor.execute(strsql)
@@ -56,7 +59,6 @@ class myredis(object):
       print("connect to redis {0}:{1} fail!".format(host,port))
     else:
       print("connect to redis {0}:{1} ok!".format(host,port))
-
 
 
   def read(self,dict1,key):
@@ -97,79 +99,65 @@ class syncd(object):
                          mscfg.usr,mscfg.pwd)
 
 
-  def sync_back_merchant_configs(self,rows):
 
-    """
-    dict0 = {}
-    dict1 = {}
+  def sync_back_configs(self,key,table,rows):
 
-    dict0['a'] = 1
-    dict0['b2'] = 20
-
-    dict1['k92'] = 'abc'
-
-    dict1['mch1'] = dict0
-
-    pj = json.dumps(dict1)
-
-    print("dicts: {0}".format(pj))
-    """
-
-    for r in rows:
-      print("row: {0}".format(r))
+    rds = self.m_rds
+    cfg = self.rds_cfg
+    cfgTbl = cfg.config_table
+    resMap = {}
 
 
-  def sync_back_channel_configs(self,rows):
-    pass
+    vj = json.dumps(rows)
+
+    resMap['status'] = self.rds_status.mr__ok
+    resMap['table']  = table
+    resMap['value']  = vj
+
+    fj = json.dumps(resMap)
+    print("final res: {0}".format(fj))
+
+    rds.write(cfgTbl,key,fj)
 
 
-  def synchronize_configs(self):
+
+  def do_synchronize(self,rdsTbl,rdsMq):
     rst   = self.rds_status
-    cfg   = self.rds_cfg
-    mscfg = self.mysql_cfg
     rds   = self.m_rds 
     mysql = self.m_mysql
-    cfgTbl= cfg.config_table
-    cfgMq = cfg.config_mq
 
 
     while (True):
 
       # read mq for config cache keys
-      k = rds.topq(cfgMq)
+      k = rds.topq(rdsMq)
       if (k==None):
         break
 
       # process config cache
-      v = rds.read(cfgTbl,k)
+      v = rds.read(rdsTbl,k)
+      if (v==None):
+        rds.popq(rdsMq)
+        continue
 
       jres = json.loads(v)
       stat = jres['status']
       tbl  = jres['table']
 
       if (stat==rst.mr__need_sync_back):
-        print("need to sync from mysql, table: {0}!!".format(tbl))
         rows = mysql.query(tbl)
-   
-        # merchant configs
-        if (re.match("merchant",tbl)!=None):
-          self.sync_back_merchant_configs(rows)
-        # channel configs
-        elif (re.match("channel",tbl)!=None):
-          self.sync_back_channel_configs(rows)
+        self.sync_back_configs(k,tbl,rows)
 
-      rds.popq(cfgMq)
+      rds.popq(rdsMq)
 
-
-  def synchronize_data(self):
-    # TODO
-    pass
 
 
   def run(self):
-    self.synchronize_configs()
+    cfg = self.rds_cfg;
 
-    self.synchronize_data()
+    self.do_synchronize(cfg.config_table,cfg.config_mq)
+
+    self.do_synchronize(cfg.data_table,cfg.data_mq)
 
 
 

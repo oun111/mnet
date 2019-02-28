@@ -7,7 +7,7 @@
 
 int main(int argc, char *argv[])
 {
-#if 1
+#if 0
   instance_start(argc,argv);
 #else
   {
