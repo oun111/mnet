@@ -90,14 +90,18 @@ static void register_extra_modules()
   register_module(&g_alipay_mod);
 }
 
-static int conv_merchant_format(tree_map_t entry, dbuffer_t *inb)
+static int conv_merchant_format(dbuffer_t inb, dbuffer_t *outb)
 {
   tm_item_t pos,n;
   tree_map_t top  = new_tree_map();
   tree_map_t m0  = new_tree_map();
 
+  jsonKV_t *p_in = jsons_parse(inb);
+  tree_map_t entry = jsons_to_treemap(p_in);
+  tree_map_t r0 = get_tree_map_nest(entry,"root");
 
-  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&entry->u.root,node) {
+
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&r0->u.root,node) {
     tree_map_t sub = pos->nest_map;
     tree_map_t m   = new_tree_map();
     char *signtype = get_tree_map_value(sub,"SIGN_TYPE");
@@ -116,9 +120,14 @@ static int conv_merchant_format(tree_map_t entry, dbuffer_t *inb)
   }
 
   put_tree_map_nest(top,"merchants",strlen("merchants"),m0);
+  m0 = get_tree_map_nest(top,"merchants");
 
-  treemap_to_jsons_str(top,inb);
+  treemap_to_jsons_str(top,outb);
   delete_tree_map(top);
+  //delete_tree_map(m0);
+
+  delete_tree_map(entry);
+  jsons_release(p_in);
 
   return 0;
 }
@@ -148,29 +157,30 @@ int init_config2(myredis_conf_t rconf)
     // channels'
     rc = 1;
     chan_res = alloc_default_dbuffer();
-    for (int i=0; rc==1&&i<5;i++) {
-      rc = myredis_read(&rds,mscfg.chan_config_table,"",conv_channel_format,&chan_res);
-    }
-    if (rc==-1) {
+    for (int i=0; rc==1&&i<5;i++) 
+      rc = myredis_read(&rds,mscfg.chan_config_table,"",&chan_res);
+
+    if (rc==-1) 
       log_error("read channels configs from redis fail\n");
-    }
 
     // merchants'
     rc = 1;
     mch_res = alloc_default_dbuffer();
-    for (int i=0; rc==1&&i<5;i++) {
-      rc = myredis_read(&rds,mscfg.mch_config_table,"",conv_merchant_format,&mch_res);
-    }
-    if (rc==-1) {
+    for (int i=0; rc==1&&i<5;i++) 
+      rc = myredis_read(&rds,mscfg.mch_config_table,"",&mch_res);
+
+    if (rc==-1) 
       log_error("read merchants configs from redis fail\n");
-    }
+    else
+      conv_merchant_format(mch_res,&mch_res);
+
   }
   else {
     log_info("connect to redis %s:%d - %s fail, try read local "
              "configs\n",rconf->host,rconf->port,rconf->conf_table);
   }
 
-  if (process_channel_configs(&g_paySvrData.m_conf,chan_res) ||
+  if (process_channel_configs(&g_paySvrData.m_conf,/*chan_res*/NULL) ||
       process_merchant_configs(&g_paySvrData.m_conf,mch_res)) {
     ret = -1;
     goto __done;

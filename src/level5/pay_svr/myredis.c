@@ -174,7 +174,7 @@ myredis_write(myredis_t mr, const char *table, char *key, char *value, int st)
 }
 
 int myredis_read(myredis_t mr, const char *table, const char *key, 
-                 fmt_conv cb, dbuffer_t *value)
+                 dbuffer_t *value)
 {
   size_t kl = strlen(table)+strlen(key)+10;
   dbuffer_t k = alloc_dbuffer(kl);
@@ -231,10 +231,8 @@ int myredis_read(myredis_t mr, const char *table, const char *key,
   status = atoi(pd);
   // get value ok!
   if (status==mr__ok || status==mr__need_sync) {
-    //pd = get_tree_map_value(submap,"value");
-    //*value = write_dbuffer_string(*value,pd,strlen(pd));
-    tree_map_t m0 = get_tree_map_nest(submap,"value");
-    if (cb) cb(m0,value);
+    pd = get_tree_map_value(submap,"value");
+    *value = write_dbuffer_string(*value,pd,strlen(pd));
     ret = 0;
     goto __end ;
   }

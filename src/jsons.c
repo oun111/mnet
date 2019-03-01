@@ -364,13 +364,25 @@ int jsons_lex_read(char *s, dbuffer_t *tkn, int pos)
   /* 
    * get a normal string token
    */
+  if (s[p]=='\\') p++ ;
   if (s[p]=='\"' || s[p]=='\'') {
-    /*const*/ char endc = s[p] ;
-    for (++p,p0=p;p<strlen(s)&&s[p]!=endc;p++);
+    char endc = s[p] ;
+    for (++p;isspace(s[p]);p++) ;
+    p0 = p;
+    // object in string token
+    if (s[p]=='{' || s[p]=='[') {
+      int cnt = 1;
+      char sc=s[p], nc = s[p]=='{'?'}':']' ;
+      for (++p; cnt && p<strlen(s); p++) {
+        if (s[p]==sc) cnt++ ;
+        else if (s[p]==nc) cnt-- ;
+      }
+    }
+    for (/*p0=p*/;p<strlen(s)&&s[p]!=endc;p++);
     if (p>=strlen(s))
       return p;
     *tkn = write_dbuffer(*tkn,&endc,1);
-    *tkn = append_dbuffer(*tkn,s+p0,(p-p0));
+    *tkn = append_dbuffer(*tkn,s+p0,(p-p0)-(s[p-1]=='\\'));
     *tkn = append_dbuffer_string(*tkn,&endc,1);
     return p+1 ;
   }
@@ -410,6 +422,19 @@ int jsons_eliminate_comments(char *s)
   return 0;
 }
 
+static 
+jsonKV_t* attach_parent(jsonKV_t *parent, const char *key, int nodeType)
+{
+  jsonKV_t *pj = new_node((char*)key);
+
+  pj->parent = parent ;
+  pj->type   = nodeType;
+  list_add(&pj->upper,&parent->children);
+  parent->num_children ++ ;
+
+  return pj ;
+}
+
 jsonKV_t* jsons_parse(char *s)
 {
   int pos=0 ;
@@ -432,18 +457,15 @@ jsonKV_t* jsons_parse(char *s)
   while ((pos=jsons_lex_read(s,&tkn,pos))>=0 && pos<(int)strlen(s)) {
 
     if (*tkn=='{' || *tkn=='[') {
-      p = (jsonKV_t*)sstack_top(&stk);
-      if (p->type==keyValue)
-        p->type = *tkn=='{'?keyList:keyArray ;
       bEval = false ;
+      p = (jsonKV_t*)sstack_top(&stk);
+      if (p->type==keyValue) {
+        p->type = *tkn=='{'?keyList:keyArray ;
+      }
       if (*tkn=='{' && p->type==keyArray) {
         char tb[16];
         sprintf(tb,"root%d",pos);
-        tmp = new_node(tb);
-        list_add(&tmp->upper,&p->children);
-        tmp->type = keyList ;
-        p->num_children ++ ;
-        tmp->parent = p ;
+        tmp = attach_parent(p,tb,keyList);
         sstack_push(&stk,tmp);
       }
     } else if (*tkn=='}') {
@@ -458,11 +480,6 @@ jsonKV_t* jsons_parse(char *s)
         /* pop out the key-only onde */
         sstack_pop(&stk);
         bKey = false; 
-#if 0
-        /* end of array? pop it out! */
-        if (*tkn==']') 
-          sstack_pop(&stk);
-#endif
       }
       /* end of array? pop it out! */
       if (*tkn==']') 
@@ -479,12 +496,9 @@ jsonKV_t* jsons_parse(char *s)
           p->type  = keyValue ;
         } else {
           /* it's a key */
-          tmp = new_node((char*)tkn);
           p = (jsonKV_t*)sstack_top(&stk);
-          list_add(&tmp->upper,&p->children);
+          tmp = attach_parent(p,tkn,keyValue);
           p->type = keyList ;
-          p->num_children ++ ;
-          tmp->parent = p ;
           sstack_push(&stk,tmp);
           bKey = true;
         }
@@ -499,19 +513,6 @@ jsonKV_t* jsons_parse(char *s)
   drop_dbuffer(tkn);
 
   return m_root;
-}
-
-static 
-jsonKV_t* attach_parent(jsonKV_t *parent, const char *key, int nodeType)
-{
-  jsonKV_t *pj = new_node((char*)key);
-
-  pj->parent = parent ;
-  pj->type   = nodeType;
-  list_add(&pj->upper,&parent->children);
-  parent->num_children ++ ;
-
-  return pj ;
 }
 
 static
@@ -642,7 +643,7 @@ void test_jsons()
   "  },"
   "}, ";
   */
-  char inb[] = "{\"status\": 3, \"table\": \"merchant_configs\", \"value\": [{\"NAME\": \"mch_001\", \"PARAM_TYPE\": \"html\", \"SIGN_TYPE\": \"md5\", \"PUBKEY\": \"123456\", \"ID\": 1, \"PRIVKEY\": \"\"}, {\"NAME\": \"mch_002\", \"PARAM_TYPE\": \"html\", \"SIGN_TYPE\": \"md5\", \"PUBKEY\": \"654321\", \"ID\": 2, \"PRIVKEY\": \"\"}]}";
+  char inb[] = "[{\"NAME\": \"mch_001\", \"PARAM_TYPE\": \"html\", \"SIGN_TYPE\": \"md5\", \"PUBKEY\": \"123456789\", \"ID\": 1, \"PRIVKEY\": \"\"}, {\"NAME\": \"mch_002\", \"PARAM_TYPE\": \"html\", \"SIGN_TYPE\": \"md5\", \"PUBKEY\": \"absdfsd456\", \"ID\": 2, \"PRIVKEY\": \"\"}]  ";
 #else
   dbuffer_t inb  = alloc_dbuffer(0);
 

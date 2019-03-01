@@ -226,15 +226,16 @@ int process_channel_configs(paySvr_config_t conf, dbuffer_t chanCfgStr)
 int process_merchant_configs(paySvr_config_t conf, dbuffer_t mchCfgStr)
 {
   // merchants configs
-  jsonKV_t *cc = 0;
+  jsonKV_t *cc = 0, *pr = 0;
 
 
   if (mchCfgStr && dbuffer_data_size(mchCfgStr)>0) {
-    cc = jsons_parse(mchCfgStr);
+    pr = jsons_parse(mchCfgStr);
   }
   else {
-    cc = jsons_find(conf->m_root,g_confKW.merchants);
+    pr = conf->m_root;
   }
+  cc = jsons_find(pr,g_confKW.merchants);
 
   if (!cc) {
     log_error("no merchant configs\n");
@@ -243,19 +244,14 @@ int process_merchant_configs(paySvr_config_t conf, dbuffer_t mchCfgStr)
 
   tree_map_t tm     = jsons_to_treemap(cc);
   tree_map_t tm_mch = get_tree_map_nest(tm,(char*)g_confKW.merchants);
-  dump_tree_map(tm);
 
-  if (conf->mch_root) {
-    delete_tree_map(conf->mch_root);
-  }
   conf->mch_root = tm ;
-
   if (tm_mch) {
     conf->merchant_cfg = tm_mch;
   }
 
   if (mchCfgStr)
-    jsons_release(cc);
+    jsons_release(pr);
 
   return 0;
 }
