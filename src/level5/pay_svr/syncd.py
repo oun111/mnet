@@ -112,7 +112,7 @@ class syncd(object):
 
     resMap['status'] = self.rds_status.mr__ok
     resMap['table']  = table
-    resMap['value']  = vj
+    resMap['value']  = json.loads(vj)
 
     fj = json.dumps(resMap)
     print("final res: {0}".format(fj))

@@ -77,7 +77,7 @@ struct jsonsPtnInfo {
   for (int i=0;i<(__level);i++)      \
     printf("%s","-");            \
   printf("%s<%p> ", (__p)->key,(__p)->parent);         \
-  if ((__p)->type==keyList)          \
+  if ((__p)->type==keyList || (__p)->type==keyArray)   \
     printf("(%zu)\n",(__p)->num_children); \
   else if ((__p)->type==keyValue)          \
     printf(" => %s \n", (__p)->value); \
@@ -88,7 +88,7 @@ struct jsonsPtnInfo {
 
 #define FUNC_TOSTR_0(__p__,__arg__) do{ \
   struct jsonsPtnInfo *ti = (struct jsonsPtnInfo*)(void*)(__arg__); \
-  if (strcmp((__p__)->key,"root")) { \
+  if (strncmp((__p__)->key,"root",4)) { \
     append_dbuf_str(ti->str,(__p__)->key); \
     append_dbuf_str(ti->str,":"); \
   } \
@@ -99,11 +99,16 @@ struct jsonsPtnInfo {
   } \
   else if ((__p__)->type==keyList) \
     append_dbuf_str(ti->str,"{"); \
+  else if ((__p__)->type==keyArray) \
+    append_dbuf_str(ti->str,"["); \
 } while(0)
 
 #define FUNC_TOSTR_1(__p__,__arg__) do{\
   struct jsonsPtnInfo *ti = (struct jsonsPtnInfo*)(void*)(__arg__); \
-  append_dbuf_str(ti->str,"}"); \
+  if ((__p__)->type==keyList) \
+    append_dbuf_str(ti->str,"}"); \
+  else if ((__p__)->type==keyArray) \
+    append_dbuf_str(ti->str,"]"); \
   if (NOT_LAST_CHILD(__p__,(__p__)->parent)) \
     append_dbuf_str(ti->str,","); \
 }while(0)
@@ -114,7 +119,7 @@ struct jsonsPtnInfo {
   tree_map_t prt = sstack_top(&ti->k); \
   size_t vl= 0L;  \
   char *pv = jsons_string(__p__->key,&vl); \
-  if ((__p__)->type==keyList) {\
+  if ((__p__)->type==keyList || (__p__)->type==keyArray) {\
     tree_map_t chld = new_tree_map(); \
     put_tree_map_nest(prt,pv,vl,chld); \
     sstack_push(&ti->k,chld); \
@@ -428,18 +433,19 @@ jsonKV_t* jsons_parse(char *s)
 
     if (*tkn=='{' || *tkn=='[') {
       p = (jsonKV_t*)sstack_top(&stk);
-      p->type = keyList ;
+      if (p->type==keyValue)
+        p->type = *tkn=='{'?keyList:keyArray ;
       bEval = false ;
-#if 0
-      if (p->type==keyArray) {
-        tmp = new_node("sroot");
+      if (*tkn=='{' && p->type==keyArray) {
+        char tb[16];
+        sprintf(tb,"root%d",pos);
+        tmp = new_node(tb);
         list_add(&tmp->upper,&p->children);
         tmp->type = keyList ;
         p->num_children ++ ;
         tmp->parent = p ;
         sstack_push(&stk,tmp);
       }
-#endif
     } else if (*tkn=='}') {
       sstack_pop(&stk);
     } else if (*tkn==':') {
@@ -452,10 +458,15 @@ jsonKV_t* jsons_parse(char *s)
         /* pop out the key-only onde */
         sstack_pop(&stk);
         bKey = false; 
+#if 0
         /* end of array? pop it out! */
         if (*tkn==']') 
           sstack_pop(&stk);
+#endif
       }
+      /* end of array? pop it out! */
+      if (*tkn==']') 
+        sstack_pop(&stk);
     } else if (!strcmp(tkn,commKW)) {
       bComm = true ;
     } else {
@@ -631,7 +642,7 @@ void test_jsons()
   "  },"
   "}, ";
   */
-  char inb[] = "[{\"NAME\": \"mch_001\", \"PARAM_TYPE\": \"html\", \"SIGN_TYPE\": \"md5\", \"PUBKEY\": \"123456789\", \"ID\": 1, \"PRIVKEY\": \"\"}, {\"NAME\": \"mch_002\", \"PARAM_TYPE\": \"html\", \"SIGN_TYPE\": \"md5\", \"PUBKEY\": \"absdfsd456\", \"ID\": 2, \"PRIVKEY\": \"\"}]";
+  char inb[] = "{\"status\": 3, \"table\": \"merchant_configs\", \"value\": [{\"NAME\": \"mch_001\", \"PARAM_TYPE\": \"html\", \"SIGN_TYPE\": \"md5\", \"PUBKEY\": \"123456\", \"ID\": 1, \"PRIVKEY\": \"\"}, {\"NAME\": \"mch_002\", \"PARAM_TYPE\": \"html\", \"SIGN_TYPE\": \"md5\", \"PUBKEY\": \"654321\", \"ID\": 2, \"PRIVKEY\": \"\"}]}";
 #else
   dbuffer_t inb  = alloc_dbuffer(0);
 
@@ -642,10 +653,7 @@ void test_jsons()
 #endif
 
   jsonKV_t *root = jsons_parse(inb);
-
-  /* XXX: test */
   jsons_dump(root);
-  return;
 
   printf("*************\n");
   jsons_dump(jsons_find(root,(char*)"DataNodes"));
@@ -665,10 +673,17 @@ void test_jsons()
 
     printf("string result >>>>>>  %s\n",str);
     drop_dbuffer(str);
+
+    tree_map_t m0 = jsons_to_treemap(root);
+    printf("top root: %p\n",m0);
+    dump_tree_map(m0);
+
+    delete_tree_map(m0);
   }
 
   printf("freeing...\n");
   jsons_release(root);
+  return ;
 
   // test tree_map -> jsons -> string
   printf("*************\n");

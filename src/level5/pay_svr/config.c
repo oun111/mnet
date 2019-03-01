@@ -243,6 +243,7 @@ int process_merchant_configs(paySvr_config_t conf, dbuffer_t mchCfgStr)
 
   tree_map_t tm     = jsons_to_treemap(cc);
   tree_map_t tm_mch = get_tree_map_nest(tm,(char*)g_confKW.merchants);
+  dump_tree_map(tm);
 
   if (conf->mch_root) {
     delete_tree_map(conf->mch_root);

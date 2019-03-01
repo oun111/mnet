@@ -3,9 +3,9 @@
 #include <stdbool.h>
 #include <hiredis/hiredis.h>
 #include "dbuffer.h"
-#include "myredis.h"
 #include "jsons.h"
 #include "tree_map.h"
+#include "myredis.h"
 #include "log.h"
 
 /**
@@ -173,7 +173,8 @@ myredis_write(myredis_t mr, const char *table, char *key, char *value, int st)
   return ret;
 }
 
-int myredis_read(myredis_t mr, const char *table, const char *key, dbuffer_t *value)
+int myredis_read(myredis_t mr, const char *table, const char *key, 
+                 fmt_conv cb, dbuffer_t *value)
 {
   size_t kl = strlen(table)+strlen(key)+10;
   dbuffer_t k = alloc_dbuffer(kl);
@@ -230,8 +231,10 @@ int myredis_read(myredis_t mr, const char *table, const char *key, dbuffer_t *va
   status = atoi(pd);
   // get value ok!
   if (status==mr__ok || status==mr__need_sync) {
-    pd = get_tree_map_value(submap,"value");
-    *value = write_dbuffer_string(*value,pd,strlen(pd));
+    //pd = get_tree_map_value(submap,"value");
+    //*value = write_dbuffer_string(*value,pd,strlen(pd));
+    tree_map_t m0 = get_tree_map_nest(submap,"value");
+    if (cb) cb(m0,value);
     ret = 0;
     goto __end ;
   }
@@ -313,7 +316,7 @@ void test_myredis()
   struct myredis_s mr ;
   dbuffer_t res = alloc_default_dbuffer(); 
   //char **ary = 0;
-  char *k = 0;
+  //char *k = 0;
   //int cnt = 0;
 
   if (myredis_init(&mr,"127.0.0.1",6379,"rds_example")) {
@@ -322,6 +325,7 @@ void test_myredis()
 
   myredis_write(&mr,"merchant_info","100","asdfjkasdlfj",-1);
 
+#if 0
   k = "101";
   printf("trying key %s\n",k);
   if (!myredis_read(&mr,"merchant_info",k,&res)) {
@@ -333,6 +337,7 @@ void test_myredis()
   if (!myredis_read(&mr,"merchant_info",k,&res)) {
     printf("ret string: %s\n",res);
   }
+#endif
 
   drop_dbuffer(res);
 

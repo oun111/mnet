@@ -193,7 +193,8 @@ int get_tree_map_item_count(tree_map_t entry)
 void dump_tree_map(tree_map_t entry)
 {
   struct sstack_t stk_r, stk_p ;
-  struct rb_root *proot = &entry->u.root ;
+  //struct rb_root *proot = &entry->u.root ;
+  tree_map_t proot = entry ;
   tm_item_t pos,n;
   bool b1stItem = true ;
 
@@ -204,11 +205,11 @@ void dump_tree_map(tree_map_t entry)
   while(1) {
 
     if (b1stItem == true) {
-      pos = MY_RBTREE_SORTORDER_FIRST_ENTRY(proot,struct tree_map_item_s,node);
+      pos = MY_RBTREE_SORTORDER_FIRST_ENTRY(&proot->u.root,struct tree_map_item_s,node);
     }
 
     b1stItem = false ;
-    MY_RBTREE_SORTORDER_REMAINING_ENTRIES(pos,n,proot,node) {
+    MY_RBTREE_SORTORDER_REMAINING_ENTRIES(pos,n,&proot->u.root,node) {
       if (pos->nest_map) {
 
         printf("[nest map]: %s -----\n",pos->key);

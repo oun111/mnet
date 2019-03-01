@@ -10,6 +10,7 @@
 #include "module.h"
 #include "log.h"
 #include "myredis.h"
+#include "myrbtree.h"
 
 
 
@@ -89,6 +90,44 @@ static void register_extra_modules()
   register_module(&g_alipay_mod);
 }
 
+static int conv_merchant_format(tree_map_t entry, dbuffer_t *inb)
+{
+  tm_item_t pos,n;
+  tree_map_t top  = new_tree_map();
+  tree_map_t m0  = new_tree_map();
+
+
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&entry->u.root,node) {
+    tree_map_t sub = pos->nest_map;
+    tree_map_t m   = new_tree_map();
+    char *signtype = get_tree_map_value(sub,"SIGN_TYPE");
+    char *mch_id   = get_tree_map_value(sub,"NAME");
+
+    put_tree_map_string(m,"sign_type",signtype);
+    put_tree_map_string(m,"param_type",get_tree_map_value(sub,"PARAM_TYPE"));
+    if (!strcmp(signtype,"md5"))
+      put_tree_map_string(m,"key",get_tree_map_value(sub,"PUBKEY"));
+    else if (!strcmp(signtype,"rsa")) {
+      put_tree_map_string(m,"pubkey",get_tree_map_value(sub,"PUBKEY"));
+      put_tree_map_string(m,"privkey",get_tree_map_value(sub,"PRIVKEY"));
+    }
+
+    put_tree_map_nest(m0,mch_id,strlen(mch_id),m);
+  }
+
+  put_tree_map_nest(top,"merchants",strlen("merchants"),m0);
+
+  treemap_to_jsons_str(top,inb);
+  delete_tree_map(top);
+
+  return 0;
+}
+
+static int conv_channel_format(tree_map_t map, dbuffer_t *inb)
+{
+  return 0;
+}
+
 int init_config2(myredis_conf_t rconf)
 {
   struct myredis_s rds = {.ctx=NULL,} ;
@@ -110,7 +149,7 @@ int init_config2(myredis_conf_t rconf)
     rc = 1;
     chan_res = alloc_default_dbuffer();
     for (int i=0; rc==1&&i<5;i++) {
-      rc = myredis_read(&rds,mscfg.chan_config_table,"",&chan_res);
+      rc = myredis_read(&rds,mscfg.chan_config_table,"",conv_channel_format,&chan_res);
     }
     if (rc==-1) {
       log_error("read channels configs from redis fail\n");
@@ -120,7 +159,7 @@ int init_config2(myredis_conf_t rconf)
     rc = 1;
     mch_res = alloc_default_dbuffer();
     for (int i=0; rc==1&&i<5;i++) {
-      rc = myredis_read(&rds,mscfg.mch_config_table,"",&mch_res);
+      rc = myredis_read(&rds,mscfg.mch_config_table,"",conv_merchant_format,&mch_res);
     }
     if (rc==-1) {
       log_error("read merchants configs from redis fail\n");
