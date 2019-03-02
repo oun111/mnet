@@ -186,74 +186,44 @@ get_myredis_configs(paySvr_config_t conf, myredis_conf_t pcfg)
   return 0;
 }
 
-int process_channel_configs(paySvr_config_t conf, dbuffer_t chanCfgStr)
+static
+int do_process_configs(paySvr_config_t conf, tree_map_t *target_conf, 
+                       const char *key, dbuffer_t cfgStr)
 {
   // channels configs
-  jsonKV_t *cc = 0;
+  jsonKV_t *cc = 0, *pr = 0;
 
 
   // FIXME: check json validations
-  if (chanCfgStr && dbuffer_data_size(chanCfgStr)>0) {
-    cc = jsons_parse(chanCfgStr);
+  if (cfgStr && dbuffer_data_size(cfgStr)>0) {
+    pr = jsons_parse(cfgStr);
   }
   else {
-    cc = jsons_find(conf->m_root,g_confKW.channels);
+    pr = conf->m_root;
   }
+  cc = jsons_find(pr,key);
 
   if (!cc) {
     log_error("no channel configs\n");
     return -1;
   }
 
-  tree_map_t tm = jsons_to_treemap(cc);
-  tree_map_t tm_chan = get_tree_map_nest(tm,(char*)g_confKW.channels);
+  *target_conf = jsons_to_treemap(cc) ;
 
-  if (conf->chan_root) {
-    delete_tree_map(conf->chan_root);
-  }
-  conf->chan_root = tm ;
-
-  if (tm_chan) {
-    conf->chan_cfg = tm_chan;
-  }
-
-  if (chanCfgStr)
+  if (cfgStr)
     jsons_release(cc);
 
   return 0;
 }
 
+int process_channel_configs(paySvr_config_t conf, dbuffer_t chanCfgStr)
+{
+  return do_process_configs(conf,&conf->chan_conf,g_confKW.channels,chanCfgStr);
+}
+
 int process_merchant_configs(paySvr_config_t conf, dbuffer_t mchCfgStr)
 {
-  // merchants configs
-  jsonKV_t *cc = 0, *pr = 0;
-
-
-  if (mchCfgStr && dbuffer_data_size(mchCfgStr)>0) {
-    pr = jsons_parse(mchCfgStr);
-  }
-  else {
-    pr = conf->m_root;
-  }
-  cc = jsons_find(pr,g_confKW.merchants);
-
-  if (!cc) {
-    log_error("no merchant configs\n");
-    return -1;
-  }
-
-  tree_map_t tm     = jsons_to_treemap(cc);
-  tree_map_t tm_mch = get_tree_map_nest(tm,(char*)g_confKW.merchants);
-
-  conf->mch_root = tm ;
-  if (tm_mch) {
-    conf->merchant_cfg = tm_mch;
-  }
-
-  if (mchCfgStr)
-    jsons_release(pr);
-
-  return 0;
+  return do_process_configs(conf,&conf->mch_conf,g_confKW.merchants,mchCfgStr);
 }
 
 int init_config(paySvr_config_t conf, const char *infile)
@@ -277,12 +247,12 @@ int free_config(paySvr_config_t conf)
 {
   jsons_release(conf->m_root);
 
-  if (conf->chan_root) {
-    delete_tree_map(conf->chan_root);
+  if (conf->chan_conf) {
+    delete_tree_map(conf->chan_conf);
   }
 
-  if (conf->mch_root) {
-    delete_tree_map(conf->mch_root);
+  if (conf->mch_conf) {
+    delete_tree_map(conf->mch_conf);
   }
 
   return 0;

@@ -116,7 +116,8 @@ int init_merchant_data(merchant_entry_t pm)
 {
   tm_item_t pos,n;
   extern paySvr_config_t get_running_configs();
-  tree_map_t mcfg = get_running_configs()->merchant_cfg;
+  tree_map_t pr  = get_running_configs()->mch_conf;
+  tree_map_t mcfg= get_tree_map_nest(pr,"merchants");
 
 
   init_merchant_entry(pm,-1);

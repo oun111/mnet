@@ -99,6 +99,34 @@ class syncd(object):
                          mscfg.usr,mscfg.pwd)
 
 
+  def conv_mch_cfg_formats(self,rows):
+
+    dmchs = {}
+    top   = {}
+
+
+    for r in rows:
+      mch_n = {}
+      mch_n['sign_type']  = r['SIGN_TYPE']
+      mch_n['param_type'] = r['PARAM_TYPE']
+
+      if (r['SIGN_TYPE']=='md5'):
+        mch_n['key'] = r['PUBKEY']
+      else:
+        mch_n['pubkey']  = r['PUBKEY']
+        mch_n['privkey'] = r['PRIVKEY']
+
+      dmchs[r['NAME']] = mch_n
+
+    top['merchants'] = dmchs
+
+    return json.dumps(top)
+
+
+  def conv_chan_cfg_formats(self,row):
+
+    return ''
+
 
   def sync_back_configs(self,key,table,rows):
 
@@ -108,7 +136,13 @@ class syncd(object):
     resMap = {}
 
 
-    vj = json.dumps(rows)
+    if (table=='merchant_configs'):
+      vj = self.conv_mch_cfg_formats(rows)
+    elif (table=='channel_configs'):
+      vj = self.conv_chan_cfg_formats(rows)
+    else:
+      print("unsupport config table '{0}'".format(table))
+      return
 
     resMap['status'] = self.rds_status.mr__ok
     resMap['table']  = table

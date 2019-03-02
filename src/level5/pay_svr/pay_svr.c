@@ -90,6 +90,7 @@ static void register_extra_modules()
   register_module(&g_alipay_mod);
 }
 
+#if 0
 static int conv_merchant_format(dbuffer_t inb, dbuffer_t *outb)
 {
   tm_item_t pos,n;
@@ -136,6 +137,27 @@ static int conv_channel_format(tree_map_t map, dbuffer_t *inb)
 {
   return 0;
 }
+#endif
+
+int 
+get_remote_configs(myredis_t rds, char *tbl, char *key, dbuffer_t *res)
+{
+  int rc = 1;
+
+
+  *res = alloc_default_dbuffer();
+
+  for (int i=0; rc==1&&i<5;i++) {
+    rc = myredis_read(rds,tbl,key,res);
+  }
+
+  if (rc==-1) {
+    log_error("read '%s' from redis fail\n",tbl);
+    return -1;
+  }
+
+  return 0;
+}
 
 int init_config2(myredis_conf_t rconf)
 {
@@ -145,8 +167,9 @@ int init_config2(myredis_conf_t rconf)
 
 
   // try read configs from redis
-  if (!myredis_init(&rds,rconf->host,rconf->port,rconf->conf_table)) {
-    int rc = 0;
+  ret = myredis_init(&rds,rconf->host,rconf->port,rconf->conf_table);
+
+  if (!ret) {
     struct mysql_config_s mscfg ;
 
 
@@ -155,27 +178,13 @@ int init_config2(myredis_conf_t rconf)
              rconf->host,rconf->port,rconf->conf_table);
 
     // channels'
-    rc = 1;
-    chan_res = alloc_default_dbuffer();
-    for (int i=0; rc==1&&i<5;i++) 
-      rc = myredis_read(&rds,mscfg.chan_config_table,"",&chan_res);
-
-    if (rc==-1) 
-      log_error("read channels configs from redis fail\n");
+    get_remote_configs(&rds,mscfg.chan_config_table,"",&chan_res);
 
     // merchants'
-    rc = 1;
-    mch_res = alloc_default_dbuffer();
-    for (int i=0; rc==1&&i<5;i++) 
-      rc = myredis_read(&rds,mscfg.mch_config_table,"",&mch_res);
-
-    if (rc==-1) 
-      log_error("read merchants configs from redis fail\n");
-    else
-      conv_merchant_format(mch_res,&mch_res);
-
+    get_remote_configs(&rds,mscfg.mch_config_table,"",&mch_res);
   }
-  else {
+
+  if (ret) {
     log_info("connect to redis %s:%d - %s fail, try read local "
              "configs\n",rconf->host,rconf->port,rconf->conf_table);
   }

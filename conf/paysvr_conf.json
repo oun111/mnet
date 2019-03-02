@@ -17,8 +17,8 @@
 
   "channels": {
 
-    "alipay": {
-      "m0" : {
+    "alipay": [
+       {
         "req_url": "https://openapi.alipay.com/gateway.do",
         "param_type": "html",
         "crypto": {
@@ -47,8 +47,8 @@
           "sign": ""
         }
       },
-      /*
-      "m1" : {
+
+      {
         "req_url": "http://www.163.com:443/test1",
         "param_type": "json",
         "crypto": {
@@ -61,8 +61,7 @@
           "format" : "JSON"
         }
       }
-      */
-    },
+    ],
 
     "wxpay": {
       "wx0" : {

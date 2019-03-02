@@ -11,9 +11,9 @@ struct paySvr_config_s {
 
   jsonKV_t *m_root ;
 
-  tree_map_t chan_root,chan_cfg ;
+  tree_map_t chan_conf ;
 
-  tree_map_t mch_root,merchant_cfg ;
+  tree_map_t mch_conf ;
 
 } __attribute__((__aligned__(64))) ;
 

@@ -182,7 +182,9 @@ int init_pay_data(pay_channels_entry_t *paych)
   tm_item_t pos,n;
   tm_item_t pos1,n1;
   extern paySvr_config_t get_running_configs();
-  tree_map_t entry = get_running_configs()->chan_cfg;
+  tree_map_t pr = get_running_configs()->chan_conf;
+  tree_map_t entry = get_tree_map_nest(pr,"channels");
+  dump_tree_map(pr);
 
 
   *paych = new_pay_channels_entry();
