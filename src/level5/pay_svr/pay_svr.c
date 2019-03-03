@@ -178,7 +178,7 @@ int init_config2(myredis_conf_t rconf)
              rconf->host,rconf->port,rconf->conf_table);
 
     // channels'
-    get_remote_configs(&rds,mscfg.chan_config_table,"",&chan_res);
+    get_remote_configs(&rds,mscfg.alipay_conf_table,"",&chan_res);
 
     // merchants'
     get_remote_configs(&rds,mscfg.mch_config_table,"",&mch_res);
@@ -189,7 +189,7 @@ int init_config2(myredis_conf_t rconf)
              "configs\n",rconf->host,rconf->port,rconf->conf_table);
   }
 
-  if (process_channel_configs(&g_paySvrData.m_conf,/*chan_res*/NULL) ||
+  if (process_channel_configs(&g_paySvrData.m_conf,chan_res) ||
       process_merchant_configs(&g_paySvrData.m_conf,mch_res)) {
     ret = -1;
     goto __done;

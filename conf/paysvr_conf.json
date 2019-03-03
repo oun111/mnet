@@ -11,55 +11,45 @@
     },
     "Mysql" : {
       "merchantConfigTableName" : "merchant_configs",
-      "channelConfigTableName" : "channel_configs"
+      "alipayConfigTableName" : "channel_alipay_configs"
     }
   },
 
   "channels": {
 
     "alipay": [
-       {
+      {
         "req_url": "https://openapi.alipay.com/gateway.do",
         "param_type": "html",
-        "crypto": {
-          "public_key":"/home/user1/work/mnet/conf/rsa_public_key.pem",
-          "private_key":"/home/user1/work/mnet/conf/rsa_private_key.pem"
-        },
-        "pay_biz": {
-          "body":"",
-          "subject":"",
-          "out_trade_no":"",
-          "total_amount":0,
-          "product_code":"QUICK_WAP_PAY",
-          "timeout_express":"30m"
-        },
-        "pay_data": {
-          "app_id" : "123",
-          "method" : "alipay.trade.wap.pay",
-          "format" : "JSON",
-          "charset": "utf-8",
-          "sign_type": "RSA2",
-          "timestamp": "",
-          "version": "1.0",
-          "biz_content": "",
-          "notify_url": "https://127.0.0.1/alipay/notify",
-          "return_url": "http://127.0.0.1/return/index",
-          "sign": ""
-        }
+        "public_key":"/home/user1/work/mnet/conf/rsa_public_key.pem",
+        "private_key":"/home/user1/work/mnet/conf/rsa_private_key.pem",
+        "product_code":"QUICK_WAP_PAY",
+        "timeout_express":"60m",
+        "app_id" : "123",
+        "method" : "alipay.trade.wap.pay",
+        "format" : "JSON",
+        "charset": "utf-8",
+        "sign_type": "RSA2",
+        "version": "1.0",
+        "notify_url": "https://127.0.0.1/alipay/notify",
+        "return_url": "http://127.0.0.1/return/index"
       },
 
       {
-        "req_url": "http://www.163.com:443/test1",
-        "param_type": "json",
-        "crypto": {
-          "public_key":"asdfasf2r132r11234314fafsrf25432432423rewrewr",
-          "private_key":"123123jhkkljlu8u9jkljsdjfozuwkfVsdkfjioujisoufoidsuiofaf"
-        },
-        "pay_data": {
-          "app_id" : "456789",
-          "method" : "alipay.trade.wap.pay11",
-          "format" : "JSON"
-        }
+        "req_url": "https://openapi.alipay.com/gateway.do",
+        "param_type": "html",
+        "public_key":"/home/user1/work/mnet/conf/rsa_public_key.pem",
+        "private_key":"/home/user1/work/mnet/conf/rsa_private_key.pem",
+        "product_code":"QUICK_WAP_PAY",
+        "timeout_express":"3m",
+        "app_id" : "ababfff",
+        "method" : "alipay.trade.wap.pay",
+        "format" : "JSON",
+        "charset": "utf-8",
+        "sign_type": "RSA2",
+        "version": "1.0",
+        "notify_url": "https://127.0.0.1/alipay/notify",
+        "return_url": "http://127.0.0.1/return/index"
       }
     ],
 
@@ -73,18 +63,20 @@
 
   },
 
-  "merchants": {
-    "mch_001": {
+  "merchants": [
+    {
+      "name" : "mch_001",
       "sign_type": "md5",
       "key":"12345",
       "param_type":"html"
     },
-    "mch_002": {
+    {
+      "name" : "mch_002",
       "sign_type": "md5",
       "key":"123456",
       "param_type":"json"
     }
-  }
+  ]
 
 }
 

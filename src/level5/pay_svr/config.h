@@ -30,7 +30,7 @@ typedef struct myredis_config_s* myredis_conf_t ;
 
 
 struct mysql_config_s {
-  char chan_config_table[32];
+  char alipay_conf_table[32];
   char mch_config_table[32];
 } ;
 typedef struct mysql_config_s* mysql_conf_t ;

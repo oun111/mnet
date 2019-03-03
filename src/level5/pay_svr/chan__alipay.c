@@ -126,10 +126,10 @@ struct module_struct_s g_alipay_mod = {
 
 
 static
-int deal_crypto(tree_map_t pay_params)
+int deal_crypto(tree_map_t pay_params,tree_map_t pay_data)
 {
-  tree_map_t crypto_map = get_tree_map_nest(pay_params,CRYPTO);
-  tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA);
+  //tree_map_t crypto_map = get_tree_map_nest(pay_params,CRYPTO);
+  //tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA);
   char *privkeypath = 0;
   dbuffer_t sign_params = 0; 
   unsigned char *sign = 0;
@@ -139,9 +139,11 @@ int deal_crypto(tree_map_t pay_params)
   int ret = 0;
 
 
+#if 0
   if (!crypto_map) {
     return 1;
   }
+#endif
 
   // reset 'sign' field
   put_tree_map_string(pay_data,"sign",(char*)"");
@@ -149,7 +151,7 @@ int deal_crypto(tree_map_t pay_params)
   sign_params = create_html_params(pay_data);
   //log_debug("sign string: %s, size: %zu\n",sign_params,strlen(sign_params));
 
-  privkeypath = get_tree_map_value(crypto_map,PRIVKEY);
+  privkeypath = get_tree_map_value(pay_params,PRIVKEY);
   if (rsa_private_sign(privkeypath,sign_params,&sign,&sz_out)<0) {
     ret = -1;
     goto __done;
@@ -175,20 +177,24 @@ __done:
 }
 
 static 
-int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params, tree_map_t pay_params)
+int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params, 
+                      tree_map_t pay_params, tree_map_t pay_data)
 {
-  tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA);
-  tree_map_t pay_biz = get_tree_map_nest(pay_params,"pay_biz");
+  //tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA);
+  //tree_map_t pay_biz = get_tree_map_nest(pay_params,"pay_biz");
+  tree_map_t pay_biz = NULL;
   time_t curr = time(NULL);
   struct tm *tm = localtime(&curr);
   char tmp[96] = "";
   char *body = 0, *subject = 0, *out_trade_no = 0, *amount=0;
 
 
+#if 0
   if (!pay_biz) {
     FORMAT_ERR(errbuf,"no 'pay_biz' found\n");
     return -1;
   }
+#endif
 
   body = get_tree_map_value(user_params,"body");
   if (!body) {
@@ -210,10 +216,34 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params, tree_map_t pay_
     return -1;
   }
 
+
+  pay_biz = new_tree_map();
+
   snprintf(tmp,sizeof(tmp),"%d-%d-%d %d:%d:%d",tm->tm_year+1900,
            tm->tm_mon+1,tm->tm_mday,tm->tm_hour,tm->tm_min,
            tm->tm_sec);
   put_tree_map_string(pay_data,"timestamp",tmp);
+
+  put_tree_map_string(pay_data,"app_id",
+      get_tree_map_value(pay_params,"app_id"));
+
+  put_tree_map_string(pay_data,"method",
+      get_tree_map_value(pay_params,"method"));
+
+  put_tree_map_string(pay_data,"format",
+      get_tree_map_value(pay_params,"format"));
+
+  put_tree_map_string(pay_data,"charset",
+      get_tree_map_value(pay_params,"charset"));
+
+  put_tree_map_string(pay_data,"version",
+      get_tree_map_value(pay_params,"version"));
+
+  put_tree_map_string(pay_data,"notify_url",
+      get_tree_map_value(pay_params,"notify_url"));
+
+  put_tree_map_string(pay_data,"return_url",
+      get_tree_map_value(pay_params,"return_url"));
 
   put_tree_map_string(pay_biz,"body",body);
   put_tree_map_string(pay_biz,"subject",subject);
@@ -223,10 +253,19 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params, tree_map_t pay_
   snprintf(tmp,sizeof(tmp),"$%s",amount);
   put_tree_map_string(pay_biz,"total_amount",tmp);
 
+  put_tree_map_string(pay_biz,"product_code",
+      get_tree_map_value(pay_params,"product_code"));
+
+  put_tree_map_string(pay_biz,"timeout_express",
+      get_tree_map_value(pay_params,"timeout_express"));
+
   dbuffer_t strBiz = create_json_params(pay_biz);
 
   put_tree_map_string(pay_data,"biz_content",strBiz);
+
+
   drop_dbuffer(strBiz);
+  delete_tree_map(pay_biz);
 
   return 0;
 }
@@ -344,7 +383,7 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
   char *tno = get_tree_map_value(user_params,"out_trade_no");
   char *amt = get_tree_map_value(user_params,"total_amount");
   char *chan = action__alipay_order.channel;
-  tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA);
+  //tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA);
   char *chan_mch_no = NULL;
 
 
@@ -368,12 +407,14 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
     return -1;
   }
 
+#if 0
   if (!pay_data) {
     FORMAT_ERR(errbuf,"no pay data in config!\n");
     return -1;
   }
+#endif
 
-  chan_mch_no = get_tree_map_value(pay_data,"app_id");
+  chan_mch_no = get_tree_map_value(pay_params,"app_id");
 
   if (get_order(pe,pOdrId)) {
     FORMAT_ERR(errbuf,"order id '%s' duplicates!\n",odrid);
@@ -407,12 +448,13 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   merchant_entry_t pme = get_merchant_entry();
   merchant_info_t pm = 0;
   char *mch_id = NULL;
+  int ret = 0;
 
 
   mch_id = get_tree_map_value(user_params,"mch_id");
   if (!mch_id || !(pm=get_merchant(pme,mch_id))) {
     FORMAT_ERR(errbuf,"no such merchant '%s'\n",mch_id);
-    return -1;
+    return 0;
   }
 
   if (!pd) {
@@ -428,20 +470,25 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
     return -1;
   }
 
-  if (update_alipay_biz(&pconn->txb,user_params,pay_params)) {
-    return -1;
+  pay_data = new_tree_map();
+
+  if (update_alipay_biz(&pconn->txb,user_params,pay_params,pay_data)) {
+    ret = -1;
+    goto __done ;
   }
 
   if (create_order(&pconn->txb,pay_params,user_params)) {
-    return -1;
+    ret = -1;
+    goto __done ;
   }
 
   // deals with cryptographic
-  if (deal_crypto(pay_params)<0) {
-    return -1;
+  if (deal_crypto(pay_params,pay_data)<0) {
+    ret = -1;
+    goto __done ;
   }
 
-  pay_data = get_tree_map_nest(pay_params,PAY_DATA);
+  //pay_data = get_tree_map_nest(pay_params,PAY_DATA);
 
 #if ALIPAY_DBG==1
   int param_type = 0;
@@ -452,11 +499,13 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   }
 
   if (create_browser_redirect_req(&out_conn->txb,url,param_type,pay_data)) {
-    return -1;
+    ret = -1;
+    goto __done ;
   }
 #else
   if (create_alipay_link(&pconn->txb,out_conn,url,pm,pay_data)) {
-    return -1;
+    ret = -1;
+    goto __done ;
   }
 #endif
 
@@ -464,7 +513,11 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
     alipay_tx(net,out_conn);
   }
 
-  return 0;
+
+__done:
+  delete_tree_map(pay_data);
+
+  return ret;
 }
 
 

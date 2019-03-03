@@ -10,8 +10,8 @@
 #define PARAM_TYPE   "param_type"
 #define PAY_DATA     "pay_data"
 #define CRYPTO       "crypto"
-#define PUBKEY       "public_key"
-#define PRIVKEY      "private_key"
+#define PUBKEY       "public_key_path"
+#define PRIVKEY      "private_key_path"
 
 
 struct pay_data_item_s {

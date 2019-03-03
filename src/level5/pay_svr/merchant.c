@@ -124,7 +124,7 @@ int init_merchant_data(merchant_entry_t pm)
 
   rbtree_postorder_for_each_entry_safe(pos,n,&mcfg->u.root,node) {
     tree_map_t mch_map = pos->nest_map;
-    char *mch_id = pos->key ;
+    char *mch_id = get_tree_map_value(mch_map,"name") ;
 
     save_merchant(pm,mch_id,mch_map);
   }

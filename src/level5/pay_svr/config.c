@@ -22,7 +22,7 @@ struct global_config_keywords {
   const char *port;
   const char *dataTbl;
   const char *cfgTbl;
-  const char *chanCfgTbl ;
+  const char *alipayCfgTbl ;
   const char *mchCfgTbl ;
 } 
 g_confKW = {
@@ -38,7 +38,7 @@ g_confKW = {
   .port         = "port",
   .dataTbl      = "dataTable",
   .cfgTbl       = "configTable",
-  .chanCfgTbl   = "channelConfigTableName",
+  .alipayCfgTbl = "alipayConfigTableName",
   .mchCfgTbl    = "merchantConfigTableName",
 } ;
 
@@ -154,8 +154,8 @@ int get_mysql_configs(paySvr_config_t conf, mysql_conf_t pcfg)
     return -1;
   }
 
-  get_conf_str(pr,g_confKW.chanCfgTbl,pcfg->chan_config_table,
-               sizeof(pcfg->chan_config_table));
+  get_conf_str(pr,g_confKW.alipayCfgTbl,pcfg->alipay_conf_table,
+               sizeof(pcfg->alipay_conf_table));
 
   get_conf_str(pr,g_confKW.mchCfgTbl,pcfg->mch_config_table,
                sizeof(pcfg->mch_config_table));
@@ -197,6 +197,7 @@ int do_process_configs(paySvr_config_t conf, tree_map_t *target_conf,
   // FIXME: check json validations
   if (cfgStr && dbuffer_data_size(cfgStr)>0) {
     pr = jsons_parse(cfgStr);
+    jsons_dump(pr);
   }
   else {
     pr = conf->m_root;
@@ -204,7 +205,7 @@ int do_process_configs(paySvr_config_t conf, tree_map_t *target_conf,
   cc = jsons_find(pr,key);
 
   if (!cc) {
-    log_error("no channel configs\n");
+    log_error("no '%s' configs\n",key);
     return -1;
   }
 

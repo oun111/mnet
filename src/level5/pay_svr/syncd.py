@@ -99,33 +99,39 @@ class syncd(object):
                          mscfg.usr,mscfg.pwd)
 
 
-  def conv_mch_cfg_formats(self,rows):
-
-    dmchs = {}
-    top   = {}
+  def to_lower(self,rows):
+    nrows = []
 
 
     for r in rows:
-      mch_n = {}
-      mch_n['sign_type']  = r['SIGN_TYPE']
-      mch_n['param_type'] = r['PARAM_TYPE']
+      newr = {}
+      for k in r:
+        newr[k.lower()] = r[k]
+      nrows.append(newr)
 
-      if (r['SIGN_TYPE']=='md5'):
-        mch_n['key'] = r['PUBKEY']
-      else:
-        mch_n['pubkey']  = r['PUBKEY']
-        mch_n['privkey'] = r['PRIVKEY']
+    return nrows
 
-      dmchs[r['NAME']] = mch_n
 
-    top['merchants'] = dmchs
+  def conv_mch_cfg_formats(self,rows):
+
+    top   = {}
+    nrows = self.to_lower(rows)
+
+    top['merchants'] = nrows
 
     return json.dumps(top)
 
 
-  def conv_chan_cfg_formats(self,row):
+  def conv_alipay_cfg_formats(self,rows):
 
-    return ''
+    top = {}
+    alip= {}
+    nrows = self.to_lower(rows)
+
+    alip['alipay'] = nrows
+    top['channels']= alip
+
+    return json.dumps(top)
 
 
   def sync_back_configs(self,key,table,rows):
@@ -138,8 +144,8 @@ class syncd(object):
 
     if (table=='merchant_configs'):
       vj = self.conv_mch_cfg_formats(rows)
-    elif (table=='channel_configs'):
-      vj = self.conv_chan_cfg_formats(rows)
+    elif (table=='channel_alipay_configs'):
+      vj = self.conv_alipay_cfg_formats(rows)
     else:
       print("unsupport config table '{0}'".format(table))
       return
