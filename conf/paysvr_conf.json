@@ -67,13 +67,13 @@
     {
       "name" : "mch_001",
       "sign_type": "md5",
-      "key":"12345",
+      "pubkey":"12345",
       "param_type":"html"
     },
     {
       "name" : "mch_002",
       "sign_type": "md5",
-      "key":"123456",
+      "pubkey":"123456",
       "param_type":"json"
     }
   ]

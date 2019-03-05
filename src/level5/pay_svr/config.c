@@ -197,7 +197,7 @@ int do_process_configs(paySvr_config_t conf, tree_map_t *target_conf,
   // FIXME: check json validations
   if (cfgStr && dbuffer_data_size(cfgStr)>0) {
     pr = jsons_parse(cfgStr);
-    jsons_dump(pr);
+    //jsons_dump(pr);
   }
   else {
     pr = conf->m_root;

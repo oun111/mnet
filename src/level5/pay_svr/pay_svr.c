@@ -156,6 +156,7 @@ get_remote_configs(myredis_t rds, char *tbl, char *key, dbuffer_t *res)
     return -1;
   }
 
+  log_info("read remote '%s' from redis ok!\n",tbl);
   return 0;
 }
 

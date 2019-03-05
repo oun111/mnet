@@ -4,6 +4,7 @@ import pymysql
 import redis
 import json
 import re
+import time
 
 
 class myredis_configs(object):
@@ -46,6 +47,13 @@ class Mysql(object):
     cursor.execute(strsql)
 
     return cursor.fetchall()
+
+
+  def update(self,strSql):
+    cursor = self.m_conn.cursor()
+
+    cursor.execute(strSql)
+    self.m_conn.commit()
     
 
 
@@ -87,6 +95,16 @@ class syncd(object):
 
 
   def __init__(self):
+
+    self.sync_back_cb = {
+      'merchant_configs'       : self.conv_mch_cfg_formats,
+      'channel_alipay_configs' : self.conv_alipay_cfg_formats
+    }
+
+    self.sync_cb = {
+      'merchant_configs'       : self.sync_mch_cfg,
+      'channel_alipay_configs' : self.sync_chan_alipay_cfg
+    }
 
     self.rds_status = myredis_status()
     self.rds_cfg    = myredis_configs()
@@ -134,21 +152,13 @@ class syncd(object):
     return json.dumps(top)
 
 
-  def sync_back_configs(self,key,table,rows):
+  def do_sync_back(self,rdsTbl,key,table,rows):
 
     rds = self.m_rds
-    cfg = self.rds_cfg
-    cfgTbl = cfg.config_table
     resMap = {}
 
 
-    if (table=='merchant_configs'):
-      vj = self.conv_mch_cfg_formats(rows)
-    elif (table=='channel_alipay_configs'):
-      vj = self.conv_alipay_cfg_formats(rows)
-    else:
-      print("unsupport config table '{0}'".format(table))
-      return
+    vj = self.sync_back_cb[table](rows)
 
     resMap['status'] = self.rds_status.mr__ok
     resMap['table']  = table
@@ -157,7 +167,51 @@ class syncd(object):
     fj = json.dumps(resMap)
     print("final res: {0}".format(fj))
 
-    rds.write(cfgTbl,key,fj)
+    rds.write(rdsTbl,key,fj)
+
+
+  def sync_mch_cfg(table,vmap):
+
+    strSql  = ""
+    mysql   = self.m_mysql
+    strCond = (" name='" + vmap['name'] + "'")
+
+    res = mysql.query(table,strCond)
+
+    if (res.len()>0):
+      strSql = ("update "+ table + " set sign_type='" + vmap['sign_type'] + "'," +
+                " param_type = '" + vmap['param_type'] + "'," + 
+                " pubkey = '"     + vmap['pubkey']     + "'," + 
+                " privkey = '"    + vmap['privkey']    + "' " + 
+                " where name = '" + vmap['name']       + "'")
+    else:
+      strSql = ("insert into " + table + "(name,sign_type,pubkey,privkey,param_type)" +
+                " values(" + vmap['name'] +      "," + vmap['sign_type'] + " ," 
+                           + vmap['pubkey'] +    "," + vmap['privkey']   + " ," 
+                           + vmap['param_type'] + ")" )
+
+    mysql.update(strSql)
+
+
+
+
+  """
+    TODO: 
+  """
+  def sync_chan_alipay_cfg(table,vmap):
+    pass 
+
+
+  def do_sync(self,rdsTbl,key,table,v):
+
+    self.sync_cb[table](table,json.loads(v))
+
+    resMap['status'] = self.rds_status.mr__ok
+    resMap['table']  = table
+    resMap['value']  = v
+
+    fj = json.dumps(resMap)
+    rds.write(rdsTbl,key,fj)
 
 
 
@@ -183,10 +237,13 @@ class syncd(object):
       jres = json.loads(v)
       stat = jres['status']
       tbl  = jres['table']
+      v    = jres['value']
 
       if (stat==rst.mr__need_sync_back):
         rows = mysql.query(tbl)
-        self.sync_back_configs(k,tbl,rows)
+        self.do_sync_back(rdsTbl,k,tbl,rows)
+      elif (stat==rst.mr__need_sync):
+        self.do_sync(rdsTbl,k,tbl,v)
 
       rds.popq(rdsMq)
 
@@ -195,10 +252,13 @@ class syncd(object):
   def run(self):
     cfg = self.rds_cfg;
 
-    self.do_synchronize(cfg.config_table,cfg.config_mq)
+    while (True):
 
-    self.do_synchronize(cfg.data_table,cfg.data_mq)
+      self.do_synchronize(cfg.config_table,cfg.config_mq)
 
+      self.do_synchronize(cfg.data_table,cfg.data_mq)
+
+      time.sleep(0.1);
 
 
 
