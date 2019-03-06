@@ -40,8 +40,8 @@ class Mysql(object):
   def is_connect(self):
     return self.m_conn.open==True
 
-  def query(self,table,cond=""):
-    strsql = ("select *from " + table + " " + cond)
+  def query(self,table,selist=" * ",cond=""):
+    strsql = ("select " + selist + " from " + table + " " + cond)
 
     cursor = self.m_conn.cursor()
     cursor.execute(strsql)
@@ -117,9 +117,9 @@ class syncd(object):
                          mscfg.usr,mscfg.pwd)
 
 
+
   def to_lower(self,rows):
     nrows = []
-
 
     for r in rows:
       newr = {}
@@ -170,6 +170,7 @@ class syncd(object):
     rds.write(rdsTbl,key,fj)
 
 
+
   def sync_mch_cfg(self,table,vmap):
 
     mch_map = vmap['merchants']
@@ -177,40 +178,78 @@ class syncd(object):
     for mch in mch_map:
       strSql  = ""
       mysql   = self.m_mysql
-      strCond = (" where name='" + mch['name'] + "'")
+      name    = mch['name']
+      selist  = "count(1)"
+      strCond = (" where name='" + name + "'")
 
-      res = mysql.query(table,strCond)
+      res = mysql.query(table,selist,strCond)
 
-      if (len(res)>0):
+      if (res[0][selist]>0):
         strSql = ("update "+ table + " set sign_type='" + mch['sign_type'] + "'," +
                   " param_type = '" + mch['param_type'] + "'," + 
-                  " pubkey = '"     + mch['pubkey']     + "'," + 
-                  " privkey = '"    + mch['privkey']    + "' " + 
-                  " where name = '" + mch['name']       + "'")
+                  " pubkey = '"  + mch['pubkey'] + "'," + 
+                  " privkey = '" + mch['privkey'] + "' "+ 
+                  " where name = '" + name + "'")
       else:
         strSql = ("insert into " + table + "(name,sign_type,pubkey,privkey,param_type)" +
-                  " values(" + mch['name'] +      "," + mch['sign_type'] + " ," 
-                             + mch['pubkey'] +    "," + mch['privkey']   + " ," 
-                             + mch['param_type'] + ")" )
+                  " values(" 
+                  "'" + name + "', '" + mch['sign_type'] + "', " 
+                  "'" + mch['pubkey'] + "', '" + mch['privkey'] + "' ," 
+                  "'" + mch['param_type'] + "' )" )
 
-      print("update sql: "+strSql)
+      #print("update sql: "+strSql)
 
       mysql.update(strSql)
 
 
 
-
-  """
-    TODO: 
-  """
   def sync_chan_alipay_cfg(self,table,vmap):
     cm = vmap['channels']
     apmap = cm['alipay']
 
-    print("vmap: ", vmap)
-
     for ch in apmap:
-      print("ch: ", ch)
+      strSql  = ""
+      app_id  = ch['app_id']
+      mysql   = self.m_mysql
+      strCond = (" where app_id='" + app_id + "'")
+      selist  = "count(1)"
+
+      res = mysql.query(table,selist,strCond)
+
+      if (res[0][selist]>0):
+        strSql = ("update "+ table + " set "
+                  " name ='" + ch['name'] + "'," +
+                  " req_url = '" + ch['req_url'] + "'," + 
+                  " param_type = '" + ch['param_type'] + "'," + 
+                  " public_key_path = '"  + ch['public_key_path'] + "', " + 
+                  " private_key_path = '" + ch['private_key_path'] + "', " + 
+                  " TIMEOUT_EXPRESS = '"  + ch['timeout_express'] + "', " + 
+                  " product_code = '" + ch['product_code'] + "', " + 
+                  " METHOD = '"  + ch['method'] + "', " + 
+                  " FORMAT = '"  + ch['format'] + "', " + 
+                  " CHARSET = '" + ch['charset'] + "', " + 
+                  " VERSION = '" + ch['version'] + "', " + 
+                  " SIGN_TYPE = '"  + ch['sign_type'] + "', " + 
+                  " NOTIFY_URL = '" + ch['notify_url'] + "', " + 
+                  " RETURN_URL = '" + ch['return_url'] + "' " + 
+                  " where app_id = '" + app_id          + "'")
+      else:
+        strSql = ("insert into " + table + 
+                  " (NAME,REQ_URL,PARAM_TYPE,PUBLIC_KEY_PATH,PRIVATE_KEY_PATH,PRODUCT_CODE," +
+                  "  TIMEOUT_EXPRESS,APP_ID,METHOD,FORMAT,CHARSET,SIGN_TYPE,VERSION,NOTIFY_URL," +
+                  "  RETURN_URL)" +
+                  " values(" + 
+                  "'" + ch['name'] + "', '" + ch['req_url'] + "', '" + ch['param_type'] + "', "
+                  "'" + ch['public_key_path'] + "', '" + ch['private_key_path'] + "', "
+                  "'" + ch['product_code'] + "', '" + ch['timeout_express'] + "', "  
+                  "'" + ch['app_id'] + "', '" + ch['method'] + "', '" + ch['format'] + "', "
+                  "'" + ch['charset'] + "', '" + ch['version'] + "', '" + ch['sign_type'] + "', "
+                  "'" + ch['notify_url'] + "', '" + ch['return_url'] + "' )" )
+
+      #print("update sql: "+strSql)
+
+      mysql.update(strSql)
+
 
 
   def do_sync(self,rdsTbl,key,table,v):
@@ -237,12 +276,12 @@ class syncd(object):
 
     while (True):
 
-      # read mq for config cache keys
+      # read mq for cache keys
       k = rds.topq(rdsMq)
       if (k==None):
         break
 
-      # process config cache
+      # process cache
       v = rds.read(rdsTbl,k)
       if (v==None):
         rds.popq(rdsMq)

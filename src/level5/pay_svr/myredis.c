@@ -196,7 +196,7 @@ int myredis_read(myredis_t mr, const char *table, const char *key,
   }
 
   if (rc->type!=REDIS_REPLY_STRING) {
-    log_debug("not redis string, type=%d\n",rc->type);
+    //log_debug("not redis string, type=%d\n",rc->type);
     ret = -1;
 
     if (rc->type==REDIS_REPLY_NIL) {
@@ -239,13 +239,13 @@ int myredis_read(myredis_t mr, const char *table, const char *key,
 
   // the record is NOT found
   if (status==mr__na) {
-    log_error("record not found!\n");
+    //log_error("record not found!\n");
     ret = -1;
     goto __end ;
   }
 
   if (status==mr__need_sync_back) {
-    log_debug("try read later!\n");
+    //log_debug("try read later!\n");
     ret = 1;
     goto __end ;
   }

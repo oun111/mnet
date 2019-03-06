@@ -90,55 +90,6 @@ static void register_extra_modules()
   register_module(&g_alipay_mod);
 }
 
-#if 0
-static int conv_merchant_format(dbuffer_t inb, dbuffer_t *outb)
-{
-  tm_item_t pos,n;
-  tree_map_t top  = new_tree_map();
-  tree_map_t m0  = new_tree_map();
-
-  jsonKV_t *p_in = jsons_parse(inb);
-  tree_map_t entry = jsons_to_treemap(p_in);
-  tree_map_t r0 = get_tree_map_nest(entry,"root");
-
-
-  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&r0->u.root,node) {
-    tree_map_t sub = pos->nest_map;
-    tree_map_t m   = new_tree_map();
-    char *signtype = get_tree_map_value(sub,"SIGN_TYPE");
-    char *mch_id   = get_tree_map_value(sub,"NAME");
-
-    put_tree_map_string(m,"sign_type",signtype);
-    put_tree_map_string(m,"param_type",get_tree_map_value(sub,"PARAM_TYPE"));
-    if (!strcmp(signtype,"md5"))
-      put_tree_map_string(m,"key",get_tree_map_value(sub,"PUBKEY"));
-    else if (!strcmp(signtype,"rsa")) {
-      put_tree_map_string(m,"pubkey",get_tree_map_value(sub,"PUBKEY"));
-      put_tree_map_string(m,"privkey",get_tree_map_value(sub,"PRIVKEY"));
-    }
-
-    put_tree_map_nest(m0,mch_id,strlen(mch_id),m);
-  }
-
-  put_tree_map_nest(top,"merchants",strlen("merchants"),m0);
-  m0 = get_tree_map_nest(top,"merchants");
-
-  treemap_to_jsons_str(top,outb);
-  delete_tree_map(top);
-  //delete_tree_map(m0);
-
-  delete_tree_map(entry);
-  jsons_release(p_in);
-
-  return 0;
-}
-
-static int conv_channel_format(tree_map_t map, dbuffer_t *inb)
-{
-  return 0;
-}
-#endif
-
 int 
 get_remote_configs(myredis_t rds, char *tbl, char *key, dbuffer_t *res)
 {
@@ -147,7 +98,7 @@ get_remote_configs(myredis_t rds, char *tbl, char *key, dbuffer_t *res)
 
   *res = alloc_default_dbuffer();
 
-  for (int i=0; rc==1&&i<5;i++) {
+  for (int i=0; rc==1/*&&i<5*/;i++) {
     rc = myredis_read(rds,tbl,key,res);
   }
 
@@ -184,7 +135,7 @@ int init_config2(myredis_conf_t rconf)
     // merchants'
     get_remote_configs(&rds,mscfg.mch_conf_table,"",&mch_res);
 
-#if 1
+#if 0
     // XXX: test
     if (dbuffer_data_size(mch_res)>0)
     {
