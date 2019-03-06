@@ -51,11 +51,13 @@ extern int jsons_integer(char *in);
 
 extern jsonKV_t* jsons_parse_tree_map(tree_map_t entry);
 
-extern int jsons_toString(jsonKV_t *root, dbuffer_t *outb);
+extern int jsons_toString(jsonKV_t *root, dbuffer_t *outb, bool add_del);
 
 extern int treemap_to_jsons_str(tree_map_t in, dbuffer_t *outb);
 
 extern tree_map_t jsons_to_treemap(jsonKV_t *root);
+
+extern int jstr_add_delimiter(dbuffer_t jstr, dbuffer_t *outb);
 
 #endif /* __JSONS_H__*/
 

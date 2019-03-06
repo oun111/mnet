@@ -170,27 +170,32 @@ class syncd(object):
     rds.write(rdsTbl,key,fj)
 
 
-  def sync_mch_cfg(table,vmap):
+  def sync_mch_cfg(self,table,vmap):
 
-    strSql  = ""
-    mysql   = self.m_mysql
-    strCond = (" name='" + vmap['name'] + "'")
+    mch_map = vmap['merchants']
 
-    res = mysql.query(table,strCond)
+    for mch in mch_map:
+      strSql  = ""
+      mysql   = self.m_mysql
+      strCond = (" where name='" + mch['name'] + "'")
 
-    if (res.len()>0):
-      strSql = ("update "+ table + " set sign_type='" + vmap['sign_type'] + "'," +
-                " param_type = '" + vmap['param_type'] + "'," + 
-                " pubkey = '"     + vmap['pubkey']     + "'," + 
-                " privkey = '"    + vmap['privkey']    + "' " + 
-                " where name = '" + vmap['name']       + "'")
-    else:
-      strSql = ("insert into " + table + "(name,sign_type,pubkey,privkey,param_type)" +
-                " values(" + vmap['name'] +      "," + vmap['sign_type'] + " ," 
-                           + vmap['pubkey'] +    "," + vmap['privkey']   + " ," 
-                           + vmap['param_type'] + ")" )
+      res = mysql.query(table,strCond)
 
-    mysql.update(strSql)
+      if (len(res)>0):
+        strSql = ("update "+ table + " set sign_type='" + mch['sign_type'] + "'," +
+                  " param_type = '" + mch['param_type'] + "'," + 
+                  " pubkey = '"     + mch['pubkey']     + "'," + 
+                  " privkey = '"    + mch['privkey']    + "' " + 
+                  " where name = '" + mch['name']       + "'")
+      else:
+        strSql = ("insert into " + table + "(name,sign_type,pubkey,privkey,param_type)" +
+                  " values(" + mch['name'] +      "," + mch['sign_type'] + " ," 
+                             + mch['pubkey'] +    "," + mch['privkey']   + " ," 
+                             + mch['param_type'] + ")" )
+
+      print("update sql: "+strSql)
+
+      mysql.update(strSql)
 
 
 
@@ -198,11 +203,20 @@ class syncd(object):
   """
     TODO: 
   """
-  def sync_chan_alipay_cfg(table,vmap):
-    pass 
+  def sync_chan_alipay_cfg(self,table,vmap):
+    cm = vmap['channels']
+    apmap = cm['alipay']
+
+    print("vmap: ", vmap)
+
+    for ch in apmap:
+      print("ch: ", ch)
 
 
   def do_sync(self,rdsTbl,key,table,v):
+
+    resMap = {}
+    rds = self.m_rds
 
     self.sync_cb[table](table,json.loads(v))
 

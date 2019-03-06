@@ -157,8 +157,8 @@ int get_mysql_configs(paySvr_config_t conf, mysql_conf_t pcfg)
   get_conf_str(pr,g_confKW.alipayCfgTbl,pcfg->alipay_conf_table,
                sizeof(pcfg->alipay_conf_table));
 
-  get_conf_str(pr,g_confKW.mchCfgTbl,pcfg->mch_config_table,
-               sizeof(pcfg->mch_config_table));
+  get_conf_str(pr,g_confKW.mchCfgTbl,pcfg->mch_conf_table,
+               sizeof(pcfg->mch_conf_table));
 
   return 0;
 }

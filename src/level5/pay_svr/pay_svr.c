@@ -182,7 +182,40 @@ int init_config2(myredis_conf_t rconf)
     get_remote_configs(&rds,mscfg.alipay_conf_table,"",&chan_res);
 
     // merchants'
-    get_remote_configs(&rds,mscfg.mch_config_table,"",&mch_res);
+    get_remote_configs(&rds,mscfg.mch_conf_table,"",&mch_res);
+
+#if 1
+    // XXX: test
+    if (dbuffer_data_size(mch_res)>0)
+    {
+      jsonKV_t *pr = jsons_parse(mch_res);
+
+      jsons_dump(pr);
+      jsonKV_t *p = jsons_find(pr,"param_type");
+      strcpy(p->value,"\"json1\"");
+
+      dbuffer_t str = alloc_default_dbuffer();
+
+      jsons_toString(pr,&str,true);
+
+      myredis_write(&rds,mscfg.mch_conf_table,"",str,mr__need_sync);
+    }
+    if (dbuffer_data_size(chan_res)>0)
+    {
+      jsonKV_t *pr = jsons_parse(chan_res);
+
+      jsons_dump(pr);
+      jsonKV_t *p = jsons_find(pr,"app_id");
+      strcpy(p->value,"\"9999\"");
+
+      dbuffer_t str = alloc_default_dbuffer();
+
+      jsons_toString(pr,&str,true);
+
+      myredis_write(&rds,mscfg.alipay_conf_table,"",str,mr__need_sync);
+    }
+#endif
+
   }
 
   if (ret) {

@@ -35,6 +35,8 @@ struct jsonsPtnInfo {
   dbuffer_t str;
 
   struct sstack_t k;
+
+  bool add_del ; // add delimiter or not
 } ;
 
 #define NEXT_CHILD(s,p) ({      \
@@ -89,11 +91,18 @@ struct jsonsPtnInfo {
 #define FUNC_TOSTR_0(__p__,__arg__) do{ \
   struct jsonsPtnInfo *ti = (struct jsonsPtnInfo*)(void*)(__arg__); \
   if (strncmp((__p__)->key,"root",4)) { \
-    append_dbuf_str(ti->str,(__p__)->key); \
+    dbuffer_t jstr = 0; \
+    if (ti->add_del==true) \
+      jstr_add_delimiter((__p__)->key,&jstr); \
+    append_dbuf_str(ti->str,jstr?jstr:(__p__)->key); \
     append_dbuf_str(ti->str,":"); \
+    drop_dbuffer(jstr); \
   } \
   if ((__p__)->type==keyValue) {  \
-    append_dbuf_str(ti->str,(__p__)->value); \
+    dbuffer_t jstr = 0; \
+    if (ti->add_del==true) \
+      jstr_add_delimiter((__p__)->value,&jstr); \
+    append_dbuf_str(ti->str,jstr?jstr:(__p__)->value); \
     if (NOT_LAST_CHILD(__p__,(__p__)->parent)) \
       append_dbuf_str(ti->str,","); \
   } \
@@ -299,12 +308,13 @@ int jsons_release(jsonKV_t *root)
   return 0;
 }
 
-int jsons_toString(jsonKV_t *root, dbuffer_t *outb)
+int jsons_toString(jsonKV_t *root, dbuffer_t *outb, bool add_del)
 {
   struct jsonsPtnInfo ti ;
 
 
   ti.str = alloc_default_dbuffer();
+  ti.add_del = add_del ;
 
   jsons_pattern(root,pToStr,(void*)&ti);
 
@@ -337,7 +347,7 @@ int treemap_to_jsons_str(tree_map_t in, dbuffer_t *outb)
 {
   jsonKV_t *pr = jsons_parse_tree_map(in);
 
-  jsons_toString(pr,outb);
+  jsons_toString(pr,outb,false);
   jsons_release(pr);
 
   return 0;
@@ -525,6 +535,24 @@ dbuffer_t create_jsons_string(dbuffer_t jstr, const char *s)
   return jstr;
 }
 
+int jstr_add_delimiter(dbuffer_t jstr, dbuffer_t *outb)
+{
+  const char qch = *jstr ;
+  char tmp[4] = "";
+  //size_t epos = strchr(jstr+1,qch);
+
+  if (qch!='\'' && qch!='\"') {
+    return 1 ;
+  }
+
+  *outb = alloc_default_dbuffer();
+  write_dbuf_str(*outb,"\\");
+  *outb = append_dbuffer(*outb,jstr,strlen(jstr)-1);
+  snprintf(tmp,sizeof(tmp),"\\%c",qch);
+  append_dbuf_str(*outb,tmp);
+  return 0;
+}
+
 jsonKV_t* jsons_parse_tree_map(tree_map_t entry)
 {
   jsonKV_t *js_root = new_node((char*)"root"), *pj = 0;
@@ -670,7 +698,7 @@ void test_jsons()
   // test to string
   {
     dbuffer_t str = alloc_default_dbuffer();
-    jsons_toString(root,&str);
+    jsons_toString(root,&str,false);
 
     printf("string result >>>>>>  %s\n",str);
     drop_dbuffer(str);
@@ -743,7 +771,7 @@ void test_jsons()
     printf("*************\n");
     {
       dbuffer_t str = alloc_default_dbuffer();
-      jsons_toString(root,&str);
+      jsons_toString(root,&str,false);
 
       printf("string result >>>>>>  %s\n",str);
       drop_dbuffer(str);
