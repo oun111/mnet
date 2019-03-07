@@ -217,10 +217,10 @@ int myredis_read(myredis_t mr, const char *table, const char *key,
   //printf("ret string: %s\n",v);
 
   // parse the result
-  pr  = jsons_parse(v);
-  map = jsons_to_treemap(pr);
+  pr     = jsons_parse(v);
+  map    = jsons_to_treemap(pr);
   submap = get_tree_map_nest(map,"root");
-  pd  = get_tree_map_value(submap,"status");
+  pd     = get_tree_map_value(submap,"status");
 
   if (unlikely(!pd)) {
     log_error("fatal: no status found!\n");

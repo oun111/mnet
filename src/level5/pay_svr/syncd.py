@@ -5,15 +5,16 @@ import redis
 import json
 import re
 import time
+import sys
+import getopt
 
 
 class myredis_configs(object):
-  address      = "127.0.0.1"
-  port         = 6379
-  config_table = "myrds_002_cache"
-  config_mq    = "myrds_002_mq"
-  data_table   = "myrds_001_cache"
-  data_mq      = "myrds_001_mq"
+  address = "127.0.0.1"
+  port    = 6379
+  table   = "myrds_002_cache"
+  mq      = "myrds_002_mq"
+
 
 class mysql_configs(object):
   address = "127.0.0.1"
@@ -94,7 +95,7 @@ class myredis(object):
 class syncd(object):
 
 
-  def __init__(self):
+  def __init__(self,cfg_contents):
 
     self.sync_back_cb = {
       'merchant_configs'       : self.conv_mch_cfg_formats,
@@ -109,10 +110,22 @@ class syncd(object):
     self.rds_status = myredis_status()
     self.rds_cfg    = myredis_configs()
     self.mysql_cfg  = mysql_configs()
-    cfg   = self.rds_cfg
+    rcfg  = self.rds_cfg
     mscfg = self.mysql_cfg
 
-    self.m_rds   = myredis(cfg.address,cfg.port)
+    # update configs
+    gcfg = json.loads(cfg_contents)
+    cfg = gcfg['Globals']['Redis']
+
+    if (len(cfg)>0):
+      rcfg.address = cfg['address']
+      rcfg.port    = cfg['port']
+      rcfg.table   = (cfg['redisTable'] + "_cache" )
+      rcfg.mq      = (cfg['redisTable'] + "_mq" )
+      print("redis configs: host: {0}:{1}, table: {2}, mq: {3}".
+          format(rcfg.address,rcfg.port,rcfg.table,rcfg.mq))
+
+    self.m_rds   = myredis(rcfg.address,rcfg.port)
     self.m_mysql = Mysql(mscfg.address,mscfg.port,mscfg.db,
                          mscfg.usr,mscfg.pwd)
 
@@ -137,7 +150,7 @@ class syncd(object):
 
     top['merchants'] = nrows
 
-    return json.dumps(top)
+    return json.dumps(top),len(nrows)
 
 
   def conv_alipay_cfg_formats(self,rows):
@@ -149,18 +162,24 @@ class syncd(object):
     alip['alipay'] = nrows
     top['channels']= alip
 
-    return json.dumps(top)
+    return json.dumps(top),len(nrows)
 
 
-  def do_sync_back(self,rdsTbl,key,table,rows):
+  def do_sync_back(self,rdsTbl,key,table):
 
-    rds = self.m_rds
+    mysql = self.m_mysql
+    rds   = self.m_rds
     resMap = {}
 
+    rows = mysql.query(table)
+    vj,numRows = self.sync_back_cb[table](rows)
 
-    vj = self.sync_back_cb[table](rows)
+    if (numRows>0):
+      stat = self.rds_status.mr__ok
+    else:
+      stat = self.rds_status.mr__na
 
-    resMap['status'] = self.rds_status.mr__ok
+    resMap['status'] = stat
     resMap['table']  = table
     resMap['value']  = vj
 
@@ -271,7 +290,6 @@ class syncd(object):
   def do_synchronize(self,rdsTbl,rdsMq):
     rst   = self.rds_status
     rds   = self.m_rds 
-    mysql = self.m_mysql
 
 
     while (True):
@@ -293,8 +311,7 @@ class syncd(object):
       v    = jres['value']
 
       if (stat==rst.mr__need_sync_back):
-        rows = mysql.query(tbl)
-        self.do_sync_back(rdsTbl,k,tbl,rows)
+        self.do_sync_back(rdsTbl,k,tbl)
       elif (stat==rst.mr__need_sync):
         self.do_sync(rdsTbl,k,tbl,v)
 
@@ -307,9 +324,7 @@ class syncd(object):
 
     while (True):
 
-      self.do_synchronize(cfg.config_table,cfg.config_mq)
-
-      self.do_synchronize(cfg.data_table,cfg.data_mq)
+      self.do_synchronize(cfg.table,cfg.mq)
 
       time.sleep(0.1);
 
@@ -317,7 +332,19 @@ class syncd(object):
 
 def main():
 
-  biz = syncd()
+  conf_path  = ""
+  cont = ""
+  opts, args = getopt.getopt(sys.argv[1:], "hc:")
+
+  for a,opt in opts:
+    if (a=='-c'):
+      conf_path = opt
+      
+  with open(conf_path,"r") as m_fd:
+    cont = m_fd.read()
+
+
+  biz = syncd(cont)
 
   biz.run()
 

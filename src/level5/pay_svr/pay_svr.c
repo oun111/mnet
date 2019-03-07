@@ -113,65 +113,28 @@ get_remote_configs(myredis_t rds, char *tbl, char *key, dbuffer_t *res)
 
 int init_config2(myredis_conf_t rconf)
 {
-  struct myredis_s rds = {.ctx=NULL,} ;
   dbuffer_t chan_res = 0, mch_res = 0;
   int ret = 0;
 
 
   // try read configs from redis
-  ret = myredis_init(&rds,rconf->host,rconf->port,rconf->conf_table);
-
-  if (!ret) {
+  if (is_myredis_ok(&g_paySvrData.m_rds)==true) {
     struct mysql_config_s mscfg ;
 
 
     get_mysql_configs(&g_paySvrData.m_conf,&mscfg);
     log_info("try read configs from redis %s:%d - %s\n",
-             rconf->host,rconf->port,rconf->conf_table);
+             rconf->host,rconf->port,rconf->table);
 
     // channels'
-    get_remote_configs(&rds,mscfg.alipay_conf_table,"",&chan_res);
+    get_remote_configs(&g_paySvrData.m_rds,mscfg.alipay_conf_table,"",&chan_res);
 
     // merchants'
-    get_remote_configs(&rds,mscfg.mch_conf_table,"",&mch_res);
-
-#if 0
-    // XXX: test
-    if (dbuffer_data_size(mch_res)>0)
-    {
-      jsonKV_t *pr = jsons_parse(mch_res);
-
-      jsons_dump(pr);
-      jsonKV_t *p = jsons_find(pr,"param_type");
-      strcpy(p->value,"\"json1\"");
-
-      dbuffer_t str = alloc_default_dbuffer();
-
-      jsons_toString(pr,&str,true);
-
-      myredis_write(&rds,mscfg.mch_conf_table,"",str,mr__need_sync);
-    }
-    if (dbuffer_data_size(chan_res)>0)
-    {
-      jsonKV_t *pr = jsons_parse(chan_res);
-
-      jsons_dump(pr);
-      jsonKV_t *p = jsons_find(pr,"app_id");
-      strcpy(p->value,"\"9999\"");
-
-      dbuffer_t str = alloc_default_dbuffer();
-
-      jsons_toString(pr,&str,true);
-
-      myredis_write(&rds,mscfg.alipay_conf_table,"",str,mr__need_sync);
-    }
-#endif
-
+    get_remote_configs(&g_paySvrData.m_rds,mscfg.mch_conf_table,"",&mch_res);
   }
-
-  if (ret) {
+  else {
     log_info("connect to redis %s:%d - %s fail, try read local "
-             "configs\n",rconf->host,rconf->port,rconf->conf_table);
+             "configs\n",rconf->host,rconf->port,rconf->table);
   }
 
   if (process_channel_configs(&g_paySvrData.m_conf,chan_res) ||
@@ -187,7 +150,6 @@ int init_config2(myredis_conf_t rconf)
   init_merchant_data(&g_paySvrData.m_merchant);
 
 __done:
-  myredis_release(&rds);
   drop_dbuffer(chan_res);
   drop_dbuffer(mch_res);
 
@@ -217,10 +179,10 @@ void pay_svr_module_init(int argc, char *argv[])
   // redis params
   if (!get_myredis_configs(&g_paySvrData.m_conf,&rconf)) {
 
-    ret = myredis_init(&g_paySvrData.m_rds,rconf.host,
-                       rconf.port,rconf.data_table);
+    ret = myredis_init(&g_paySvrData.m_rds, rconf.host,
+                       rconf.port, rconf.table);
     log_info("connect to redis %s:%d - %s ... %s\n",
-             rconf.host,rconf.port,rconf.data_table,
+             rconf.host, rconf.port, rconf.table,
              ret?"fail!":"ok!");
   }
 

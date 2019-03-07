@@ -23,8 +23,8 @@ typedef struct paySvr_config_s* paySvr_config_t ;
 struct myredis_config_s {
   char host[32];
   int port ;
-  char data_table[32]; // data table in redis
-  char conf_table[32]; // config table in redis
+  char table[32]; // table in redis
+  //char conf_table[32]; // config table in redis
 } ;
 typedef struct myredis_config_s* myredis_conf_t ;
 

@@ -20,8 +20,8 @@ struct global_config_keywords {
   const char *mysql;
   const char *address;
   const char *port;
-  const char *dataTbl;
-  const char *cfgTbl;
+  const char *rdsTbl;
+  //const char *cfgTbl;
   const char *alipayCfgTbl ;
   const char *mchCfgTbl ;
 } 
@@ -36,8 +36,8 @@ g_confKW = {
   .mysql        = "Mysql",
   .address      = "address",
   .port         = "port",
-  .dataTbl      = "dataTable",
-  .cfgTbl       = "configTable",
+  .rdsTbl       = "redisTable",
+  //.cfgTbl       = "configTable",
   .alipayCfgTbl = "alipayConfigTableName",
   .mchCfgTbl    = "merchantConfigTableName",
 } ;
@@ -179,9 +179,9 @@ get_myredis_configs(paySvr_config_t conf, myredis_conf_t pcfg)
 
   get_conf_int(pr,g_confKW.port,&pcfg->port);
 
-  get_conf_str(pr,g_confKW.dataTbl,pcfg->data_table,sizeof(pcfg->data_table));
+  get_conf_str(pr,g_confKW.rdsTbl,pcfg->table,sizeof(pcfg->table));
 
-  get_conf_str(pr,g_confKW.cfgTbl,pcfg->conf_table,sizeof(pcfg->conf_table));
+  //get_conf_str(pr,g_confKW.cfgTbl,pcfg->conf_table,sizeof(pcfg->conf_table));
 
   return 0;
 }
