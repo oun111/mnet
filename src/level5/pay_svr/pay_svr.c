@@ -11,6 +11,7 @@
 #include "log.h"
 #include "myredis.h"
 #include "myrbtree.h"
+#include "rds_order.h"
 
 
 
@@ -31,6 +32,8 @@ struct pay_svr_data {
   struct merchant_entry_s m_merchant ;
 
   struct myredis_s m_rds ;
+
+  struct rds_order_entry_s m_rOrders ;
 
 } g_paySvrData ;
 
@@ -66,6 +69,11 @@ myredis_t get_myredis()
   return &g_paySvrData.m_rds ;
 }
 
+rds_order_entry_t get_rds_order_entry()
+{
+  return &g_paySvrData.m_rOrders;
+}
+
 static
 int parse_cmd_line(int argc, char *argv[])
 {
@@ -98,6 +106,7 @@ get_remote_configs(myredis_t rds, char *tbl, char *key, dbuffer_t *res)
 
   *res = alloc_default_dbuffer();
 
+  // FIXME:
   for (int i=0; rc==1/*&&i<5*/;i++) {
     rc = myredis_read(rds,tbl,key,res);
   }
@@ -119,22 +128,21 @@ int init_config2(myredis_conf_t rconf)
 
   // try read configs from redis
   if (is_myredis_ok(&g_paySvrData.m_rds)==true) {
-    struct mysql_config_s mscfg ;
+    mysql_conf_t mscfg = get_mysql_configs(&g_paySvrData.m_conf);
 
 
-    get_mysql_configs(&g_paySvrData.m_conf,&mscfg);
     log_info("try read configs from redis %s:%d - %s\n",
-             rconf->host,rconf->port,rconf->table);
+             rconf->host, rconf->port, rconf->cfg_cache);
 
     // channels'
-    get_remote_configs(&g_paySvrData.m_rds,mscfg.alipay_conf_table,"",&chan_res);
+    get_remote_configs(&g_paySvrData.m_rds,mscfg->alipay_conf_table,"",&chan_res);
 
     // merchants'
-    get_remote_configs(&g_paySvrData.m_rds,mscfg.mch_conf_table,"",&mch_res);
+    get_remote_configs(&g_paySvrData.m_rds,mscfg->mch_conf_table,"",&mch_res);
   }
   else {
-    log_info("connect to redis %s:%d - %s fail, try read local "
-             "configs\n",rconf->host,rconf->port,rconf->table);
+    log_info("connect to redis %s:%d - %s fail, try read local configs\n",
+        rconf->host, rconf->port, rconf->cfg_cache);
   }
 
   if (process_channel_configs(&g_paySvrData.m_conf,chan_res) ||
@@ -180,10 +188,9 @@ void pay_svr_module_init(int argc, char *argv[])
   if (!get_myredis_configs(&g_paySvrData.m_conf,&rconf)) {
 
     ret = myredis_init(&g_paySvrData.m_rds, rconf.host,
-                       rconf.port, rconf.table);
-    log_info("connect to redis %s:%d - %s ... %s\n",
-             rconf.host, rconf.port, rconf.table,
-             ret?"fail!":"ok!");
+                       rconf.port, rconf.cfg_cache);
+    log_info("connect to redis %s:%d ... %s\n",
+             rconf.host, rconf.port, ret?"fail!":"ok!");
   }
 
   if (init_config2(&rconf)) {
@@ -194,11 +201,16 @@ void pay_svr_module_init(int argc, char *argv[])
 
   init_order_entry(&g_paySvrData.m_orders,-1);
 
+  init_rds_order_entry(&g_paySvrData.m_rOrders,g_paySvrData.m_rds.ctx,
+                       rconf.order_cache);
+
   register_extra_modules();
 }
 
 void pay_svr_module_exit()
 {
+  release_all_rds_orders(&g_paySvrData.m_rOrders);
+
   release_all_orders(&g_paySvrData.m_orders);
 
   delete_pay_channels_entry(g_paySvrData.m_paych);

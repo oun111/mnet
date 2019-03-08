@@ -1,8 +1,8 @@
--- MySQL dump 10.13  Distrib 5.6.24, for Linux (x86_64)
+-- MySQL dump 10.16  Distrib 10.2.12-MariaDB, for Linux (x86_64)
 --
 -- Host: localhost    Database: pay_db
 -- ------------------------------------------------------
--- Server version	5.6.24
+-- Server version	10.2.12-MariaDB
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -23,7 +23,7 @@ DROP TABLE IF EXISTS `channel_alipay_configs`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `channel_alipay_configs` (
-  `ID` int(11) NOT NULL DEFAULT '0',
+  `ID` int(11) NOT NULL DEFAULT 0,
   `NAME` char(48) NOT NULL,
   `REQ_URL` varchar(512) NOT NULL,
   `PARAM_TYPE` char(16) NOT NULL DEFAULT 'html',
@@ -81,6 +81,35 @@ INSERT INTO `merchant_configs` VALUES (1,'mch_001','md5','123456789','','html'),
 UNLOCK TABLES;
 
 --
+-- Table structure for table `order_data`
+--
+
+DROP TABLE IF EXISTS `order_data`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `order_data` (
+  `ORDERID` varchar(32) NOT NULL,
+  `MCH_NO` varchar(32) NOT NULL,
+  `MCH_NOTIFY_URL` varchar(512) NOT NULL,
+  `MCH_ORDERID` varchar(32) NOT NULL,
+  `CHAN_NAME` varchar(32) NOT NULL,
+  `CHAN_MCH_NO` varchar(32) NOT NULL,
+  `AMOUNT` decimal(16,2) NOT NULL,
+  `STATUS` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`ORDERID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `order_data`
+--
+
+LOCK TABLES `order_data` WRITE;
+/*!40000 ALTER TABLE `order_data` DISABLE KEYS */;
+/*!40000 ALTER TABLE `order_data` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Dumping routines for database 'pay_db'
 --
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -93,4 +122,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2019-03-03 21:49:59
+-- Dump completed on 2019-03-08 11:47:57

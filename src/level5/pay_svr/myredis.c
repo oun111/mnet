@@ -59,18 +59,26 @@ int myredis_init(myredis_t mr, const char *host, int port, char *name)
     return -1;
   }
 
-  snprintf(mr->cache_name,sizeof(mr->cache_name),"%s_cache",name);
+  snprintf(mr->cache_name,sizeof(mr->cache_name),"%s",name);
   snprintf(mr->mq_name,sizeof(mr->mq_name),"%s_mq",name);
 
   return 0;
+}
+
+void myredis_change_name(myredis_t mr, char *name)
+{
+  snprintf(mr->cache_name,sizeof(mr->cache_name),"%s",name);
+
+  snprintf(mr->mq_name,sizeof(mr->mq_name),"%s_mq",name);
 }
 
 static
 int myredis_write_cache(myredis_t mr, char *k, char *v)
 {
   int ret = 0;
+  char *tbl = mr->cache_name ;
   redisReply *rc = (redisReply*)redisCommand(REDIS_CTX,"hset %s %s %s",
-                   mr->cache_name,k,v);
+                   tbl,k,v);
 
 
   if (rc->type==REDIS_REPLY_ERROR) {
@@ -86,7 +94,10 @@ int myredis_write_cache(myredis_t mr, char *k, char *v)
 static
 int myredis_read_cache(myredis_t mr, char *k, redisReply **rc)
 {
-  *rc = (redisReply*)redisCommand(REDIS_CTX,"hget %s %s",mr->cache_name,k);
+  char *tbl = mr->cache_name;
+
+
+  *rc = (redisReply*)redisCommand(REDIS_CTX,"hget %s %s",tbl,k);
 
   if ((*rc)->type==REDIS_REPLY_ERROR) {
     log_error("read from redis fail: %s\n",(*rc)->str) ;
@@ -141,7 +152,8 @@ int myredis_mq_rx(myredis_t mr, redisReply **rc)
 }
 
 int 
-myredis_write(myredis_t mr, const char *table, char *key, char *value, int st)
+myredis_write(myredis_t mr, const char *table, char *key, 
+              char *value, int st)
 {
   size_t kl = strlen(table)+strlen(key)+6;
   size_t vl = kl+strlen(value)+96;

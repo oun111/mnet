@@ -12,8 +12,8 @@ import getopt
 class myredis_configs(object):
   address = "127.0.0.1"
   port    = 6379
-  table   = "myrds_002_cache"
-  mq      = "myrds_002_mq"
+  table   = "myrds_002"
+  mq      = (table+"_mq")
 
 
 class mysql_configs(object):
@@ -120,8 +120,8 @@ class syncd(object):
     if (len(cfg)>0):
       rcfg.address = cfg['address']
       rcfg.port    = cfg['port']
-      rcfg.table   = (cfg['redisTable'] + "_cache" )
-      rcfg.mq      = (cfg['redisTable'] + "_mq" )
+      rcfg.table   = cfg['cfgCache']
+      rcfg.mq      = (cfg['cfgCache'] + "_mq" )
       print("redis configs: host: {0}:{1}, table: {2}, mq: {3}".
           format(rcfg.address,rcfg.port,rcfg.table,rcfg.mq))
 

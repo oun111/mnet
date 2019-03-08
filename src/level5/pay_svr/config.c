@@ -20,10 +20,11 @@ struct global_config_keywords {
   const char *mysql;
   const char *address;
   const char *port;
-  const char *rdsTbl;
-  //const char *cfgTbl;
+  const char *cfgCache;
+  const char *odrCache;
   const char *alipayCfgTbl ;
   const char *mchCfgTbl ;
+  const char *odrTbl ;
 } 
 g_confKW = {
   .gsSec        = "Globals",
@@ -36,10 +37,11 @@ g_confKW = {
   .mysql        = "Mysql",
   .address      = "address",
   .port         = "port",
-  .rdsTbl       = "redisTable",
-  //.cfgTbl       = "configTable",
+  .cfgCache     = "cfgCache",
+  .odrCache     = "orderCache",
   .alipayCfgTbl = "alipayConfigTableName",
   .mchCfgTbl    = "merchantConfigTableName",
+  .odrTbl       = "orderTableName",
 } ;
 
 
@@ -143,24 +145,9 @@ int get_conf_int(jsonKV_t *pr, const char *key, int *val)
   return 0;
 }
 
-int get_mysql_configs(paySvr_config_t conf, mysql_conf_t pcfg)
+mysql_conf_t get_mysql_configs(paySvr_config_t conf)
 {
-  char *pstr = (char*)g_confKW.mysql ;
-  jsonKV_t *pr = jsons_find(conf->m_root,pstr);
-
-
-  if (!pr) {
-    log_error("entry '%s' not found\n",pstr);
-    return -1;
-  }
-
-  get_conf_str(pr,g_confKW.alipayCfgTbl,pcfg->alipay_conf_table,
-               sizeof(pcfg->alipay_conf_table));
-
-  get_conf_str(pr,g_confKW.mchCfgTbl,pcfg->mch_conf_table,
-               sizeof(pcfg->mch_conf_table));
-
-  return 0;
+  return &conf->mysql_conf;
 }
 
 int 
@@ -179,9 +166,9 @@ get_myredis_configs(paySvr_config_t conf, myredis_conf_t pcfg)
 
   get_conf_int(pr,g_confKW.port,&pcfg->port);
 
-  get_conf_str(pr,g_confKW.rdsTbl,pcfg->table,sizeof(pcfg->table));
+  get_conf_str(pr,g_confKW.cfgCache,pcfg->cfg_cache,sizeof(pcfg->cfg_cache));
 
-  //get_conf_str(pr,g_confKW.cfgTbl,pcfg->conf_table,sizeof(pcfg->conf_table));
+  get_conf_str(pr,g_confKW.odrCache,pcfg->order_cache,sizeof(pcfg->cfg_cache));
 
   return 0;
 }
@@ -227,6 +214,30 @@ int process_merchant_configs(paySvr_config_t conf, dbuffer_t mchCfgStr)
   return do_process_configs(conf,&conf->mch_conf,g_confKW.merchants,mchCfgStr);
 }
 
+int process_mysql_configs(paySvr_config_t conf)
+{
+  char *pstr = (char*)g_confKW.mysql ;
+  jsonKV_t *pr = jsons_find(conf->m_root,pstr);
+  mysql_conf_t pcfg = &conf->mysql_conf;
+
+
+  if (!pr) {
+    log_error("entry '%s' not found\n",pstr);
+    return -1;
+  }
+
+  get_conf_str(pr,g_confKW.alipayCfgTbl,pcfg->alipay_conf_table,
+               sizeof(pcfg->alipay_conf_table));
+
+  get_conf_str(pr,g_confKW.mchCfgTbl,pcfg->mch_conf_table,
+               sizeof(pcfg->mch_conf_table));
+
+  get_conf_str(pr,g_confKW.odrTbl,pcfg->order_table,
+               sizeof(pcfg->order_table));
+
+  return 0;
+}
+
 int init_config(paySvr_config_t conf, const char *infile)
 {
   dbuffer_t content = NULL ;
@@ -240,6 +251,8 @@ int init_config(paySvr_config_t conf, const char *infile)
   
   if (err)
     return -1;
+
+  process_mysql_configs(conf);
 
   return 0;
 }

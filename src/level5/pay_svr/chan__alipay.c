@@ -12,6 +12,7 @@
 #include "http_utils.h"
 #include "backend.h"
 #include "order.h"
+#include "rds_order.h"
 #include "merchant.h"
 #include "myredis.h"
 #include "pay_svr.h"
@@ -128,8 +129,6 @@ struct module_struct_s g_alipay_mod = {
 static
 int deal_crypto(tree_map_t pay_params,tree_map_t pay_data)
 {
-  //tree_map_t crypto_map = get_tree_map_nest(pay_params,CRYPTO);
-  //tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA);
   char *privkeypath = 0;
   dbuffer_t sign_params = 0; 
   unsigned char *sign = 0;
@@ -138,12 +137,6 @@ int deal_crypto(tree_map_t pay_params,tree_map_t pay_data)
   int sz_res = 0;
   int ret = 0;
 
-
-#if 0
-  if (!crypto_map) {
-    return 1;
-  }
-#endif
 
   // reset 'sign' field
   put_tree_map_string(pay_data,"sign",(char*)"");
@@ -180,21 +173,12 @@ static
 int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params, 
                       tree_map_t pay_params, tree_map_t pay_data)
 {
-  //tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA);
-  //tree_map_t pay_biz = get_tree_map_nest(pay_params,"pay_biz");
   tree_map_t pay_biz = NULL;
   time_t curr = time(NULL);
   struct tm *tm = localtime(&curr);
   char tmp[96] = "";
   char *body = 0, *subject = 0, *out_trade_no = 0, *amount=0;
 
-
-#if 0
-  if (!pay_biz) {
-    FORMAT_ERR(errbuf,"no 'pay_biz' found\n");
-    return -1;
-  }
-#endif
 
   body = get_tree_map_value(user_params,"body");
   if (!body) {
@@ -375,15 +359,14 @@ static
 int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params)
 {
   int ret = 0;
-  char odrid[ODR_ID_SIZE] = "";
   order_entry_t pe = get_order_entry();
+  rds_order_entry_t pre = get_rds_order_entry();
   char *pOdrId = aid_fetch(&g_alipayData.aid);
   char *mch_no = get_tree_map_value(user_params,"mch_id");
   char *nurl = get_tree_map_value(user_params,"notify_url");
   char *tno = get_tree_map_value(user_params,"out_trade_no");
   char *amt = get_tree_map_value(user_params,"total_amount");
   char *chan = action__alipay_order.channel;
-  //tree_map_t pay_data = get_tree_map_nest(pay_params,PAY_DATA);
   char *chan_mch_no = NULL;
 
 
@@ -407,17 +390,10 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
     return -1;
   }
 
-#if 0
-  if (!pay_data) {
-    FORMAT_ERR(errbuf,"no pay data in config!\n");
-    return -1;
-  }
-#endif
-
   chan_mch_no = get_tree_map_value(pay_params,"app_id");
 
   if (get_order(pe,pOdrId)) {
-    FORMAT_ERR(errbuf,"order id '%s' duplicates!\n",odrid);
+    FORMAT_ERR(errbuf,"order id '%s' duplicates!\n",pOdrId);
     return -1;
   }
 
@@ -428,7 +404,18 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
 
   ret = save_order(pe,pOdrId,mch_no,nurl,tno,chan,chan_mch_no,atof(amt));
   if (ret) {
-    FORMAT_ERR(errbuf,"save order '%s' fail!\n",odrid);
+    FORMAT_ERR(errbuf,"save order '%s' fail!\n",pOdrId);
+    return -1;
+  }
+
+  // save order to redis
+  paySvr_config_t pc = get_running_configs();
+  mysql_conf_t mcfg = get_mysql_configs(pc);
+
+  ret = save_rds_order1(pre,mcfg->order_table,pOdrId,mch_no,nurl,tno,
+                        chan,chan_mch_no,atof(amt),s_unpay);
+  if (ret) {
+    FORMAT_ERR(errbuf,"save redis order '%s' fail!\n",pOdrId);
     return -1;
   }
 
@@ -487,8 +474,6 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
     ret = -1;
     goto __done ;
   }
-
-  //pay_data = get_tree_map_nest(pay_params,PAY_DATA);
 
 #if ALIPAY_DBG==1
   int param_type = 0;
