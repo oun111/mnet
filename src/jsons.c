@@ -553,6 +553,28 @@ int jstr_add_delimiter(dbuffer_t jstr, dbuffer_t *outb)
   return 0;
 }
 
+jsonKV_t* jsons_add_to_array(jsonKV_t *root, jsonKV_t *child)
+{
+  char tmp[32];
+
+
+  if (root==NULL) {
+    root = new_node("root");
+  }
+
+  root->type = keyArray ;
+  
+  // modify root name
+  snprintf(tmp,sizeof(tmp),"root%lu",((unsigned long)child)&0xf);
+
+  write_dbuf_str(child->key,tmp);
+  child->parent = root ;
+  list_add(&child->upper,&root->children);
+  root->num_children ++ ;
+
+  return root ;
+}
+
 jsonKV_t* jsons_parse_tree_map(tree_map_t entry)
 {
   jsonKV_t *js_root = new_node((char*)"root"), *pj = 0;
@@ -712,7 +734,6 @@ void test_jsons()
 
   printf("freeing...\n");
   jsons_release(root);
-  return ;
 
   // test tree_map -> jsons -> string
   printf("*************\n");

@@ -52,6 +52,8 @@ extern rds_order_t get_rds_order(rds_order_entry_t entry, const char *table, con
 
 extern int drop_rds_order(rds_order_entry_t entry, rds_order_t p);
 
+extern int release_rds_order(rds_order_entry_t entry, rds_order_t p);
+
 extern int release_all_rds_orders(rds_order_entry_t entry);
 
 

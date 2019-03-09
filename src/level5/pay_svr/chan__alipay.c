@@ -368,6 +368,8 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
   char *amt = get_tree_map_value(user_params,"total_amount");
   char *chan = action__alipay_order.channel;
   char *chan_mch_no = NULL;
+  paySvr_config_t pc = get_running_configs();
+  mysql_conf_t mcfg = get_mysql_configs(pc);
 
 
   if (!mch_no) {
@@ -397,6 +399,9 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
     return -1;
   }
 
+  // XXX: test
+  get_rds_order(pre,mcfg->order_table,pOdrId);
+
   if (get_order_by_outTradeNo(pe,tno)) {
     FORMAT_ERR(errbuf,"order out trade no '%s' duplicates!\n",tno);
     return -1;
@@ -407,10 +412,6 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
     FORMAT_ERR(errbuf,"save order '%s' fail!\n",pOdrId);
     return -1;
   }
-
-  // save order to redis
-  paySvr_config_t pc = get_running_configs();
-  mysql_conf_t mcfg = get_mysql_configs(pc);
 
   ret = save_rds_order1(pre,mcfg->order_table,pOdrId,mch_no,nurl,tno,
                         chan,chan_mch_no,atof(amt),s_unpay);

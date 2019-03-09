@@ -59,5 +59,7 @@ extern tree_map_t jsons_to_treemap(jsonKV_t *root);
 
 extern int jstr_add_delimiter(dbuffer_t jstr, dbuffer_t *outb);
 
+extern jsonKV_t* jsons_add_to_array(jsonKV_t *root, jsonKV_t *child);
+
 #endif /* __JSONS_H__*/
 
