@@ -143,6 +143,94 @@ class syncd(object):
     return nrows
 
 
+
+  def concat_sql_list(self,dct1,t1):
+
+    lst = ''
+    first = True
+
+    for i in dct1.keys():
+      if (first==False):
+        lst = (lst + ",")
+      else:
+        first = False
+
+      # sql update list
+      if (t1==0):
+        lst = (lst + str(i) + " = '" + str(dct1[i]) + "'")
+      # sql insert list
+      elif (t1==1):
+        lst = (lst + "`" + str(i) + "`")
+      # sql insert value list
+      elif (t1==2):
+        lst = (lst + "\"" + str(dct1[i]) + "\"")
+      else:
+        lst = ''
+
+    return lst
+
+
+  def do_sql_insert_update(self,dct1,table,key):
+
+    for ch in dct1:
+      strSql  = ""
+      kval    = ch[key]
+      mysql   = self.m_mysql
+      strCond = (" where " + key + "='" + kval + "'")
+      selist  = "count(1)"
+
+      res = mysql.query(table,selist,strCond)
+
+      if (res[0][selist]>0):
+
+        updList = self.concat_sql_list(ch,0)
+        strSql  = ("update "+ table + " set " + 
+                   updList +
+                   " where " + key  + " = '" + kval + "'")
+      else:
+        instList = self.concat_sql_list(ch,1)
+        valList  = self.concat_sql_list(ch,2)
+        strSql   = ("insert into " + table + 
+                    "(" + instList + ")" +
+                    " values(" + valList + ")")
+
+      print("update sql: "+strSql)
+
+      mysql.update(strSql)
+
+
+
+  def sync_chan_alipay_cfg(self,table,vmap):
+    cm = vmap['channels']
+    apmap = cm['alipay']
+    key = 'app_id'
+
+    self.do_sql_insert_update(apmap,table,key)
+
+
+  def sync_mch_cfg(self,table,vmap):
+
+    mch_map = vmap['merchants']
+    key = 'name'
+
+    self.do_sql_insert_update(mch_map,table,key)
+
+
+  def do_sync(self,rdsTbl,key,table,v):
+
+    resMap = {}
+    rds = self.m_rds
+
+    self.sync_cb[table](table,json.loads(v))
+
+    resMap['status'] = self.rds_status.mr__ok
+    resMap['table']  = table
+    resMap['value']  = v
+
+    fj = json.dumps(resMap)
+    rds.write(rdsTbl,key,fj)
+
+
   def conv_mch_cfg_formats(self,rows):
 
     top   = {}
@@ -163,6 +251,7 @@ class syncd(object):
     top['channels']= alip
 
     return json.dumps(top),len(nrows)
+
 
 
   def do_sync_back(self,rdsTbl,key,table):
@@ -186,103 +275,6 @@ class syncd(object):
     fj = json.dumps(resMap)
     print("final res: {0}".format(fj))
 
-    rds.write(rdsTbl,key,fj)
-
-
-
-  def sync_mch_cfg(self,table,vmap):
-
-    mch_map = vmap['merchants']
-
-    for mch in mch_map:
-      strSql  = ""
-      mysql   = self.m_mysql
-      name    = mch['name']
-      selist  = "count(1)"
-      strCond = (" where name='" + name + "'")
-
-      res = mysql.query(table,selist,strCond)
-
-      if (res[0][selist]>0):
-        strSql = ("update "+ table + " set sign_type='" + mch['sign_type'] + "'," +
-                  " param_type = '" + mch['param_type'] + "'," + 
-                  " pubkey = '"  + mch['pubkey'] + "'," + 
-                  " privkey = '" + mch['privkey'] + "' "+ 
-                  " where name = '" + name + "'")
-      else:
-        strSql = ("insert into " + table + "(name,sign_type,pubkey,privkey,param_type)" +
-                  " values(" 
-                  "'" + name + "', '" + mch['sign_type'] + "', " 
-                  "'" + mch['pubkey'] + "', '" + mch['privkey'] + "' ," 
-                  "'" + mch['param_type'] + "' )" )
-
-      #print("update sql: "+strSql)
-
-      mysql.update(strSql)
-
-
-
-  def sync_chan_alipay_cfg(self,table,vmap):
-    cm = vmap['channels']
-    apmap = cm['alipay']
-
-    for ch in apmap:
-      strSql  = ""
-      app_id  = ch['app_id']
-      mysql   = self.m_mysql
-      strCond = (" where app_id='" + app_id + "'")
-      selist  = "count(1)"
-
-      res = mysql.query(table,selist,strCond)
-
-      if (res[0][selist]>0):
-        strSql = ("update "+ table + " set "
-                  " name ='" + ch['name'] + "'," +
-                  " req_url = '" + ch['req_url'] + "'," + 
-                  " param_type = '" + ch['param_type'] + "'," + 
-                  " public_key_path = '"  + ch['public_key_path'] + "', " + 
-                  " private_key_path = '" + ch['private_key_path'] + "', " + 
-                  " TIMEOUT_EXPRESS = '"  + ch['timeout_express'] + "', " + 
-                  " product_code = '" + ch['product_code'] + "', " + 
-                  " METHOD = '"  + ch['method'] + "', " + 
-                  " FORMAT = '"  + ch['format'] + "', " + 
-                  " CHARSET = '" + ch['charset'] + "', " + 
-                  " VERSION = '" + ch['version'] + "', " + 
-                  " SIGN_TYPE = '"  + ch['sign_type'] + "', " + 
-                  " NOTIFY_URL = '" + ch['notify_url'] + "', " + 
-                  " RETURN_URL = '" + ch['return_url'] + "' " + 
-                  " where app_id = '" + app_id          + "'")
-      else:
-        strSql = ("insert into " + table + 
-                  " (NAME,REQ_URL,PARAM_TYPE,PUBLIC_KEY_PATH,PRIVATE_KEY_PATH,PRODUCT_CODE," +
-                  "  TIMEOUT_EXPRESS,APP_ID,METHOD,FORMAT,CHARSET,SIGN_TYPE,VERSION,NOTIFY_URL," +
-                  "  RETURN_URL)" +
-                  " values(" + 
-                  "'" + ch['name'] + "', '" + ch['req_url'] + "', '" + ch['param_type'] + "', "
-                  "'" + ch['public_key_path'] + "', '" + ch['private_key_path'] + "', "
-                  "'" + ch['product_code'] + "', '" + ch['timeout_express'] + "', "  
-                  "'" + ch['app_id'] + "', '" + ch['method'] + "', '" + ch['format'] + "', "
-                  "'" + ch['charset'] + "', '" + ch['version'] + "', '" + ch['sign_type'] + "', "
-                  "'" + ch['notify_url'] + "', '" + ch['return_url'] + "' )" )
-
-      #print("update sql: "+strSql)
-
-      mysql.update(strSql)
-
-
-
-  def do_sync(self,rdsTbl,key,table,v):
-
-    resMap = {}
-    rds = self.m_rds
-
-    self.sync_cb[table](table,json.loads(v))
-
-    resMap['status'] = self.rds_status.mr__ok
-    resMap['table']  = table
-    resMap['value']  = v
-
-    fj = json.dumps(resMap)
     rds.write(rdsTbl,key,fj)
 
 
