@@ -163,7 +163,7 @@ myredis_write(myredis_t mr, const char *table, char *key,
   int ret = 0;
 
 
-  snprintf(k,kl,"%s_%s",table,key);
+  snprintf(k,kl,"%s#%s",table,key);
   snprintf(v,vl,"{\"status\" : %d, \"table\" : \"%s\", \"value\" : \"%s\" }",
            status, table, value);
 
@@ -198,7 +198,7 @@ int myredis_read(myredis_t mr, const char *table, const char *key,
 
 
   // key in redis table
-  snprintf(k,kl,"%s_%s",table,key);
+  snprintf(k,kl,"%s#%s",table,key);
 
   ret = myredis_read_cache(mr,k,&rc);
   if (unlikely(ret==-1)) {

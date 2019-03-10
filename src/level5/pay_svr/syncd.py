@@ -7,13 +7,16 @@ import re
 import time
 import sys
 import getopt
+import decimal
 
 
 class myredis_configs(object):
   address = "127.0.0.1"
   port    = 6379
-  table   = "myrds_002"
-  mq      = (table+"_mq")
+  cfgTbl  = "myrds_002"
+  cfgMq   = (cfgTbl+"_mq")
+  odrTbl = "myrds_003"
+  odrMq  = (odrTbl+"_mq")
 
 
 class mysql_configs(object):
@@ -22,6 +25,20 @@ class mysql_configs(object):
   db      = "pay_db"
   usr     = "root"
   pwd     = "123"
+
+
+"""
+ refer: https://www.cnblogs.com/hanjiajiejie/p/9223511.html
+"""
+class DecimalEncoder(json.JSONEncoder):
+
+  def default(self, o):
+
+    if isinstance(o, decimal.Decimal):
+      return float(o)
+
+    super(DecimalEncoder, self).default(o)
+
 
 
 class myredis_status(object):
@@ -98,13 +115,15 @@ class syncd(object):
   def __init__(self,cfg_contents):
 
     self.sync_back_cb = {
-      'merchant_configs'       : self.conv_mch_cfg_formats,
-      'channel_alipay_configs' : self.conv_alipay_cfg_formats
+      'merchant_configs'       : ('name', self.conv_mch_cfg_formats),
+      'channel_alipay_configs' : ('app_id', self.conv_alipay_cfg_formats),
+      'order_data'             : ('orderid', self.conv_order_data_formats)
     }
 
     self.sync_cb = {
       'merchant_configs'       : self.sync_mch_cfg,
-      'channel_alipay_configs' : self.sync_chan_alipay_cfg
+      'channel_alipay_configs' : self.sync_chan_alipay_cfg,
+      'order_data'             : self.sync_order_data
     }
 
     self.rds_status = myredis_status()
@@ -120,10 +139,12 @@ class syncd(object):
     if (len(cfg)>0):
       rcfg.address = cfg['address']
       rcfg.port    = cfg['port']
-      rcfg.table   = cfg['cfgCache']
-      rcfg.mq      = (cfg['cfgCache'] + "_mq" )
+      rcfg.cfgTbl  = cfg['cfgCache']
+      rcfg.cfgMq   = (rcfg.cfgTbl + "_mq" )
+      rcfg.odrTbl  = cfg['orderCache']
+      rcfg.odrMq   = (rcfg.odrTbl + "_mq" )
       print("redis configs: host: {0}:{1}, table: {2}, mq: {3}".
-          format(rcfg.address,rcfg.port,rcfg.table,rcfg.mq))
+          format(rcfg.address,rcfg.port,rcfg.cfgTbl,rcfg.cfgMq))
 
     self.m_rds   = myredis(rcfg.address,rcfg.port)
     self.m_mysql = Mysql(mscfg.address,mscfg.port,mscfg.db,
@@ -172,6 +193,7 @@ class syncd(object):
 
   def do_sql_insert_update(self,dct1,table,key):
 
+    print("dct: ",dct1)
     for ch in dct1:
       strSql  = ""
       kval    = ch[key]
@@ -198,6 +220,10 @@ class syncd(object):
 
       mysql.update(strSql)
 
+
+  def sync_order_data(self,table,vmap):
+    key = 'orderid'
+    self.do_sql_insert_update(vmap,table,key)
 
 
   def sync_chan_alipay_cfg(self,table,vmap):
@@ -231,6 +257,14 @@ class syncd(object):
     rds.write(rdsTbl,key,fj)
 
 
+  def conv_order_data_formats(self,rows):
+
+    top   = {}
+    nrows = self.to_lower(rows)
+
+    return json.dumps(nrows,cls=DecimalEncoder),len(nrows)
+
+
   def conv_mch_cfg_formats(self,rows):
 
     top   = {}
@@ -260,8 +294,22 @@ class syncd(object):
     rds   = self.m_rds
     resMap = {}
 
-    rows = mysql.query(table)
-    vj,numRows = self.sync_back_cb[table](rows)
+
+    # construct sql query condition list
+    k      = self.sync_back_cb[table][0]
+    klst   = key.split('#')
+    db_key = klst[len(klst)-1]
+    if (len(db_key)>0):
+      cond = " where " + k + " = '" + db_key + "'"
+    else:
+      cond = ""
+
+    # callback method
+    cb = self.sync_back_cb[table][1]
+
+    rows = mysql.query(table," * ",cond)
+    print("rows: ",rows)
+    vj,numRows = cb(rows)
 
     if (numRows>0):
       stat = self.rds_status.mr__ok
@@ -316,7 +364,9 @@ class syncd(object):
 
     while (True):
 
-      self.do_synchronize(cfg.table,cfg.mq)
+      self.do_synchronize(cfg.cfgTbl,cfg.cfgMq)
+
+      self.do_synchronize(cfg.odrTbl,cfg.odrMq)
 
       time.sleep(0.1);
 

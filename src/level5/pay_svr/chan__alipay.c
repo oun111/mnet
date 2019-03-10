@@ -399,8 +399,11 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
     return -1;
   }
 
-  // XXX: test
-  get_rds_order(pre,mcfg->order_table,pOdrId);
+  // check order id from redis cache
+  if (is_rds_order_exist(pre,mcfg->order_table,pOdrId)) {
+    FORMAT_ERR(errbuf,"order id '%s' duplicates!!\n",pOdrId);
+    return -1;
+  }
 
   if (get_order_by_outTradeNo(pe,tno)) {
     FORMAT_ERR(errbuf,"order out trade no '%s' duplicates!\n",tno);
@@ -413,6 +416,7 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
     return -1;
   }
 
+  // save to redis cache
   ret = save_rds_order1(pre,mcfg->order_table,pOdrId,mch_no,nurl,tno,
                         chan,chan_mch_no,atof(amt),s_unpay);
   if (ret) {
@@ -513,6 +517,9 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   const char *alipay_notify_res = "success";
   char *tno = get_tree_map_value(user_params,"out_trade_no");
   order_entry_t pe = get_order_entry();
+  rds_order_entry_t pre = get_rds_order_entry();
+  paySvr_config_t pc = get_running_configs();
+  mysql_conf_t mcfg = get_mysql_configs(pc);
   order_info_t po = 0;
   connection_t out_conn = 0;
   tree_map_t notify = 0;
@@ -520,6 +527,8 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   int param_type = pt_json ;
   merchant_entry_t pme = get_merchant_entry();
   merchant_info_t pm = 0;
+  int ret = 0;
+  bool rel = false ;
 
 
   // FIXME: verify params 
@@ -534,13 +543,17 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
 
   po = get_order(pe,tno);
   if (!po) {
-    log_error("found no order info by id '%s'\n",tno);
-    return -1;
+    rel = true ;
+    if (!(po=get_rds_order(pre,mcfg->order_table,tno,false))) {
+      log_error("found no order info by id '%s'\n",tno);
+      return -1;
+    }
   }
 
   if (!(pm=get_merchant(pme,po->mch.no))) {
     log_error("no such merchant '%s'\n",po->mch.no);
-    return -1;
+    ret = -1;
+    goto __done;
   }
 
   ptr = get_tree_map_value(pm->mch_info,"param_type");
@@ -552,7 +565,8 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   out_conn = do_out_connect(net,NULL,po->mch.notify_url,po);
   if (!out_conn) {
     log_error("connection to '%s' fail\n",po->mch.notify_url);
-    return -1;
+    ret = -1;
+    goto __done;
   }
 
   // update order status by ALI status
@@ -580,7 +594,11 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
     alipay_tx(net,out_conn);
   }
 
-  return 0;
+__done:
+  if (rel)
+    release_rds_order(pre,po);
+
+  return ret;
 }
 
 static 
@@ -588,6 +606,9 @@ int do_alipay_query(Network_t net,connection_t pconn,tree_map_t user_params)
 {
   char *tno = get_tree_map_value(user_params,"out_trade_no");
   order_entry_t pe = get_order_entry();
+  rds_order_entry_t pre = get_rds_order_entry();
+  paySvr_config_t pc = get_running_configs();
+  mysql_conf_t mcfg = get_mysql_configs(pc);
   order_info_t po = 0;
   tree_map_t qry_res = 0;
   char tmp[64] = "", *ptr = 0;
@@ -610,8 +631,14 @@ int do_alipay_query(Network_t net,connection_t pconn,tree_map_t user_params)
 
   po = get_order_by_outTradeNo(pe,tno);
   if (!po) {
-    FORMAT_ERR(errbuf,"found no order info by out_trade_no '%s'\n",tno);
-    return -1;
+    // try query redis cache
+    dbuffer_t orderid = alloc_default_dbuffer();
+    if (get_rds_order_index(pre,mcfg->order_table,tno,&orderid) || 
+        !(po = get_rds_order(pre,mcfg->order_table,orderid,false))) {
+      FORMAT_ERR(errbuf,"found no order info by out_trade_no '%s'!\n",tno);
+      drop_dbuffer(orderid);
+      return -1;
+    }
   }
 
   ptr = get_tree_map_value(pm->mch_info,"param_type");

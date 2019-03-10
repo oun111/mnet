@@ -17,16 +17,16 @@ init_rds_order_entry(rds_order_entry_t entry, void *myrds_handle, char *name)
   snprintf(entry->cache,sizeof(entry->cache),"%s",name);
   snprintf(entry->mq,sizeof(entry->mq),"%s_mq",name);
 
-  entry->pool = create_obj_pool("rds_order pool",-1,struct rds_order_s);
+  entry->pool = create_obj_pool("rds_order pool",-1,struct order_info_s);
 
   list_for_each_objPool_item(pos,n,entry->pool) {
-    pos->mch_out_trade_no = alloc_default_dbuffer();
+    pos->mch.out_trade_no = alloc_default_dbuffer();
 
-    pos->mch_notify_url = alloc_default_dbuffer();
+    pos->mch.notify_url = alloc_default_dbuffer();
 
-    pos->chan_name = alloc_default_dbuffer();
+    pos->chan.name = alloc_default_dbuffer();
 
-    pos->chan_mch_no = alloc_default_dbuffer();
+    pos->chan.mch_no = alloc_default_dbuffer();
   }
 }
 
@@ -60,9 +60,15 @@ int save_rds_order1(rds_order_entry_t entry, const char *table, char *id,
   jsons_toString(pr,&str,true);
   jsons_release(pr);
 
-  // write to redis
+  // write to redis: key: orderid, value: the whole order
   if (myredis_write((myredis_t)entry,table,id,str,mr__need_sync)) {
     log_error("write failed\n");
+    ret = -1;
+  }
+
+  // save index: key: merchant out-trade-no, value: orderid
+  if (myredis_write((myredis_t)entry,table,mch_sid,id,mr__ok)) {
+    log_error("write index failed\n");
     ret = -1;
   }
 
@@ -74,13 +80,32 @@ int save_rds_order1(rds_order_entry_t entry, const char *table, char *id,
 
 int save_rds_order(rds_order_entry_t entry, const char *table, rds_order_t po)
 {
-  return save_rds_order1(entry,table,po->id,po->mch_no,po->mch_notify_url,
-                         po->mch_out_trade_no,po->chan_name,po->chan_mch_no,
+  return save_rds_order1(entry,table,po->id,po->mch.no,po->mch.notify_url,
+                         po->mch.out_trade_no,po->chan.name,po->chan.mch_no,
                          po->amount,po->status);
 }
 
+int get_rds_order_index(rds_order_entry_t entry, const char *table, 
+                        const char *out_trade_no, dbuffer_t *orderid)
+{
+  int rc = 0;
+
+
+  for (int i=0;/*i<10 &&*/ rc==1; i++) {
+    rc = myredis_read((myredis_t)entry,table,out_trade_no,orderid);
+  }
+
+  // get nothing
+  if (rc<0 || rc==1) {
+    return -1;
+  }
+
+  return 0;
+}
+
 rds_order_t 
-get_rds_order(rds_order_entry_t entry, const char *table, const char *orderid)
+get_rds_order(rds_order_entry_t entry, const char *table, 
+              const char *orderid, bool fast)
 {
   rds_order_t p = 0;
   char *tmp = 0;
@@ -91,7 +116,7 @@ get_rds_order(rds_order_entry_t entry, const char *table, const char *orderid)
   tm_item_t pos,n,pos1,n1;
 
 
-  for (int i=0;i<10 && rc==1; i++) {
+  for (int i=0;/*i<10 &&*/ rc==1; i++) {
     rc = myredis_read((myredis_t)entry,table,orderid,&str);
   }
 
@@ -102,15 +127,19 @@ get_rds_order(rds_order_entry_t entry, const char *table, const char *orderid)
   }
 
   // allocate space
-  p = obj_pool_alloc(entry->pool,struct rds_order_s);
+  p = obj_pool_alloc(entry->pool,struct order_info_s);
   if (!p) {
-    p = obj_pool_alloc_slow(entry->pool,struct rds_order_s);
+    p = obj_pool_alloc_slow(entry->pool,struct order_info_s);
     if (p) {
-      p->mch_out_trade_no = alloc_default_dbuffer();
-      p->mch_notify_url = alloc_default_dbuffer();
-      p->chan_name = alloc_default_dbuffer();
-      p->chan_mch_no = alloc_default_dbuffer();
+      p->mch.out_trade_no = alloc_default_dbuffer();
+      p->mch.notify_url   = alloc_default_dbuffer();
+      p->chan.name   = alloc_default_dbuffer();
+      p->chan.mch_no = alloc_default_dbuffer();
     }
+  }
+
+  if (fast) {
+    goto __done ;
   }
 
   // got it
@@ -126,20 +155,22 @@ get_rds_order(rds_order_entry_t entry, const char *table, const char *orderid)
     }
   }
 
+  dump_tree_map(odr_map);
+
   tmp = get_tree_map_value(odr_map,"mch_no");
-  strncpy(p->mch_no,tmp,sizeof(p->mch_no));
+  strncpy(p->mch.no,tmp,sizeof(p->mch.no));
 
   tmp = get_tree_map_value(odr_map,"mch_notify_url");
-  write_dbuf_str(p->mch_notify_url,tmp);
+  write_dbuf_str(p->mch.notify_url,tmp);
 
   tmp = get_tree_map_value(odr_map,"mch_orderid");
-  write_dbuf_str(p->mch_out_trade_no,tmp);
+  write_dbuf_str(p->mch.out_trade_no,tmp);
 
   tmp = get_tree_map_value(odr_map,"chan_name");
-  write_dbuf_str(p->chan_name,tmp);
+  write_dbuf_str(p->chan.name,tmp);
 
   tmp = get_tree_map_value(odr_map,"chan_mch_no");
-  write_dbuf_str(p->chan_mch_no,tmp);
+  write_dbuf_str(p->chan.mch_no,tmp);
 
 
   delete_tree_map(map);
@@ -151,17 +182,31 @@ __done:
   return p;
 }
 
+bool is_rds_order_exist(rds_order_entry_t entry, const char *table, 
+                        const char *orderid)
+{
+  rds_order_t p = get_rds_order(entry,table,orderid,true);
+
+
+  if (p) {
+    release_rds_order(entry,p);
+    return true ;
+  }
+
+  return false ;
+}
+
 static
 int drop_rds_order_internal(rds_order_entry_t entry, rds_order_t p, bool fast)
 {
   if (!fast) {
-    drop_dbuffer(p->mch_out_trade_no);
+    drop_dbuffer(p->mch.out_trade_no);
 
-    drop_dbuffer(p->mch_notify_url);
+    drop_dbuffer(p->mch.notify_url);
 
-    drop_dbuffer(p->chan_name);
+    drop_dbuffer(p->chan.name);
 
-    drop_dbuffer(p->chan_mch_no);
+    drop_dbuffer(p->chan.mch_no);
   }
 
   obj_pool_free(entry->pool,p);
@@ -187,7 +232,7 @@ int release_all_rds_orders(rds_order_entry_t entry)
     drop_rds_order_internal(entry,pos,false);
   }
 
-  release_obj_pool(entry->pool,struct rds_order_s);
+  release_obj_pool(entry->pool,struct order_info_s);
 
   return 0;
 }
