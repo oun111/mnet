@@ -47,4 +47,7 @@ extern bool is_rds_order_exist(rds_order_entry_t entry, const char *table,
 extern int get_rds_order_index(rds_order_entry_t entry, const char *table, 
                                const char *out_trade_no, dbuffer_t *orderid);
 
+extern bool is_rds_outTradeNo_exist(rds_order_entry_t entry, const char *table, 
+                                      const char *out_trade_no);
+
 #endif /* __RDS_ORDER_H__*/

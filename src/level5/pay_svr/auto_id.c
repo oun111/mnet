@@ -7,9 +7,10 @@ int aid_reset(auto_id_t id, char *name)
 {
   id->val = 0L;
 
-  if (name) {
-    strncpy(id->name,name,sizeof(id->name));
-  }
+  strncpy(id->name,name,sizeof(id->name));
+
+  snprintf(id->alias_val,sizeof(id->alias_val),
+           "%5s_%.10ld",id->name,id->val);
 
   return 0;
 }

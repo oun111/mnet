@@ -115,15 +115,15 @@ class syncd(object):
   def __init__(self,cfg_contents):
 
     self.sync_back_cb = {
-      'merchant_configs'       : ('name', self.conv_mch_cfg_formats),
-      'channel_alipay_configs' : ('app_id', self.conv_alipay_cfg_formats),
-      'order_data'             : ('orderid', self.conv_order_data_formats)
+      'merchant_configs'       : ('name', self.sync_back_mch_cfg),
+      'channel_alipay_configs' : ('app_id', self.sync_back_alipay_cfg),
+      'order_data'             : ('orderid', self.sync_back_order_data)
     }
 
     self.sync_cb = {
-      'merchant_configs'       : self.sync_mch_cfg,
-      'channel_alipay_configs' : self.sync_chan_alipay_cfg,
-      'order_data'             : self.sync_order_data
+      'merchant_configs'       : ('name',self.sync_mch_cfg),
+      'channel_alipay_configs' : ('app_id',self.sync_chan_alipay_cfg),
+      'order_data'             : ('orderid',self.sync_order_data)
     }
 
     self.rds_status = myredis_status()
@@ -221,23 +221,20 @@ class syncd(object):
       mysql.update(strSql)
 
 
-  def sync_order_data(self,table,vmap):
-    key = 'orderid'
+  def sync_order_data(self,table,key,vmap):
     self.do_sql_insert_update(vmap,table,key)
 
 
-  def sync_chan_alipay_cfg(self,table,vmap):
+  def sync_chan_alipay_cfg(self,table,key,vmap):
     cm = vmap['channels']
     apmap = cm['alipay']
-    key = 'app_id'
 
     self.do_sql_insert_update(apmap,table,key)
 
 
-  def sync_mch_cfg(self,table,vmap):
+  def sync_mch_cfg(self,table,key,vmap):
 
     mch_map = vmap['merchants']
-    key = 'name'
 
     self.do_sql_insert_update(mch_map,table,key)
 
@@ -247,7 +244,9 @@ class syncd(object):
     resMap = {}
     rds = self.m_rds
 
-    self.sync_cb[table](table,json.loads(v))
+    db_key = self.sync_cb[table][0]
+    cb = self.sync_cb[table][1]
+    cb(table,db_key,json.loads(v))
 
     resMap['status'] = self.rds_status.mr__ok
     resMap['table']  = table
@@ -257,7 +256,7 @@ class syncd(object):
     rds.write(rdsTbl,key,fj)
 
 
-  def conv_order_data_formats(self,rows):
+  def sync_back_order_data(self,rows):
 
     top   = {}
     nrows = self.to_lower(rows)
@@ -265,7 +264,7 @@ class syncd(object):
     return json.dumps(nrows,cls=DecimalEncoder),len(nrows)
 
 
-  def conv_mch_cfg_formats(self,rows):
+  def sync_back_mch_cfg(self,rows):
 
     top   = {}
     nrows = self.to_lower(rows)
@@ -275,7 +274,7 @@ class syncd(object):
     return json.dumps(top),len(nrows)
 
 
-  def conv_alipay_cfg_formats(self,rows):
+  def sync_back_alipay_cfg(self,rows):
 
     top = {}
     alip= {}
@@ -295,11 +294,13 @@ class syncd(object):
     resMap = {}
 
 
-    # construct sql query condition list
-    k      = self.sync_back_cb[table][0]
+    # extract target mysql key
     klst   = key.split('#')
     db_key = klst[len(klst)-1]
+
+    # construct sql query condition list
     if (len(db_key)>0):
+      k = self.sync_back_cb[table][0]
       cond = " where " + k + " = '" + db_key + "'"
     else:
       cond = ""
@@ -307,6 +308,7 @@ class syncd(object):
     # callback method
     cb = self.sync_back_cb[table][1]
 
+    # query database for results
     rows = mysql.query(table," * ",cond)
     print("rows: ",rows)
     vj,numRows = cb(rows)
@@ -323,6 +325,7 @@ class syncd(object):
     fj = json.dumps(resMap)
     print("final res: {0}".format(fj))
 
+    # sync back to redis
     rds.write(rdsTbl,key,fj)
 
 
@@ -339,7 +342,7 @@ class syncd(object):
       if (k==None):
         break
 
-      # process cache
+      # read redis by key
       v = rds.read(rdsTbl,k)
       if (v==None):
         rds.popq(rdsMq)
@@ -350,8 +353,10 @@ class syncd(object):
       tbl  = jres['table']
       v    = jres['value']
 
+      # sync:  mysql -> redis
       if (stat==rst.mr__need_sync_back):
         self.do_sync_back(rdsTbl,k,tbl)
+      # sync: redis -> mysql
       elif (stat==rst.mr__need_sync):
         self.do_sync(rdsTbl,k,tbl,v)
 

@@ -88,7 +88,7 @@ int save_rds_order(rds_order_entry_t entry, const char *table, rds_order_t po)
 int get_rds_order_index(rds_order_entry_t entry, const char *table, 
                         const char *out_trade_no, dbuffer_t *orderid)
 {
-  int rc = 0;
+  int rc = 1;
 
 
   for (int i=0;/*i<10 &&*/ rc==1; i++) {
@@ -97,6 +97,7 @@ int get_rds_order_index(rds_order_entry_t entry, const char *table,
 
   // get nothing
   if (rc<0 || rc==1) {
+    log_error("get nothing, rc=%d\n",rc);
     return -1;
   }
 
@@ -196,6 +197,17 @@ bool is_rds_order_exist(rds_order_entry_t entry, const char *table,
   return false ;
 }
 
+bool is_rds_outTradeNo_exist(rds_order_entry_t entry, const char *table, 
+                               const char *out_trade_no)
+{
+  dbuffer_t orderid = alloc_default_dbuffer();
+  int ret = get_rds_order_index(entry,table,out_trade_no,&orderid);
+
+
+  drop_dbuffer(orderid);
+  return !ret ;
+}
+
 static
 int drop_rds_order_internal(rds_order_entry_t entry, rds_order_t p, bool fast)
 {
@@ -216,12 +228,12 @@ int drop_rds_order_internal(rds_order_entry_t entry, rds_order_t p, bool fast)
 
 int drop_rds_order(rds_order_entry_t entry, rds_order_t p)
 {
-  return drop_rds_order_internal(entry,p,true);
+  return drop_rds_order_internal(entry,p,false);
 }
 
 int release_rds_order(rds_order_entry_t entry, rds_order_t p)
 {
-  return drop_rds_order_internal(entry,p,false);
+  return drop_rds_order_internal(entry,p,true);
 }
 
 int release_all_rds_orders(rds_order_entry_t entry)

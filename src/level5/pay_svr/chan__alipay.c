@@ -193,6 +193,7 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   }
 
   out_trade_no = aid_add_and_fetch(&g_alipayData.aid,1L);
+  //out_trade_no = aid_fetch(&g_alipayData.aid);
 
   amount = get_tree_map_value(user_params,"total_amount");
   if (!body) {
@@ -358,7 +359,6 @@ int create_alipay_link(dbuffer_t *errbuf,connection_t out_conn, const char *url,
 static 
 int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params)
 {
-  int ret = 0;
   order_entry_t pe = get_order_entry();
   rds_order_entry_t pre = get_rds_order_entry();
   char *pOdrId = aid_fetch(&g_alipayData.aid);
@@ -394,35 +394,33 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
 
   chan_mch_no = get_tree_map_value(pay_params,"app_id");
 
-  if (get_order(pe,pOdrId)) {
+  // check existence of order id both on 
+  //  local cache and redis
+  if (get_order(pe,pOdrId) ||
+      is_rds_order_exist(pre,mcfg->order_table,pOdrId)) {
     FORMAT_ERR(errbuf,"order id '%s' duplicates!\n",pOdrId);
     return -1;
   }
 
-  // check order id from redis cache
-  if (is_rds_order_exist(pre,mcfg->order_table,pOdrId)) {
-    FORMAT_ERR(errbuf,"order id '%s' duplicates!!\n",pOdrId);
+  // check existence of merchant out-trade-no both on 
+  //  local cache and redis
+  if (get_order_by_outTradeNo(pe,tno) || 
+      is_rds_outTradeNo_exist(pre,mcfg->order_table,tno)) {
+    FORMAT_ERR(errbuf,"merchant out trade no '%s' duplicates!\n",tno);
     return -1;
   }
 
-  if (get_order_by_outTradeNo(pe,tno)) {
-    FORMAT_ERR(errbuf,"order out trade no '%s' duplicates!\n",tno);
-    return -1;
-  }
-
-  ret = save_order(pe,pOdrId,mch_no,nurl,tno,chan,chan_mch_no,atof(amt));
-  if (ret) {
+  // save order locally and on redis
+  if (save_order(pe,pOdrId,mch_no,nurl,tno,chan,chan_mch_no,atof(amt)) ||
+      save_rds_order1(pre,mcfg->order_table,pOdrId,mch_no,nurl,tno,chan,
+                      chan_mch_no,atof(amt),s_unpay)) 
+  {
     FORMAT_ERR(errbuf,"save order '%s' fail!\n",pOdrId);
     return -1;
   }
 
-  // save to redis cache
-  ret = save_rds_order1(pre,mcfg->order_table,pOdrId,mch_no,nurl,tno,
-                        chan,chan_mch_no,atof(amt),s_unpay);
-  if (ret) {
-    FORMAT_ERR(errbuf,"save redis order '%s' fail!\n",pOdrId);
-    return -1;
-  }
+  // increment global order id
+  //aid_add_and_fetch(&g_alipayData.aid,1L);
 
   return 0;
 }

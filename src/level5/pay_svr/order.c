@@ -113,6 +113,8 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
 
   entry->num_orders ++;
 
+  //log_info("save order by id %s done!\n",order_id);
+
   return 0;
 }
 
