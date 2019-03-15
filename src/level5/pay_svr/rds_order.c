@@ -75,7 +75,10 @@ int save_rds_order1(rds_order_entry_t entry, const char *table, char *id,
   drop_dbuffer(str);
   delete_tree_map(map);
 
-  return ret;
+  //return ret;
+
+  (void)ret;
+  return 0;
 }
 
 int save_rds_order(rds_order_entry_t entry, const char *table, rds_order_t po)

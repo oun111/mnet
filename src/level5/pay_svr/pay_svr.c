@@ -237,6 +237,11 @@ void pay_svr_module_init(int argc, char *argv[])
                        rconf.order_cache);
 
   register_extra_modules();
+  // XXX: test
+  {
+    extern void test_crypto();
+    test_crypto();
+  }
 }
 
 void pay_svr_module_exit()

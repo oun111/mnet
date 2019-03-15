@@ -157,11 +157,19 @@ myredis_write(myredis_t mr, const char *table, char *key,
 {
   size_t kl = strlen(table)+strlen(key)+6;
   size_t vl = kl+strlen(value)+96;
-  dbuffer_t k = alloc_dbuffer(kl);
-  dbuffer_t v = alloc_dbuffer(vl);
+  dbuffer_t k = 0;
+  dbuffer_t v = 0;
   int status = st>=mr__na&&st<=mr__ok?st:mr__need_sync;
   int ret = 0;
 
+
+  if (!is_myredis_ok(mr)) {
+    log_error("redis not ok!\n");
+    return -1;
+  }
+
+  k = alloc_dbuffer(kl);
+  v = alloc_dbuffer(vl);
 
   snprintf(k,kl,"%s#%s",table,key);
   snprintf(v,vl,"{\"status\" : %d, \"table\" : \"%s\", \"value\" : \"%s\" }",
@@ -189,7 +197,7 @@ int myredis_read(myredis_t mr, const char *table, const char *key,
                  dbuffer_t *value)
 {
   size_t kl = strlen(table)+strlen(key)+10;
-  dbuffer_t k = alloc_dbuffer(kl);
+  dbuffer_t k = 0;
   redisReply *rc = 0;
   int ret = 0, status = 0;
   jsonKV_t *pr = 0;
@@ -197,6 +205,12 @@ int myredis_read(myredis_t mr, const char *table, const char *key,
   dbuffer_t pd = 0;
 
 
+  if (!is_myredis_ok(mr)) {
+    log_error("redis not ok!\n");
+    return -1;
+  }
+
+  k = alloc_dbuffer(kl);
   // key in redis table
   snprintf(k,kl,"%s#%s",table,key);
 

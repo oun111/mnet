@@ -102,6 +102,8 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
   pv = (char*)subname ;
   write_dbuf_str(p->subname,pv);
 
+  p->is_online = true;
+
   return p;
 }
 
@@ -170,6 +172,9 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan)
 
   // TODO: get best pay route
   list_for_each_entry(pos,&pc->pay_data_list,upper) {
+    if (pos->is_online==false)
+      continue ;
+
     if (1|| !(pos->weight%2))
       return pos ;
   }

@@ -81,11 +81,11 @@ int do_rsa_sign(const char *key_path, const char *plain_text,
     *sz_out = RSA_size(rsa);
     *res = malloc(*sz_out);
 
-    ret = RSA_sign(NID_sha256WithRSAEncryption,(unsigned char*)plain_text,
+    ret = RSA_sign(/*NID_sha256WithRSAEncryption*/NID_sha1WithRSA,(unsigned char*)plain_text,
                    strlen(plain_text),*res,sz_out,rsa);
   }
   else {
-    ret = RSA_verify(NID_sha256WithRSAEncryption,(unsigned char*)plain_text,
+    ret = RSA_verify(/*NID_sha256WithRSAEncryption*/NID_sha1WithRSA,(unsigned char*)plain_text,
                      strlen(plain_text),*res,*sz_out,rsa);
   }
 
@@ -117,15 +117,16 @@ void test_crypto()
 {
   unsigned char *res = 0;
   unsigned int sz_out = 0;
-  const char privkeypath[] = "/home/user1/work/mnet/conf/rsa_private_key.pem";
-  const char pubkeypath[] = "/home/user1/work/mnet/conf/rsa_public_key.pem";
+  const char privkeypath[] = "/home/user1/work/mnet/src/level5/pay_svr/rsa_private_key.pem";
+  const char pubkeypath[] = "/home/user1/work/mnet/src/level5/pay_svr/rsa_public_key.pem";
   int ret=  0;
+  char *signstr = "app_id=2018102961967184&biz_content={\"total_amount\":0.01,\"timeout_express\":\"3m\",\"subject\":\"%E5%95%86%E5%9F%8E1\",\"product_code\":\"QUICK_WAP_PAY\",\"out_trade_no\":\"alp_id_0000000001\",\"body\":\"%E8%B4%A7%E6%AC%BE\"}&charset=utf-8&format=JSON&method=alipay.trade.wap.pay&notify_url=https://127.0.0.1/alipay/notify&return_url=http://127.0.0.1/return/index&timestamp=2019-3-15 10:9:24&version=1.0&";
 
 
-  ret = rsa_private_sign(privkeypath,"123",&res,&sz_out) ;
+  ret = rsa_private_sign(privkeypath,signstr,&res,&sz_out) ;
   printf("sign %sok!\n",ret>0?"":"NOT ");
 
-  ret = rsa_public_verify(pubkeypath,"123",res,sz_out); 
+  ret = rsa_public_verify(pubkeypath,signstr,res,sz_out); 
   printf("result %smatches!\n",ret>0?"":"NOT ");
 
   if (res)

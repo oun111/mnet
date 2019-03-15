@@ -142,7 +142,7 @@ int deal_crypto(tree_map_t pay_params,tree_map_t pay_data)
   put_tree_map_string(pay_data,"sign",(char*)"");
 
   sign_params = create_html_params(pay_data);
-  //log_debug("sign string: %s, size: %zu\n",sign_params,strlen(sign_params));
+  log_debug("sign string: %s, size: %zu\n",sign_params,strlen(sign_params));
 
   privkeypath = get_tree_map_value(pay_params,PRIVKEY);
   if (rsa_private_sign(privkeypath,sign_params,&sign,&sz_out)<0) {
@@ -244,7 +244,16 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   put_tree_map_string(pay_biz,"timeout_express",
       get_tree_map_value(pay_params,"timeout_express"));
 
+#if 0
   dbuffer_t strBiz = create_json_params(pay_biz);
+#else
+  dbuffer_t strBiz = alloc_default_dbuffer();
+  {
+    jsonKV_t *pr = jsons_parse_tree_map(pay_biz);
+    jsons_toString(pr,&strBiz,true);
+    jsons_release(pr);
+  }
+#endif
 
   put_tree_map_string(pay_data,"biz_content",strBiz);
 
