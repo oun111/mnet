@@ -10,6 +10,8 @@ int url_encode(char *inb, size_t sz_in, dbuffer_t *outb)
   const char hex[] = "0123456789ABCDEF";
   
   
+  write_dbuf_str(*outb,"");
+
   for (size_t i=0;i<sz_in;i++) {
     unsigned char c = inb[i] ;
 

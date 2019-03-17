@@ -20,6 +20,9 @@
 #include "base64.h"
 #include "auto_id.h"
 #include "L4.h"
+#include "url_coder.h"
+
+#include "myrbtree.h"
 
 
 #define ALIPAY_DBG  0
@@ -144,7 +147,6 @@ int deal_crypto(tree_map_t pay_params,tree_map_t pay_data)
   sign_params = create_html_params(pay_data);
   sign_params[strlen(sign_params)-1] = '\0';
   log_debug("sign string: %s, size: %zu\n",sign_params,strlen(sign_params));
-  //strcpy(sign_params,"app_id=2018102961967184");
 
   privkeypath = get_tree_map_value(pay_params,PRIVKEY);
   if (rsa_private_sign(privkeypath,sign_params,&sign,&sz_out)<0) {
@@ -162,6 +164,27 @@ int deal_crypto(tree_map_t pay_params,tree_map_t pay_data)
   }
 
   put_tree_map_string(pay_data,"sign",(char*)final_res);
+
+  // url encode
+  {
+    tm_item_t pos, n ;
+    dbuffer_t ures = alloc_default_dbuffer();
+
+    MY_RBTREE_SORTORDER_FOR_EACH_ENTRY_SAFE(pos,n,&pay_data->u.root,node) {
+
+      if (dbuffer_data_size(pos->val)==0L)
+        continue ;
+
+      // construct 'key=value'
+      printf("%s -> %s\n",pos->key,pos->val);
+
+      url_encode(pos->val,strlen(pos->val),&ures);
+      write_dbuf_str(pos->val,ures);
+    }
+
+    drop_dbuffer(ures);
+
+  }
 
 __done:
   drop_dbuffer(sign_params);
@@ -189,7 +212,7 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   }
 
   subject = get_tree_map_value(user_params,"subject");
-  if (!body) {
+  if (!subject) {
     FORMAT_ERR(errbuf,"no 'subject' found\n");
     return -1;
   }
@@ -198,7 +221,7 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   //out_trade_no = aid_fetch(&g_alipayData.aid);
 
   amount = get_tree_map_value(user_params,"total_amount");
-  if (!body) {
+  if (!amount) {
     FORMAT_ERR(errbuf,"no 'amount' found\n");
     return -1;
   }
@@ -206,7 +229,7 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
 
   pay_biz = new_tree_map();
 
-  snprintf(tmp,sizeof(tmp),"%d-%d-%d %d:%d:%d",tm->tm_year+1900,
+  snprintf(tmp,sizeof(tmp),"%04d-%02d-%02d %02d:%02d:%02d",tm->tm_year+1900,
            tm->tm_mon+1,tm->tm_mday,tm->tm_hour,tm->tm_min,
            tm->tm_sec);
   put_tree_map_string(pay_data,"timestamp",tmp);
@@ -249,13 +272,13 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   put_tree_map_string(pay_biz,"timeout_express",
       get_tree_map_value(pay_params,"timeout_express"));
 
-#if 0
+#if 1
   dbuffer_t strBiz = create_json_params(pay_biz);
 #else
   dbuffer_t strBiz = alloc_default_dbuffer();
   {
     jsonKV_t *pr = jsons_parse_tree_map(pay_biz);
-    jsons_toString(pr,&strBiz,true);
+    jsons_toString(pr,&strBiz,/*true*/false);
     jsons_release(pr);
   }
 #endif
