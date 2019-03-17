@@ -142,7 +142,9 @@ int deal_crypto(tree_map_t pay_params,tree_map_t pay_data)
   put_tree_map_string(pay_data,"sign",(char*)"");
 
   sign_params = create_html_params(pay_data);
+  sign_params[strlen(sign_params)-1] = '\0';
   log_debug("sign string: %s, size: %zu\n",sign_params,strlen(sign_params));
+  //strcpy(sign_params,"app_id=2018102961967184");
 
   privkeypath = get_tree_map_value(pay_params,PRIVKEY);
   if (rsa_private_sign(privkeypath,sign_params,&sign,&sz_out)<0) {
@@ -229,6 +231,9 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
 
   put_tree_map_string(pay_data,"return_url",
       get_tree_map_value(pay_params,"return_url"));
+
+  put_tree_map_string(pay_data,"sign_type",
+      get_tree_map_value(pay_params,"sign_type"));
 
   put_tree_map_string(pay_biz,"body",body);
   put_tree_map_string(pay_biz,"subject",subject);

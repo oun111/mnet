@@ -237,11 +237,10 @@ void pay_svr_module_init(int argc, char *argv[])
                        rconf.order_cache);
 
   register_extra_modules();
-  // XXX: test
-  {
-    extern void test_crypto();
-    test_crypto();
-  }
+
+  // FIXME: when I make test_crypto() call HERE,
+  //  the app would crash, and if at the begining
+  //  of this function it runs OK, I don't know why
 }
 
 void pay_svr_module_exit()
