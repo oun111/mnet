@@ -6,14 +6,6 @@
 #include "list.h"
 
 
-#define REQ_URL      "req_url"
-#define PARAM_TYPE   "param_type"
-#define PAY_DATA     "pay_data"
-#define CRYPTO       "crypto"
-#define PUBKEY       "public_key_path"
-#define PRIVKEY      "private_key_path"
-
-
 struct pay_data_item_s {
   dbuffer_t subname ;
 

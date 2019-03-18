@@ -25,14 +25,14 @@
         "public_key_path":"/home/user1/work/mnet/src/level5/pay_svr/keys/rsa_public_key.pem",
         "private_key_path":"/home/user1/work/mnet/src/level5/pay_svr/keys/rsa_private_key.pem",
         "product_code":"QUICK_WAP_PAY",
-        "timeout_express":"60m",
+        "timeout_express":"3m",
         "app_id" : "2018102961967184",
         "method" : "alipay.trade.wap.pay",
         "format" : "JSON",
         "charset": "utf-8",
         "sign_type": "RSA2",
         "version": "1.0",
-        "notify_url": "https://127.0.0.1/alipay/notify",
+        "notify_url": "http://127.0.0.1:1366/alipay/notify",
         "return_url": "http://127.0.0.1/return/index"
       },
 
@@ -49,7 +49,7 @@
         "charset": "utf-8",
         "sign_type": "RSA2",
         "version": "1.0",
-        "notify_url": "https://127.0.0.1/alipay/notify",
+        "notify_url": "http://127.0.0.1:1366/alipay/notify",
         "return_url": "http://127.0.0.1/return/index"
       }
     ],

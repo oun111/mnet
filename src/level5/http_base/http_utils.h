@@ -39,5 +39,8 @@ extern dbuffer_t create_html_params(tree_map_t map);
 
 extern dbuffer_t create_json_params(tree_map_t map);
 
+extern int urlencode_tree_map(tree_map_t map);
+
+extern int uri_to_map(char *strKv, size_t kvLen, tree_map_t entry);
 
 #endif /* __HTTP_UTILS_H__*/

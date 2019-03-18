@@ -9,6 +9,7 @@
 #include "myrbtree.h"
 #include "log.h"
 #include "jsons.h"
+#include "url_coder.h"
 
 
 size_t get_http_hdr_size(char *inb, size_t sz_in)
@@ -130,6 +131,9 @@ dbuffer_t create_html_params(tree_map_t map)
     append_dbuf_str(strParams,pos->val);
     append_dbuf_str(strParams,"&");
   }
+
+  // eliminate the last  '&'
+  strParams[dbuffer_data_size(strParams)-1] = '\0';
 
   return strParams ;
 }
@@ -334,6 +338,63 @@ int parse_http_url(const char *url, char *host, size_t szhost,
       uri[0] = '/' ;
       uri[1] = '\0';
     }
+  }
+
+  return 0;
+}
+
+int urlencode_tree_map(tree_map_t map)
+{
+  tm_item_t pos, n ;
+  dbuffer_t ures = alloc_default_dbuffer();
+
+
+  MY_RBTREE_SORTORDER_FOR_EACH_ENTRY_SAFE(pos,n,&map->u.root,node) {
+
+    if (dbuffer_data_size(pos->val)==0L)
+      continue ;
+
+    url_encode(pos->val,strlen(pos->val),&ures);
+    write_dbuf_str(pos->val,ures);
+  }
+
+  drop_dbuffer(ures);
+
+  return 0;
+}
+
+int uri_to_map(char *strKv, size_t kvLen, tree_map_t entry)
+{
+  char *sp = (char*)strKv, *p = 0, *e = 0, *tmp=0;
+
+
+  while (sp<(strKv+kvLen)) {
+
+    p = strchr(sp,'&');
+    if (p) 
+      *p = '\0';
+
+    e = strchr(sp,'=');
+    if (!e) {
+      log_error("invalid request format in '%s'\n",strKv);
+      return -1;
+    }
+
+    // trim
+    for (;isspace(*sp);sp++);
+    for (tmp=e-1;isspace(*tmp);tmp--);
+    size_t kl = tmp-sp+1 ;
+    e ++;
+    for (;isspace(*e);e++);
+    for (tmp=e+strlen(e)-1;isspace(*tmp);tmp--);
+    size_t vl = tmp-e+1;
+
+    // put in map
+    put_tree_map(entry,sp,kl,e,vl);
+
+    sp += strlen(sp)+1;
+
+    if (p) *p = '&';
   }
 
   return 0;

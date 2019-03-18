@@ -63,44 +63,6 @@ int http_svr_do_error(connection_t pconn)
   return 0;
 }
 
-static
-int uri_to_map(char *strKv, size_t kvLen, tree_map_t entry)
-{
-  char *sp = (char*)strKv, *p = 0, *e = 0, *tmp=0;
-
-
-  while (sp<(strKv+kvLen)) {
-
-    p = strchr(sp,'&');
-    if (p) 
-      *p = '\0';
-
-    e = strchr(sp,'=');
-    if (!e) {
-      log_error("invalid request format in '%s'\n",strKv);
-      return -1;
-    }
-
-    // trim
-    for (;isspace(*sp);sp++);
-    for (tmp=e-1;isspace(*tmp);tmp--);
-    size_t kl = tmp-sp+1 ;
-    e ++;
-    for (;isspace(*e);e++);
-    for (tmp=e+strlen(e)-1;isspace(*tmp);tmp--);
-    size_t vl = tmp-e+1;
-
-    // put in map
-    put_tree_map(entry,sp,kl,e,vl);
-
-    sp += strlen(sp)+1;
-
-    if (p) *p = '&';
-  }
-
-  return 0;
-}
-
 static 
 int process_param_list(Network_t net, connection_t pconn, 
                        char *kvlist, const char *action)
