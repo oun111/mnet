@@ -10,6 +10,16 @@ enum http_param_types{
   pt_json
 } ;
 
+
+#define FORMAT_ERR(__errbuf__,fmt,arg...) do{\
+  char tmp[96],msg[128]; \
+  snprintf(tmp,sizeof(tmp),fmt,## arg); \
+  snprintf(msg,sizeof(msg),"{\"status\":%d,\"message\":\"%s\"}",-1,tmp); \
+  create_http_normal_res((__errbuf__),pt_html,msg); \
+  log_error("%s",tmp);  \
+} while(0)
+
+
 extern size_t get_http_hdr_size(char *inb, size_t sz_in);
 
 extern int get_http_hdr_field_int(char *inb, size_t sz_in, const char *field, 

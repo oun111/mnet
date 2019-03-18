@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "rds_order.h"
 #include "myredis.h"
 #include "jsons.h"
@@ -159,8 +160,6 @@ get_rds_order(rds_order_entry_t entry, const char *table,
     }
   }
 
-  dump_tree_map(odr_map);
-
   tmp = get_tree_map_value(odr_map,"mch_no");
   strncpy(p->mch.no,tmp,sizeof(p->mch.no));
 
@@ -176,8 +175,15 @@ get_rds_order(rds_order_entry_t entry, const char *table,
   tmp = get_tree_map_value(odr_map,"chan_mch_no");
   write_dbuf_str(p->chan.mch_no,tmp);
 
+  tmp = get_tree_map_value(odr_map,"orderid");
+  strcpy(p->id,tmp);
 
-  delete_tree_map(map);
+  tmp = get_tree_map_value(odr_map,"amount");
+  p->amount = atof(tmp);
+
+  tmp = get_tree_map_value(odr_map,"status");
+  p->status = atoi(tmp);
+
   jsons_release(pr);
 
 __done:

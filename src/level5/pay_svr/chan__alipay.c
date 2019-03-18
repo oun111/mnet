@@ -44,13 +44,6 @@
 #define STATUS       "status"
 
 
-#define FORMAT_ERR(__errbuf__,fmt,arg...) do{\
-  char tmp[96]; \
-  snprintf(tmp,sizeof(tmp),fmt,## arg); \
-  create_http_normal_res((__errbuf__),pt_html,tmp); \
-  log_error("%s",tmp);  \
-} while(0)
-
 struct alipay_data_s {
 
   struct auto_id_s aid ;
@@ -146,7 +139,7 @@ struct module_struct_s g_alipay_mod = {
 
 
 static
-int do_signature(tree_map_t pay_params,tree_map_t pay_data)
+int do_signature(dbuffer_t *errbuf,tree_map_t pay_params,tree_map_t pay_data)
 {
   char *privkeypath = 0;
   dbuffer_t sign_params = 0; 
@@ -162,11 +155,11 @@ int do_signature(tree_map_t pay_params,tree_map_t pay_data)
 
   sign_params = create_html_params(pay_data);
   sign_params[strlen(sign_params)-1] = '\0';
-  log_debug("sign string: %s, size: %zu\n",sign_params,strlen(sign_params));
+  //log_debug("sign string: %s, size: %zu\n",sign_params,strlen(sign_params));
 
   privkeypath = get_tree_map_value(pay_params,PRIVKEY);
   if (rsa_private_sign(privkeypath,sign_params,&sign,&sz_out)!=1) {
-    log_error("rsa sign error\n");
+    FORMAT_ERR(errbuf,"rsa sign error\n");
     goto __done;
   }
 
@@ -174,10 +167,11 @@ int do_signature(tree_map_t pay_params,tree_map_t pay_data)
   final_res = alloca(sz_res);
 
   if (base64_encode(sign,sz_out,final_res,&sz_res)<0) {
-    log_error("base64 error\n");
+    FORMAT_ERR(errbuf,"base64 error\n");
     goto __done;
   }
 
+  // save signature
   put_tree_map_string(pay_data,SIGN,(char*)final_res);
 
   urlencode_tree_map(pay_data);
@@ -216,7 +210,7 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   }
 
   // XXX: test
-#if 0
+#if 1
   out_trade_no = aid_add_and_fetch(&g_alipayData.aid,1L);
 #else
   out_trade_no = "1625363905-18147";
@@ -355,7 +349,7 @@ int create_alipay_link(dbuffer_t *errbuf,connection_t out_conn, const char *url,
   tree_map_t res_map = new_tree_map();
   order_entry_t pe = get_order_entry();
   // XXX: test
-#if 0
+#if 1
   char *odrid = aid_fetch(&g_alipayData.aid);
 #else
   char *odrid = "1625363905-18147";
@@ -406,7 +400,7 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
   order_entry_t pe = get_order_entry();
   rds_order_entry_t pre = get_rds_order_entry();
   // XXX: test
-#if 0
+#if 1
   char *pOdrId = aid_fetch(&g_alipayData.aid);
 #else
   char *pOdrId = "1625363905-18147";
@@ -496,7 +490,7 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   }
 
   if (!pd) {
-    FORMAT_ERR(errbuf,"no pay data for channel '%s'\n",payChan);
+    FORMAT_ERR(errbuf,"no pay route for channel '%s'\n",payChan);
     return -1;
   }
 
@@ -519,7 +513,7 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   }
 
   // deals with cryptographic
-  if (do_signature(pay_params,pay_data)<0) {
+  if (do_signature(&pconn->txb,pay_params,pay_data)<0) {
     goto __done ;
   }
 
@@ -766,11 +760,10 @@ int do_alipay_query(Network_t net,connection_t pconn,tree_map_t user_params)
   put_tree_map_string(qry_res,TNO,po->id);
   put_tree_map_string(qry_res,OTNO,po->mch.out_trade_no);
   put_tree_map_string(qry_res,STATUS,get_pay_status_str(po->status));
-  snprintf(tmp,sizeof(tmp),"%s%.2f",param_type==pt_json?"$":"",po->amount);
+  snprintf(tmp,sizeof(tmp),"%s%.02f",param_type==pt_json?"$":"",po->amount);
   put_tree_map_string(qry_res,AMT,tmp);
 
   create_http_normal_res2(&pconn->txb,param_type,qry_res);
-
   delete_tree_map(qry_res);
 
   if (!pconn->ssl || pconn->ssl->state==s_ok) {

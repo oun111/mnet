@@ -54,6 +54,7 @@ http_action_entry_t get_http_action_entry()
   return g_httpSvrConf.m_act0 ;
 }
 
+#if 0
 static 
 int http_svr_do_error(connection_t pconn)
 {
@@ -62,6 +63,7 @@ int http_svr_do_error(connection_t pconn)
   create_http_normal_res(&pconn->txb,pt_json,bodyPage);
   return 0;
 }
+#endif
 
 static 
 int process_param_list(Network_t net, connection_t pconn, 
@@ -79,7 +81,7 @@ int process_param_list(Network_t net, connection_t pconn,
     ret = pos->cb(net,pconn,map);
   }
   else {
-    log_error("no such action: %s\n",action);
+    FORMAT_ERR(&pconn->txb,"no such action: %s\n",action);
   }
 
   delete_tree_map(map);
@@ -103,7 +105,7 @@ int http_svr_do_get(Network_t net, connection_t pconn,
   if (get_http_hdr_field_str(req,sz_in,"/","?",action,&ln)==-1) {
 
     if (get_http_hdr_field_str(req,sz_in,"/"," ",action,&ln)==-1) {
-      log_error("found no action\n");
+      FORMAT_ERR(&pconn->txb,"found no action\n");
       return -1;
     }
   }
@@ -137,7 +139,7 @@ int http_svr_do_post(Network_t net, connection_t pconn,
    * parse action 
    */
   if (get_http_hdr_field_str(req,sz_in,"/"," ",action,&ln)==-1) {
-    log_error("get action fail!");
+    FORMAT_ERR(&pconn->txb,"get action fail!");
     return -1;
   }
 
@@ -147,8 +149,7 @@ int http_svr_do_post(Network_t net, connection_t pconn,
    * parse param list
    */
   if (sz_in == szhdr) {
-    log_error("no param list\n");
-    http_svr_do_error(pconn);
+    FORMAT_ERR(&pconn->txb,"no param list\n");
     return 0;
   }
 
@@ -211,7 +212,7 @@ int http_svr_rx(Network_t net, connection_t pconn)
     }
 
     if (rc==-1 && dbuffer_data_size(pconn->txb)==0L) 
-      http_svr_do_error(pconn);
+      FORMAT_ERR(&pconn->txb,"internal error!\n");
 
     pconn->l5opt.tx(net,pconn);
 
