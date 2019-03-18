@@ -22,8 +22,8 @@
       {
         "req_url": "https://openapi.alipay.com/gateway.do",
         "param_type": "html",
-        "public_key_path":"/home/user1/work/mnet/src/level5/pay_svr/rsa_public_key.pem",
-        "private_key_path":"/home/user1/work/mnet/src/level5/pay_svr/rsa_private_key.pem",
+        "public_key_path":"/home/user1/work/mnet/src/level5/pay_svr/keys/rsa_public_key.pem",
+        "private_key_path":"/home/user1/work/mnet/src/level5/pay_svr/keys/rsa_private_key.pem",
         "product_code":"QUICK_WAP_PAY",
         "timeout_express":"60m",
         "app_id" : "2018102961967184",
@@ -39,8 +39,8 @@
       {
         "req_url": "https://openapi.alipay.com/gateway.do",
         "param_type": "html",
-        "public_key_path":"/home/user1/work/mnet/src/level5/pay_svr/rsa_public_key.pem",
-        "private_key_path":"/home/user1/work/mnet/src/level5/pay_svr/rsa_private_key.pem",
+        "public_key_path":"/home/user1/work/mnet/src/level5/pay_svr/keys/rsa_public_key.pem",
+        "private_key_path":"/home/user1/work/mnet/src/level5/pay_svr/keys/rsa_private_key.pem",
         "product_code":"QUICK_WAP_PAY",
         "timeout_express":"3m",
         "app_id" : "2018102961967184",
