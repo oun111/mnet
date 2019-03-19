@@ -823,7 +823,7 @@ int alipay_init(Network_t net)
   myredis_t rds = get_myredis();
   
 
-  aid_init(&g_alipayData.aid,"alp_id",rds->ctx);
+  aid_init(&g_alipayData.aid,"alp",rds->ctx);
 
   add_http_action(pe,&action__alipay_order);
   add_http_action(pe,&action__alipay_notify);

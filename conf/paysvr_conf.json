@@ -16,6 +16,13 @@
     }
   },
 
+  "riskControl" : {
+    "alipay" : {
+      "1min_orderCount" : "1",
+      "1min_orderAmount" : "20.0"
+    }
+  },
+
   "channels": {
 
     "alipay": [
