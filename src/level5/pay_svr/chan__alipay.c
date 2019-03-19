@@ -42,6 +42,7 @@
 #define AMT          "amount"
 #define NURL         "notify_url"
 #define STATUS       "status"
+#define APPID        "app_id"
 
 
 struct alipay_data_s {
@@ -230,8 +231,8 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
            tm->tm_sec);
   put_tree_map_string(pay_data,"timestamp",tmp);
 
-  put_tree_map_string(pay_data,"app_id",
-      get_tree_map_value(pay_params,"app_id"));
+  put_tree_map_string(pay_data,APPID,
+      get_tree_map_value(pay_params,APPID));
 
   put_tree_map_string(pay_data,"method",
       get_tree_map_value(pay_params,"method"));
@@ -435,7 +436,7 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
     return -1;
   }
 
-  chan_mch_no = get_tree_map_value(pay_params,"app_id");
+  chan_mch_no = get_tree_map_value(pay_params,APPID);
 
   // check existence of order id both on 
   //  local cache and redis
@@ -473,6 +474,7 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   tree_map_t pay_data  = NULL ;
   const char *payChan = action__alipay_order.channel ;
   pay_data_t pd = get_pay_route(get_pay_channels_entry(),payChan);
+  char *tno = get_tree_map_value(user_params,OTNO);
   tree_map_t pay_params = NULL ;
   dbuffer_t *errbuf = &pconn->txb;
   merchant_entry_t pme = get_merchant_entry();
@@ -480,6 +482,8 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   char *mch_id = NULL;
   int ret = -1;
 
+
+  log_debug("requesting user out trade no: '%s'\n",tno);
 
   // TODO: verify merchant signature!!
 
@@ -538,6 +542,8 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
     alipay_tx(net,out_conn);
   }
 
+  log_debug("user out trade no '%s' done!\n",tno);
+
   ret = 0;
 
 __done:
@@ -550,7 +556,9 @@ static
 int do_verify_sign(tree_map_t user_params)
 {
   const char *payChan = action__alipay_order.channel ;
-  pay_data_t pd = get_pay_route(get_pay_channels_entry(),payChan);
+  pay_channels_entry_t pce = get_pay_channels_entry() ;
+  const char *appid = get_tree_map_value(user_params,APPID);
+  pay_data_t pd = 0 ;
   tree_map_t pay_params = 0 ;
   char *pubkeypath = 0, *tmp = 0;
   dbuffer_t sign_params = 0;
@@ -558,6 +566,7 @@ int do_verify_sign(tree_map_t user_params)
   int ret = 0, dec_len = 0;
 
 
+  pd = get_paydata_by_ali_appid(pce,payChan,appid);
   if (!pd) {
     log_error("found no pay route by '%s'\n",payChan);
     return -1;
@@ -811,9 +820,10 @@ static
 int alipay_init(Network_t net)
 {
   http_action_entry_t pe = get_http_action_entry();
+  myredis_t rds = get_myredis();
   
 
-  aid_reset(&g_alipayData.aid,"alp_id");
+  aid_init(&g_alipayData.aid,"alp_id",rds->ctx);
 
   add_http_action(pe,&action__alipay_order);
   add_http_action(pe,&action__alipay_notify);

@@ -9,13 +9,19 @@ enum myredis_status {
   mr__ok,  // record is ok
 } ;
 
-#define RDS_CACHE_NAME_SZ  32
-#define RDS_MQ_NAME_SZ     32
+enum myredis_op_type {
+  ot_cache,
+  ot_mq,
+  ot_var
+};
+
+#define RDS_NAME_SZ  32
 
 struct myredis_s {
   void *ctx ;
-  char cache_name[RDS_CACHE_NAME_SZ];
-  char mq_name[RDS_MQ_NAME_SZ];
+  char cache_name[RDS_NAME_SZ];
+  char mq_name[RDS_NAME_SZ];
+  char var_name[RDS_NAME_SZ];
 } ;
 typedef struct myredis_s* myredis_t ;
 
@@ -32,6 +38,8 @@ extern int myredis_write(myredis_t mr, const char *table, char *key, char *value
 
 extern bool is_myredis_ok(myredis_t mr);
 
-extern void myredis_change_name(myredis_t mr, char *name);
+extern int myredis_add_and_fetch(myredis_t mr, long long *val);
+
+extern int myredis_reset(myredis_t mr, int type) ;
 
 #endif /* __MYREDIS_H__*/

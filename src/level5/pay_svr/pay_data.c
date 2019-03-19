@@ -38,6 +38,29 @@ pay_data_t get_pay_data(pay_channel_t pc, const char *subname)
   return NULL ;
 }
 
+pay_data_t 
+get_paydata_by_ali_appid(pay_channels_entry_t entry, const char *chan, 
+                         const char *appid)
+{
+  pay_data_t pd = 0;
+  pay_channel_t pc = get_pay_channel(entry,chan);
+
+
+  if (!pc) {
+    log_error("found no pay channel '%s'\n",chan);
+    return NULL;
+  }
+
+  list_for_each_entry(pd,&pc->pay_data_list,upper) {
+    const char *ch_appid = get_tree_map_value(pd->pay_params,"app_id");
+
+    if (appid && !strcmp(ch_appid,appid))
+      return pd;
+  }
+
+  return NULL ;
+}
+
 
 pay_channels_entry_t new_pay_channels_entry()
 {

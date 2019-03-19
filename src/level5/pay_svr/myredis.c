@@ -61,15 +61,9 @@ int myredis_init(myredis_t mr, const char *host, int port, char *name)
 
   snprintf(mr->cache_name,sizeof(mr->cache_name),"%s",name);
   snprintf(mr->mq_name,sizeof(mr->mq_name),"%s_mq",name);
+  snprintf(mr->var_name,sizeof(mr->var_name),"%s_var",name);
 
   return 0;
-}
-
-void myredis_change_name(myredis_t mr, char *name)
-{
-  snprintf(mr->cache_name,sizeof(mr->cache_name),"%s",name);
-
-  snprintf(mr->mq_name,sizeof(mr->mq_name),"%s_mq",name);
 }
 
 static
@@ -149,6 +143,59 @@ int myredis_mq_rx(myredis_t mr, redisReply **rc)
   }
 
   return 0;
+}
+
+int myredis_add_and_fetch(myredis_t mr, long long *val)
+{
+  char *tbl = mr->var_name ;
+  redisReply *rc = 0;
+  int ret = 0;
+
+
+  if (!is_myredis_ok(mr)) {
+    log_error("redis not ok!\n");
+    return -1;
+  }
+
+  rc = (redisReply*)redisCommand(REDIS_CTX,"incr %s",tbl);
+
+  if (rc->type==REDIS_REPLY_ERROR) {
+    log_error("incr '%s' fail: %s\n",tbl,rc->str) ;
+    ret = -1;
+  }
+  else if (val) {
+    *val = rc->integer ;
+  }
+
+  freeReplyObject(rc);
+
+  return ret;
+}
+
+int myredis_reset(myredis_t mr, int type)
+{
+  char *tbl = type==ot_cache?mr->cache_name:
+              type==ot_mq?mr->mq_name:
+              mr->var_name ;
+  redisReply *rc = 0;
+  int ret = 0;
+
+
+  if (!is_myredis_ok(mr)) {
+    log_error("redis not ok!\n");
+    return -1;
+  }
+
+  rc = (redisReply*)redisCommand(REDIS_CTX,"del %s",tbl);
+
+  if (rc->type==REDIS_REPLY_ERROR) {
+    log_error("reset '%s' fail: %s\n",tbl,rc->str) ;
+    ret = -1;
+  }
+
+  freeReplyObject(rc);
+
+  return ret;
 }
 
 int 
@@ -361,15 +408,17 @@ void test_myredis()
   if (!myredis_read(&mr,"merchant_info",k,&res)) {
     printf("ret string: %s\n",res);
   }
-#endif
 
-  drop_dbuffer(res);
-
-#if 0
   if (!myredis_read_all(&mr,&ary,&cnt)) {
   }
 
   myredis_read_all_done(&ary,cnt);
 #endif
+
+  drop_dbuffer(res);
+
+  long long val = 0LL;
+  myredis_add_and_fetch(&mr,&val);
+
 }
 #endif

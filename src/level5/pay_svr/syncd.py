@@ -373,7 +373,7 @@ class syncd(object):
 
       self.do_synchronize(cfg.odrTbl,cfg.odrMq)
 
-      time.sleep(0.1);
+      time.sleep(0.08);
 
 
 

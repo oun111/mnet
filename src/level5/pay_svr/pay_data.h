@@ -57,4 +57,7 @@ extern pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan);
 
 extern int init_pay_data(pay_channels_entry_t *paych);
 
+extern pay_data_t get_paydata_by_ali_appid(pay_channels_entry_t entry, 
+           const char *chan, const char *appid);
+
 #endif /* __PAY_DATA_H__*/
