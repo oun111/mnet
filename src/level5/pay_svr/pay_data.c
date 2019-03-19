@@ -114,9 +114,9 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
     }
 
     p->subname = alloc_default_dbuffer(chan);
-    p->freq   = 0;
-    p->weight = 0;
     p->pay_params = params;
+    p->rc.odrAmtPerMin = 0.0;
+    p->rc.odrCntPerMin = 0;
 
     INIT_LIST_HEAD(&p->upper); 
     list_add(&p->upper,&pc->pay_data_list);
@@ -198,7 +198,8 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan)
     if (pos->is_online==false)
       continue ;
 
-    if (1|| !(pos->weight%2))
+    // TODO: by risk control rules
+    if (1)
       return pos ;
   }
 

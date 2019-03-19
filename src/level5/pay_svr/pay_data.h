@@ -9,9 +9,10 @@
 struct pay_data_item_s {
   dbuffer_t subname ;
 
-  int weight ;
-
-  int freq ;
+  struct riskControl {
+    int odrCntPerMin ;
+    double odrAmtPerMin ;
+  } rc ;
 
   tree_map_t pay_params ;
 
