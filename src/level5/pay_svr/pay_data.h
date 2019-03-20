@@ -6,13 +6,16 @@
 #include "list.h"
 
 
+struct risk_control_s {
+  unsigned long time ;
+  int odrCntPerM ;  // max order count per minute
+  double odrAmtPerM ; // max order amount per minute
+} ;
+
 struct pay_data_item_s {
   dbuffer_t subname ;
 
-  struct riskControl {
-    int odrCntPerMin ;
-    double odrAmtPerMin ;
-  } rc ;
+  struct risk_control_s rc ;
 
   tree_map_t pay_params ;
 
@@ -54,11 +57,14 @@ extern pay_data_t add_pay_data(pay_channels_entry_t entry, const char *chan,
 
 extern void delete_pay_channels_entry(pay_channels_entry_t entry);
 
-extern pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan);
+extern pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, 
+                                dbuffer_t *reason);
 
 extern int init_pay_data(pay_channels_entry_t *paych);
 
 extern pay_data_t get_paydata_by_ali_appid(pay_channels_entry_t entry, 
            const char *chan, const char *appid);
+
+extern void update_paydata_rc_arguments(pay_data_t pd, double amount);
 
 #endif /* __PAY_DATA_H__*/

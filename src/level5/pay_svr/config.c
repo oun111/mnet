@@ -25,6 +25,7 @@ struct global_config_keywords {
   const char *alipayCfgTbl ;
   const char *mchCfgTbl ;
   const char *odrTbl ;
+  const char *riskCtl ;
 } 
 g_confKW = {
   .gsSec        = "Globals",
@@ -42,6 +43,7 @@ g_confKW = {
   .alipayCfgTbl = "alipayConfigTableName",
   .mchCfgTbl    = "merchantConfigTableName",
   .odrTbl       = "orderTableName",
+  .riskCtl      = "riskControl",
 } ;
 
 
@@ -238,6 +240,37 @@ int process_mysql_configs(paySvr_config_t conf)
   return 0;
 }
 
+static
+int process_risk_control_configs(paySvr_config_t conf)
+{
+  const char *pstr = g_confKW.riskCtl ;
+  jsonKV_t *pr = jsons_find(conf->m_root,pstr);
+
+  if (!pr) {
+    log_error("entry '%s' not found\n",pstr);
+    return -1;
+  }
+
+  conf->rc_conf = jsons_to_treemap(pr);
+
+  return 0;
+}
+
+tree_map_t get_rc_conf_by_channel(paySvr_config_t conf, const char *chan)
+{
+  tree_map_t chan_rc = 0;
+  tree_map_t rc_cfg = get_tree_map_nest(conf->rc_conf,(char*)g_confKW.riskCtl);
+
+  if (!rc_cfg)
+    return NULL ;
+
+  chan_rc = get_tree_map_nest(rc_cfg,(char*)chan);
+
+  dump_tree_map(chan_rc);
+
+  return chan_rc ;
+}
+
 int init_config(paySvr_config_t conf, const char *infile)
 {
   dbuffer_t content = NULL ;
@@ -254,6 +287,8 @@ int init_config(paySvr_config_t conf, const char *infile)
 
   process_mysql_configs(conf);
 
+  process_risk_control_configs(conf);
+
   return 0;
 }
 
@@ -267,6 +302,10 @@ int free_config(paySvr_config_t conf)
 
   if (conf->mch_conf) {
     delete_tree_map(conf->mch_conf);
+  }
+
+  if (conf->rc_conf) {
+    delete_tree_map(conf->rc_conf);
   }
 
   return 0;

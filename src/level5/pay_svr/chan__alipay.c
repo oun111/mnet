@@ -92,7 +92,6 @@ int alipay_rx(Network_t net, connection_t pconn)
     backend_entry_t bentry = get_backend_entry();
     backend_t be = get_backend(bentry,pconn->fd);
     connection_t peer = be->peer ;
-    pay_data_t pd = be->data ;
 
     b = dbuffer_ptr(pconn->rxb,0);
     b[sz_in] = '\0' ;
@@ -107,9 +106,6 @@ int alipay_rx(Network_t net, connection_t pconn)
       do_ok(peer);
       peer->l4opt.tx(net,peer);
     }
-
-    // accumulate weight
-    pd->weight ++ ;
   }
 
   return 0;
@@ -473,7 +469,8 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   connection_t out_conn = pconn ;
   tree_map_t pay_data  = NULL ;
   const char *payChan = action__alipay_order.channel ;
-  pay_data_t pd = get_pay_route(get_pay_channels_entry(),payChan);
+  dbuffer_t reason = 0;
+  pay_data_t pd = 0;
   char *tno = get_tree_map_value(user_params,OTNO);
   tree_map_t pay_params = NULL ;
   dbuffer_t *errbuf = &pconn->txb;
@@ -493,8 +490,10 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
     return 0;
   }
 
+  pd = get_pay_route(get_pay_channels_entry(),payChan,&reason);
   if (!pd) {
-    FORMAT_ERR(errbuf,"no pay route for channel '%s'\n",payChan);
+    FORMAT_ERR(errbuf,"no pay route for channel '%s', reason: %s\n",payChan,reason);
+    drop_dbuffer(reason);
     return -1;
   }
 
@@ -553,24 +552,14 @@ __done:
 }
 
 static
-int do_verify_sign(tree_map_t user_params)
+int do_verify_sign(pay_data_t pd, tree_map_t user_params)
 {
-  const char *payChan = action__alipay_order.channel ;
-  pay_channels_entry_t pce = get_pay_channels_entry() ;
-  const char *appid = get_tree_map_value(user_params,APPID);
-  pay_data_t pd = 0 ;
   tree_map_t pay_params = 0 ;
   char *pubkeypath = 0, *tmp = 0;
   dbuffer_t sign_params = 0;
   dbuffer_t sign = 0, sign_dec = 0;
   int ret = 0, dec_len = 0;
 
-
-  pd = get_paydata_by_ali_appid(pce,payChan,appid);
-  if (!pd) {
-    log_error("found no pay route by '%s'\n",payChan);
-    return -1;
-  }
 
   pay_params = pd->pay_params ;
   pubkeypath = get_tree_map_value(pay_params,PUBKEY);
@@ -621,6 +610,10 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   rds_order_entry_t pre = get_rds_order_entry();
   paySvr_config_t pc = get_running_configs();
   mysql_conf_t mcfg = get_mysql_configs(pc);
+  pay_channels_entry_t pce = get_pay_channels_entry() ;
+  const char *appid = get_tree_map_value(user_params,APPID);
+  const char *payChan = action__alipay_order.channel ;
+  pay_data_t pd = 0 ;
   order_info_t po = 0;
   connection_t out_conn = 0;
   tree_map_t notify = 0;
@@ -634,8 +627,14 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
 
   // FIXME: verify params 
 
+  pd = get_paydata_by_ali_appid(pce,payChan,appid);
+  if (!pd) {
+    log_error("found no pay route by '%s'\n",payChan);
+    return -1;
+  }
+
   // verify signature of alipay notifications
-  if (do_verify_sign(user_params)) {
+  if (do_verify_sign(pd,user_params)) {
     return -1;
   }
 
@@ -660,6 +659,9 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
     log_error("no such merchant '%s'\n",po->mch.no);
     goto __done;
   }
+
+  // update risk control arguments
+  update_paydata_rc_arguments(pd,po->amount);
 
   ptr = get_tree_map_value(pm->mch_info,PARAM_TYPE);
   if (ptr) {

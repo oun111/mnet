@@ -115,8 +115,9 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
 
     p->subname = alloc_default_dbuffer(chan);
     p->pay_params = params;
-    p->rc.odrAmtPerMin = 0.0;
-    p->rc.odrCntPerMin = 0;
+    p->rc.odrAmtPerM = 0.0;
+    p->rc.odrCntPerM = 0;
+    p->rc.time = 0L;
 
     INIT_LIST_HEAD(&p->upper); 
     list_add(&p->upper,&pc->pay_data_list);
@@ -183,25 +184,110 @@ void delete_pay_channels_entry(pay_channels_entry_t entry)
   kfree(entry);
 }
 
-pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan)
+void update_paydata_rc_arguments(pay_data_t pd, double amount)
 {
-  pay_channel_t pc = get_pay_channel(entry,chan);
-  pay_data_t pos ;
+  struct timespec ts ;
+  clock_gettime(CLOCK_REALTIME,&ts);
 
+
+  if ((ts.tv_sec-pd->rc.time)<60) {
+    pd->rc.odrAmtPerM += amount ;
+    pd->rc.odrCntPerM ++ ;
+  }
+}
+
+pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t *reason)
+{
+  extern paySvr_config_t get_running_configs();
+  paySvr_config_t conf = get_running_configs();
+  pay_channel_t pc  = get_pay_channel(entry,chan);
+  // get channel related risk control configs
+  tree_map_t rc_cfg = get_rc_conf_by_channel(conf,chan);
+  pay_data_t pos ;
+  struct risk_control_s rc_cfg_paras ;
+  char msg[256] = "";
+
+
+  *reason = alloc_default_dbuffer();
   
   if (!pc) {
+    snprintf(msg,sizeof(msg),"no pay channel '%s'",chan);
+    log_error("%s\n",msg);
+    write_dbuf_str(*reason,msg);
     return NULL ;
   }
 
-  // TODO: get best pay route
+  if (!rc_cfg) {
+    snprintf(msg,sizeof(msg),"no risk control params for channel '%s'",chan);
+    log_error("%s\n",msg);
+    write_dbuf_str(*reason,msg);
+    return NULL ;
+  }
+
+  // risk control timestamp
+  struct timespec ts ;
+  clock_gettime(CLOCK_REALTIME,&ts);
+
+  // risk control arguments
+  {
+    // max order count within last 1 minute
+    char *rck = "1min_orderCount" ;
+    char *tmp = get_tree_map_value(rc_cfg,rck);
+    if (!tmp) {
+      snprintf(msg,sizeof(msg),"risk control keyword '%s' not found",rck);
+      log_error("%s\n",msg);
+      write_dbuf_str(*reason,msg);
+      return NULL ;
+    }
+    rc_cfg_paras.odrCntPerM = atoi(tmp);
+
+    // max amount with last 1 minute 
+    rck = "1min_orderAmount" ;
+    tmp = get_tree_map_value(rc_cfg,rck);
+    if (!tmp) {
+      snprintf(msg,sizeof(msg),"risk control keyword '%s' not found",rck);
+      log_error("%s\n",msg);
+      write_dbuf_str(*reason,msg);
+      return NULL ;
+    }
+    rc_cfg_paras.odrAmtPerM = atof(tmp);
+  }
+
+  //log_debug("odrCntPerM: %d, odrAmtPerM: %f\n",odrCntPerM,odrAmtPerM);
+
+
+  // get best pay route
   list_for_each_entry(pos,&pc->pay_data_list,upper) {
     if (pos->is_online==false)
       continue ;
 
-    // TODO: by risk control rules
-    if (1)
-      return pos ;
+    if (pos->rc.time==0L || (ts.tv_sec-pos->rc.time)>60) {
+      pos->rc.time = ts.tv_sec;
+      pos->rc.odrCntPerM = 0;
+      pos->rc.odrAmtPerM = 0.0;
+    }
+
+    if ((ts.tv_sec-pos->rc.time)<60) {
+      // 
+      if (pos->rc.odrCntPerM>=rc_cfg_paras.odrCntPerM)
+        continue ;
+
+      if (pos->rc.odrAmtPerM>=rc_cfg_paras.odrAmtPerM)
+        continue ;
+    }
+
+    // move pay data item to list tail
+    {
+      list_del(&pos->upper);
+      list_add_tail(&pos->upper,&pc->pay_data_list);
+    }
+
+    return pos ;
   }
+
+  snprintf(msg,sizeof(msg),"no suitable pay route for channel '%s'",chan);
+  log_error("%s\n",msg);
+  write_dbuf_str(*reason,msg);
 
   return NULL ;
 }
@@ -215,8 +301,6 @@ int init_pay_data(pay_channels_entry_t *paych)
   tree_map_t entry = get_tree_map_nest(pr,"channels");
   
   
-  //dump_tree_map(pr);
-
   *paych = new_pay_channels_entry();
 
   rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {

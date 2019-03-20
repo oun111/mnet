@@ -23,6 +23,8 @@ struct paySvr_config_s {
 
   tree_map_t mch_conf ;
 
+  tree_map_t rc_conf ;
+
   struct mysql_config_s mysql_conf;
 
 } __attribute__((__aligned__(64))) ;
@@ -52,6 +54,8 @@ extern mysql_conf_t get_mysql_configs(paySvr_config_t conf);
 extern int process_merchant_configs(paySvr_config_t conf, dbuffer_t);
 
 extern int process_channel_configs(paySvr_config_t conf, dbuffer_t);
+
+extern tree_map_t get_rc_conf_by_channel(paySvr_config_t conf, const char *chan);
 
 extern int init_config(paySvr_config_t conf, const char *infile);
 

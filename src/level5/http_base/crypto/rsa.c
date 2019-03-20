@@ -148,7 +148,7 @@ int do_rsa_sign(const char *key_path, const char *plain_text,
     goto __done ;
   }
 
-  ret = EVP_PKEY_assign_RSA(pkey,rsa);
+  ret = EVP_PKEY_assign_RSA(pkey,sign?RSAPrivateKey_dup(rsa):RSAPublicKey_dup(rsa));
   if (ret!=1) {
     printf("EVP_PKEY_assign_RSA fail: \n");
     ERR_print_errors_fp(stdout);
@@ -240,10 +240,8 @@ int do_rsa_sign(const char *key_path, const char *plain_text,
   ret = 1;
 
 __done:
-#if 0
   if (pkey)
     EVP_PKEY_free(pkey);
-#endif
   if (rsa)
     RSA_free(rsa);
   if (ctx)
@@ -256,14 +254,12 @@ __done:
 int rsa_private_sign(const char *priv_key_path, const char *plain_text, 
                      unsigned char **res, size_t *sz_out)
 {
-  //return do_rsa_sign(priv_key_path,plain_text,res,sz_out,true);
   return do_rsa_sign(priv_key_path,plain_text,res,(size_t*)sz_out,true);
 }
 
 int rsa_public_verify(const char *pub_key_path, const char *plain_text,
                       unsigned char *res, size_t sz_out)
 {
-  //return do_rsa_sign(pub_key_path,plain_text,&res,&sz_out,false);
   return do_rsa_sign(pub_key_path,plain_text,&res,(size_t*)&sz_out,false);
 }
 
@@ -271,7 +267,7 @@ int rsa_public_verify(const char *pub_key_path, const char *plain_text,
 #include "base64.h"
 #include "tree_map.h"
 #include "http_utils.h"
-void test_crypto()
+void test_rsa()
 {
   unsigned char *res = 0;
   size_t sz_out = 0;
@@ -300,6 +296,7 @@ void test_crypto()
     OPENSSL_free(res);
 
 
+#if 0
   // case 2: verify with given signature
   char signstr2[1024] = "";
   const char *__signstr = "gmt_create=2019-03-15 14:46:12&charset=UTF-8&seller_email=13192804289@163.com&subject=大同商城&body=大同商城&buyer_id=2088722583220144&invoice_amount=0.01&notify_id=2019031500222144614020140567317477&fund_bill_list=[{\"amount\":\"0.01\",\"fundChannel\":\"ALIPAYACCOUNT\"}]&notify_type=trade_status_sync&trade_status=TRADE_SUCCESS&receipt_amount=0.01&buyer_pay_amount=0.01&app_id=2019031163542035&sign_type=RSA2&seller_id=2088431720900668&gmt_payment=2019-03-15 14:46:13&notify_time=2019-03-15 14:46:14&passback_params=1&version=1.0&out_trade_no=1625363905-18147&total_amount=0.01&trade_no=2019031522001420140545069013&auth_app_id=2019031163542035&buyer_logon_id=159****2523&point_amount=0.00&";
@@ -324,6 +321,7 @@ void test_crypto()
   printf("result 2 %smatches!\n",ret>0?"":"NOT ");
 
   delete_tree_map(sign_map);
+#endif
 }
 #endif
 

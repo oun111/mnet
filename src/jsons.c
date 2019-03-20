@@ -89,9 +89,9 @@ struct jsonsPtnInfo {
   (__parent__) && (__parent__)->num_children>1 && (__p__)->upper.next!=&(__parent__)->children
 
 #define FUNC_TOSTR_0(__p__,__arg__) do{ \
+  dbuffer_t jstr = 0; \
   struct jsonsPtnInfo *ti = (struct jsonsPtnInfo*)(void*)(__arg__); \
   if (strncmp((__p__)->key,"root",4)) { \
-    dbuffer_t jstr = 0; \
     if (ti->add_del==true) \
       jstr_add_delimiter((__p__)->key,&jstr); \
     append_dbuf_str(ti->str,jstr?jstr:(__p__)->key); \
@@ -99,12 +99,13 @@ struct jsonsPtnInfo {
     drop_dbuffer(jstr); \
   } \
   if ((__p__)->type==keyValue) {  \
-    dbuffer_t jstr = 0; \
+    jstr = 0; \
     if (ti->add_del==true) \
       jstr_add_delimiter((__p__)->value,&jstr); \
     append_dbuf_str(ti->str,jstr?jstr:(__p__)->value); \
     if (NOT_LAST_CHILD(__p__,(__p__)->parent)) \
       append_dbuf_str(ti->str,","); \
+    drop_dbuffer(jstr); \
   } \
   else if ((__p__)->type==keyList) \
     append_dbuf_str(ti->str,"{"); \

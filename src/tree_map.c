@@ -162,7 +162,9 @@ int release_all_tree_map_items(tree_map_t entry)
     prt = sstack_top(&k);
     sstack_pop(&k);
 
-    rbtree_postorder_for_each_entry_safe(pos,n,&prt->u.root,node) {
+    // FIXME: while the 'rbtree_postorder_for_each_entry_safe' leaks 1 element??
+    //rbtree_postorder_for_each_entry_safe(pos,n,&prt->u.root,node) {
+    MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&prt->u.root,node) {
       if (pos->nest_map) {
         sstack_push(&k,pos->nest_map);
       }
