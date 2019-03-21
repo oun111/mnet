@@ -490,11 +490,12 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
     return 0;
   }
 
+  reason = alloc_default_dbuffer();
   pd = get_pay_route(get_pay_channels_entry(),payChan,&reason);
   if (!pd) {
-    FORMAT_ERR(errbuf,"no pay route for channel '%s', reason: %s\n",payChan,reason);
-    drop_dbuffer(reason);
-    return -1;
+    FORMAT_ERR(errbuf,"no pay route for channel '%s', reason: %s\n",
+               payChan,reason);
+    goto __done ;
   }
 
   pay_params = pd->pay_params ;
@@ -547,6 +548,7 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
 
 __done:
   delete_tree_map(pay_data);
+  drop_dbuffer(reason);
 
   return ret;
 }

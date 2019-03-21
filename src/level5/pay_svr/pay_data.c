@@ -208,8 +208,6 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
   char msg[256] = "";
 
 
-  *reason = alloc_default_dbuffer();
-  
   if (!pc) {
     snprintf(msg,sizeof(msg),"no pay channel '%s'",chan);
     log_error("%s\n",msg);

@@ -201,7 +201,7 @@ int do_process_configs(paySvr_config_t conf, tree_map_t *target_conf,
   *target_conf = jsons_to_treemap(cc) ;
 
   if (cfgStr)
-    jsons_release(cc);
+    jsons_release(pr);
 
   return 0;
 }

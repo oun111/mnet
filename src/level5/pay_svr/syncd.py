@@ -53,7 +53,9 @@ class Mysql(object):
   def __init__(self,host,port,db,usr,pwd):
     self.m_conn = pymysql.connect(host=host,port=port,
                   user=usr,password=pwd,database=db,
+                  autocommit=False,
                   cursorclass=pymysql.cursors.DictCursor)
+
 
   def is_connect(self):
     return self.m_conn.open==True
@@ -61,17 +63,24 @@ class Mysql(object):
   def query(self,table,selist=" * ",cond=""):
     strsql = ("select " + selist + " from " + table + " " + cond)
 
-    cursor = self.m_conn.cursor()
-    cursor.execute(strsql)
+    self.m_conn.commit()
 
-    return cursor.fetchall()
+    with self.m_conn.cursor() as cs:
+      cs.execute(strsql)
+
+      res = cs.fetchall()
+
+    self.m_conn.commit()
+
+    return res
 
 
   def update(self,strSql):
-    cursor = self.m_conn.cursor()
 
-    cursor.execute(strSql)
-    self.m_conn.commit()
+    with self.m_conn.SSCursor() as cs:
+
+      cs.execute(strSql)
+      self.m_conn.commit()
     
 
 
@@ -286,7 +295,6 @@ class syncd(object):
     return json.dumps(top),len(nrows)
 
 
-
   def do_sync_back(self,rdsTbl,key,table):
 
     mysql = self.m_mysql
@@ -310,7 +318,7 @@ class syncd(object):
 
     # query database for results
     rows = mysql.query(table," * ",cond)
-    print("rows: ",rows)
+    #print("rows: {0}".format(rows))
     vj,numRows = cb(rows)
 
     if (numRows>0):
@@ -327,6 +335,38 @@ class syncd(object):
 
     # sync back to redis
     rds.write(rdsTbl,key,fj)
+
+
+
+  def manual_sync_back(self,tbl,key):
+
+    mp1 = {}
+    mapList = {
+      "order_data"       : (self.rds_cfg.odrTbl,self.rds_cfg.odrMq),
+      "merchant_configs" : (self.rds_cfg.cfgTbl,self.rds_cfg.cfgMq),
+      "channel_alipay_configs" : (self.rds_cfg.cfgTbl,self.rds_cfg.cfgMq)
+    }
+
+    mp1['status'] = self.rds_status.mr__need_sync_back
+    mp1['table'] = tbl
+    mp1['value'] = "{}"
+
+    rk = (tbl + "#" + key)
+    rv = json.dumps(mp1)
+
+    #print("req: "+rv)
+
+
+    mk = mapList.get(tbl)
+    if (mk==None):
+      print("table '{0}' not support yet!\n".format(tbl))
+      exit(0)
+
+    # commands to syncd
+    self.m_rds.write(mk[0],rk,rv)
+    self.m_rds.pushq(mk[1],rk)
+
+    print("write syncd command with table '{0}' done\n".format(tbl))
 
 
 
@@ -355,10 +395,10 @@ class syncd(object):
 
       # sync:  mysql -> redis
       if (stat==rst.mr__need_sync_back):
-        self.do_sync_back(rdsTbl,k,tbl)
+        self.do_sync_back(rdsTbl,str(k),tbl)
       # sync: redis -> mysql
       elif (stat==rst.mr__need_sync):
-        self.do_sync(rdsTbl,k,tbl,v)
+        self.do_sync(rdsTbl,str(k),tbl,v)
 
       rds.popq(rdsMq)
 
@@ -377,24 +417,65 @@ class syncd(object):
 
 
 
-def main():
+def start_sync_svr(biz):
 
-  conf_path  = ""
-  cont = ""
-  opts, args = getopt.getopt(sys.argv[1:], "hc:")
-
-  for a,opt in opts:
-    if (a=='-c'):
-      conf_path = opt
-      
-  with open(conf_path,"r") as m_fd:
-    cont = m_fd.read()
-
-
-  biz = syncd(cont)
+  print("starting local synchronize server...")
 
   biz.run()
 
+
+def manual_mysql_2_rds(biz,tbl,key):
+  
+  biz.manual_sync_back(tbl,key)
+
+
+def manual_rds_2_mysql(biz,tbl,key,val):
+  pass
+
+
+def main():
+
+  tbl = ""
+  key = ""
+  val = ""
+  cfg = ""
+  cont = ""
+  opts, args = getopt.getopt(sys.argv[1:], "hc:t:k:v:")
+
+  for a,opt in opts:
+    if (a=='-c'):
+      cfg = opt
+    elif (a=='-t'):
+      tbl = opt
+    elif (a=='-k'):
+      key = opt
+    elif (a=='-v'):
+      val = opt
+
+
+  if (len(cfg)==0):
+    print("need config file path...")
+    exit(0)
+
+
+  # read configs
+  with open(cfg,"r") as m_fd:
+    cont = m_fd.read()
+
+  # initialize the interfaces
+  biz = syncd(cont)
+
+
+  # run the syncd server
+  if (len(tbl)==0 and len(key)==0 and len(val)==0):
+    start_sync_svr(biz)
+    exit(0)
+
+  # write a command to request: mysql -> redis
+  if (len(val)==0):
+    manual_mysql_2_rds(biz,tbl,key)
+  else:
+    manual_rds_2_mysql(biz,tbl,key,val)
 
 
 
