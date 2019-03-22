@@ -558,7 +558,7 @@ int do_verify_sign(pay_data_t pd, tree_map_t user_params)
   tree_map_t pay_params = 0 ;
   char *pubkeypath = 0, *tmp = 0;
   dbuffer_t sign_params = 0;
-  dbuffer_t sign = 0, sign_dec = 0;
+  dbuffer_t sign = 0, sign_dec = 0, ud = 0;
   int ret = 0, dec_len = 0;
 
 
@@ -580,17 +580,25 @@ int do_verify_sign(pay_data_t pd, tree_map_t user_params)
   sign = alloc_default_dbuffer();
   write_dbuf_str(sign,tmp);
 
-  // decode the 'sign'
-  dec_len  = strlen(sign)+2;
+  // url decode the signature
+  ud = alloc_default_dbuffer();
+  url_decode(sign,strlen(sign),&ud);
+
+  // base64 decode the signature
+  dec_len  = strlen(ud)+2;
   sign_dec = alloc_dbuffer(dec_len);
-  base64_decode((unsigned char*)sign,strlen(sign),(unsigned char*)sign_dec,&dec_len);
+  base64_decode((unsigned char*)ud,strlen(ud),(unsigned char*)sign_dec,&dec_len);
 
   // remove 'sign' and 'sign_type'
   drop_tree_map_item(user_params,SIGN,strlen(SIGN));
   drop_tree_map_item(user_params,SIGNTYPE,strlen(SIGNTYPE));
   sign_params = create_html_params(user_params);
 
-  if (rsa_public_verify(pubkeypath,sign_params,(unsigned char*)sign_dec,dec_len)!=1) {
+  // url decode the plain text
+  write_dbuf_str(ud,"");
+  url_decode(sign_params,strlen(sign_params),&ud);
+
+  if (rsa_public_verify(pubkeypath,ud,(unsigned char*)sign_dec,dec_len)!=1) {
     log_error("verify sign fail\n");
     ret = -1;
   }
@@ -598,6 +606,7 @@ int do_verify_sign(pay_data_t pd, tree_map_t user_params)
   drop_dbuffer(sign_params);
   drop_dbuffer(sign_dec);
   drop_dbuffer(sign);
+  drop_dbuffer(ud);
 
   return ret;
 }
