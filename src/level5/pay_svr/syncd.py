@@ -77,7 +77,7 @@ class Mysql(object):
 
   def update(self,strSql):
 
-    with self.m_conn.SSCursor() as cs:
+    with self.m_conn.cursor() as cs:
 
       cs.execute(strSql)
       self.m_conn.commit()

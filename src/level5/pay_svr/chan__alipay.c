@@ -151,7 +151,6 @@ int do_signature(dbuffer_t *errbuf,tree_map_t pay_params,tree_map_t pay_data)
   put_tree_map_string(pay_data,SIGN,(char*)"");
 
   sign_params = create_html_params(pay_data);
-  sign_params[strlen(sign_params)-1] = '\0';
   //log_debug("sign string: %s, size: %zu\n",sign_params,strlen(sign_params));
 
   privkeypath = get_tree_map_value(pay_params,PRIVKEY);
