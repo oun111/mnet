@@ -30,7 +30,7 @@ extern int save_rds_order(rds_order_entry_t entry, const char *table,
 extern int save_rds_order1(rds_order_entry_t entry, const char *table, char *id, 
                            char *mch_no, char *mch_notify_url, char *mch_sid, 
                            char *chan_name, char *chan_mch_no, double amount, 
-                           int status);
+                           int status, int un_status, long long create_time);
 
 extern rds_order_t get_rds_order(rds_order_entry_t entry, const char *table, 
                                  const char *orderid, bool fast);

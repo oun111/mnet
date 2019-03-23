@@ -34,10 +34,10 @@ init_rds_order_entry(rds_order_entry_t entry, void *myrds_handle, char *name)
 int save_rds_order1(rds_order_entry_t entry, const char *table, char *id, 
                     char *mch_no, char *mch_notify_url, char *mch_sid,   
                     char *chan_name, char *chan_mch_no, double amount, 
-                    int status)
+                    int status, int un_status, long long create_time)
 {
   tree_map_t map = new_tree_map();
-  char tmp[16]="";
+  char tmp[64]="";
   dbuffer_t str = alloc_default_dbuffer();
   int ret = 0;
 
@@ -54,6 +54,12 @@ int save_rds_order1(rds_order_entry_t entry, const char *table, char *id,
 
   snprintf(tmp,sizeof(tmp),"$%d",status);
   put_tree_map_string(map,"status",tmp);
+
+  snprintf(tmp,sizeof(tmp),"$%d",un_status);
+  put_tree_map_string(map,"user_notify_status",tmp);
+
+  snprintf(tmp,sizeof(tmp),"$%lld",create_time);
+  put_tree_map_string(map,"create_time",tmp);
 
   //treemap_to_jsons_str(map,&str);
   jsonKV_t *pr = jsons_parse_tree_map(map);
@@ -86,7 +92,7 @@ int save_rds_order(rds_order_entry_t entry, const char *table, rds_order_t po)
 {
   return save_rds_order1(entry,table,po->id,po->mch.no,po->mch.notify_url,
                          po->mch.out_trade_no,po->chan.name,po->chan.mch_no,
-                         po->amount,po->status);
+                         po->amount,po->status,po->un_status,po->create_time);
 }
 
 int get_rds_order_index(rds_order_entry_t entry, const char *table, 
@@ -183,6 +189,12 @@ get_rds_order(rds_order_entry_t entry, const char *table,
 
   tmp = get_tree_map_value(odr_map,"status");
   p->status = atoi(tmp);
+
+  tmp = get_tree_map_value(odr_map,"user_notify_status");
+  p->un_status = atoi(tmp);
+
+  tmp = get_tree_map_value(odr_map,"create_time");
+  p->create_time = atoll(tmp);
 
   jsons_release(pr);
 

@@ -18,6 +18,13 @@ enum order_status {
   s_timeout = 4,
 } ;
 
+enum user_notify_status {
+  s_not_notify,
+  s_notifying,
+  s_notify_ok,
+  s_notify_fail,
+} ;
+
 struct order_info_s {
 
   char id[ODR_ID_SIZE];
@@ -38,7 +45,11 @@ struct order_info_s {
 
   double amount ;
 
-  int status;
+  int status; // order status
+
+  int un_status; // user notify status
+
+  long long create_time;
 
   struct rb_node node ;
 
@@ -66,11 +77,11 @@ extern order_info_t get_order(order_entry_t entry, char *order_id);
 
 extern order_info_t get_order_by_outTradeNo(order_entry_t entry, char *out_trade_no);
 
-extern int save_order(order_entry_t entry, char *order_id, char *mch_no, 
+extern order_info_t save_order(order_entry_t entry, char *order_id, char *mch_no, 
                       char *notify_url, char *out_trade_no, char *chan, 
                       char *chan_mch_no, double amount) ;
 
-extern int save_order1(order_entry_t entry, order_info_t po);
+extern order_info_t save_order1(order_entry_t entry, order_info_t po);
 
 extern int drop_order(order_entry_t entry, char *order_id);
 
@@ -83,6 +94,8 @@ extern size_t get_order_count(order_entry_t entry);
 extern void set_order_status(order_info_t p, int st);
 
 extern int get_order_status(order_info_t p);
+
+extern void set_order_un_status(order_info_t p, int st);
 
 extern char* get_pay_status_str(int st);
 

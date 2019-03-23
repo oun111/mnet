@@ -57,20 +57,47 @@ static int alipay_init(Network_t net);
 static struct http_action_s action__alipay_order;
 
 
-static 
-int do_ok(connection_t pconn)
-{
-  const char *bodyPage = "{\"status\":\"success\"}\r\n" ;
-
-  create_http_normal_res(&pconn->txb,pt_json,bodyPage);
-
-  return 0;
-}
-
 static
 int alipay_tx(Network_t net, connection_t pconn)
 {
   pconn->l4opt.tx(net,pconn);
+  return 0;
+}
+
+static
+int process_notify2user_resp(connection_t pconn, void *data, dbuffer_t resp, 
+                             size_t sz)
+{
+  char *body = get_http_body_ptr(resp,sz);
+  rds_order_entry_t pre = get_rds_order_entry();
+  paySvr_config_t pc = get_running_configs();
+  mysql_conf_t mcfg = get_mysql_configs(pc);
+  order_info_t po = data;
+  int st=s_notify_fail;
+
+  if (!body) {
+    log_error("found no body!\n");
+    return -1;
+  }
+
+  if (!strcasecmp(body,"success")) {
+    log_debug("user receive notify ok!\n");
+    st = s_notify_ok ;
+  }
+
+  // update order user notify status
+  set_order_un_status(po,st);
+
+  // update redis
+  if (save_rds_order(pre,mcfg->order_table,po)) {
+    log_error("update order '%s' to redis fail\n",po->id);
+  }
+
+  // TODO: if 'un status' is not s_notify_ok, then
+  //  we should notify user for serial times later
+
+  close(pconn->fd);
+
   return 0;
 }
 
@@ -91,21 +118,32 @@ int alipay_rx(Network_t net, connection_t pconn)
 
     backend_entry_t bentry = get_backend_entry();
     backend_t be = get_backend(bentry,pconn->fd);
-    connection_t peer = be->peer ;
 
+
+    if (!be) {
+      log_error("no backend info by fd %d\n",pconn->fd);
+      return -1;
+    }
+
+    // collect user raw http response
     b = dbuffer_ptr(pconn->rxb,0);
     b[sz_in] = '\0' ;
 
-    // XXX: debug
-    printf("%s",b);
+    log_debug("rx resp: %s",b);
+
+    if (be->type==bt_notify2user) {
+      process_notify2user_resp(pconn,be->data,b,sz_in);
+    }
 
     dbuffer_lseek(pconn->rxb,sz_in,SEEK_CUR,0);
 
+#if 0
     // reply to client
-    if (peer) {
-      do_ok(peer);
-      peer->l4opt.tx(net,peer);
+    if (be->peer) {
+      do_ok(be->peer);
+      be->peer->l4opt.tx(net,be->peer);
     }
+#endif
   }
 
   return 0;
@@ -331,7 +369,8 @@ do_out_connect(Network_t net, connection_t peer_conn,
   out_conn = net->reg_outbound(net,fd,g_alipay_mod.id);
 
   // save backend info
-  create_backend(get_backend_entry(),fd,peer_conn,data);
+  create_backend(get_backend_entry(),fd,peer_conn,bt_notify2user,
+                 data);
 
   return out_conn;
 }
@@ -409,6 +448,7 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
   char *chan_mch_no = NULL;
   paySvr_config_t pc = get_running_configs();
   mysql_conf_t mcfg = get_mysql_configs(pc);
+  order_info_t po = 0;
 
 
   if (!mch_no) {
@@ -450,10 +490,8 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
   }
 
   // save order locally and on redis
-  if (save_order(pe,pOdrId,mch_no,nurl,tno,chan,chan_mch_no,atof(amt)) ||
-      save_rds_order1(pre,mcfg->order_table,pOdrId,mch_no,nurl,tno,chan,
-                      chan_mch_no,atof(amt),s_unpay)) 
-  {
+  po = save_order(pe,pOdrId,mch_no,nurl,tno,chan,chan_mch_no,atof(amt));
+  if (!po || save_rds_order(pre,mcfg->order_table,po)) {
     FORMAT_ERR(errbuf,"save order '%s' fail!\n",pOdrId);
     return -1;
   }
@@ -631,7 +669,7 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   int param_type = pt_json ;
   merchant_entry_t pme = get_merchant_entry();
   merchant_info_t pm = 0;
-  int ret = -1;
+  int ret = -1, st = 0;
   bool rel = false ;
 
 
@@ -685,15 +723,22 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
     goto __done;
   }
 
-  log_debug("connecti to '%s' ok!\n",po->mch.notify_url);
+  log_debug("connecting to '%s' ok!\n",po->mch.notify_url);
 
   // update order status by ALI status
   ptr = get_tree_map_value(user_params,"trade_status");
-  if (!strcmp(ptr,"TRADE_SUCCESS")) {
-    set_order_status(po,s_paid);
-  }
-  else {
-    set_order_status(po,/*s_timeout*/s_err);
+
+  st = !strcmp(ptr,"TRADE_SUCCESS")?s_paid:s_err;
+
+  // update order status
+  set_order_status(po,st);
+
+  // user notifying status
+  set_order_un_status(po,s_notifying);
+
+  // update redis
+  if (save_rds_order(pre,mcfg->order_table,po)) {
+    log_error("update order '%s' to redis fail\n",po->id);
   }
 
   // construct the 'merchant notify'

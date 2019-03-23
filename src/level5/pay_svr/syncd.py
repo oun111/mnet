@@ -107,6 +107,10 @@ class myredis(object):
     self.m_rds.hset(dict1,key,val)
 
 
+  def delete(self,dict1,key=None):
+    self.m_rds.delete(dict1)
+
+
   def pushq(self,mq,v):
     self.m_rds.rpush(mq,v)
 
@@ -202,7 +206,7 @@ class syncd(object):
 
   def do_sql_insert_update(self,dct1,table,key):
 
-    print("dct: ",dct1)
+    #print("dct: ",dct1)
     for ch in dct1:
       strSql  = ""
       kval    = ch[key]
@@ -225,7 +229,7 @@ class syncd(object):
                     "(" + instList + ")" +
                     " values(" + valList + ")")
 
-      print("update sql: "+strSql)
+      print("===redis -> mysql=== "+strSql)
 
       mysql.update(strSql)
 
@@ -331,7 +335,7 @@ class syncd(object):
     resMap['value']  = vj
 
     fj = json.dumps(resMap)
-    print("final res: {0}".format(fj))
+    print("***mysql -> redis*** {0} : {1}".format(db_key,fj))
 
     # sync back to redis
     rds.write(rdsTbl,key,fj)
@@ -361,6 +365,9 @@ class syncd(object):
     if (mk==None):
       print("table '{0}' not support yet!\n".format(tbl))
       exit(0)
+
+    if (tbl=='order_data'):
+      self.m_rds.delete(mk[0])
 
     # commands to syncd
     self.m_rds.write(mk[0],rk,rv)

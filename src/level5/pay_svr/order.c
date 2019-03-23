@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 #include "order.h"
 #include "kernel.h"
 #include "mm_porting.h"
@@ -49,14 +50,14 @@ order_info_t get_order_by_outTradeNo(order_entry_t entry, char *out_trade_no)
   return NULL ;
 }
 
-int 
+order_info_t 
 save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
            char *out_trade_no, char *chan, char *chan_mch_no, double amount)
 {
   order_info_t p = 0;
 
   if (!MY_RB_TREE_FIND(&entry->u.root,order_id,p,id,node,compare)) {
-    return 1 ;
+    return p ;
   }
 
   p = obj_pool_alloc(entry->pool,struct order_info_s);
@@ -71,7 +72,7 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
   }
 
   if (!p)
-    return -1 ;
+    return NULL ;
 
   strncpy(p->id,order_id,sizeof(p->id));
 
@@ -97,28 +98,35 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
 
   p->status = s_unpay;
 
+  p->un_status = s_not_notify;
+
+  {
+    struct timeval tv;
+    gettimeofday(&tv,NULL);
+    p->create_time = tv.tv_sec*1000000 + tv.tv_usec ;
+  }
 
   if (MY_RB_TREE_INSERT(&entry->u.root,p,id,node,compare)) {
     log_error("insert order id %s fail\n",order_id);
     obj_pool_free(entry->pool,p);
-    return -1;
+    return NULL;
   }
 
   // add index by 'out_trade_no' of merchant
   if (MY_RB_TREE_INSERT(&entry->u.index_root,p,mch.out_trade_no,idx_node,compare)) {
     log_error("insert index by out trade no %s fail\n",p->mch.out_trade_no);
     obj_pool_free(entry->pool,p);
-    return -1;
+    return NULL;
   }
 
   entry->num_orders ++;
 
   //log_info("save order by id %s done!\n",order_id);
 
-  return 0;
+  return p;
 }
 
-int save_order1(order_entry_t entry, order_info_t po)
+order_info_t save_order1(order_entry_t entry, order_info_t po)
 {
   return save_order(entry,po->id,po->mch.no,po->mch.notify_url,
                     po->mch.out_trade_no,po->chan.name,po->chan.mch_no,
@@ -209,6 +217,11 @@ void set_order_status(order_info_t p, int st)
 int get_order_status(order_info_t p)
 {
   return p->status;
+}
+
+void set_order_un_status(order_info_t p, int st)
+{
+  p->un_status = st;
 }
 
 size_t get_order_count(order_entry_t entry)

@@ -8,10 +8,17 @@
 #include "objpool.h"
 
 
+enum backend_types {
+  bt_none,
+  bt_notify2user,
+};
+
 struct backend_s {
   int fd ;
 
   connection_t peer ;
+
+  int type ;
 
   void *data ;
 
@@ -40,7 +47,7 @@ typedef struct backend_entry_s* backend_entry_t ;
   rbtree_postorder_for_each_entry_safe(pos,n,&(entry)->u.root,node) 
 
 
-extern int create_backend(backend_entry_t, int, connection_t, void*) ;
+extern int create_backend(backend_entry_t, int, connection_t, int, void*) ;
 
 extern int drop_backend(backend_entry_t entry, int fd);
 
