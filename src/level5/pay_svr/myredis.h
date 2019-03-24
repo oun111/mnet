@@ -19,9 +19,10 @@ enum myredis_op_type {
 
 struct myredis_s {
   void *ctx ;
-  char cache_name[RDS_NAME_SZ];
-  char mq_name[RDS_NAME_SZ];
-  char var_name[RDS_NAME_SZ];
+  char cache[RDS_NAME_SZ];
+  char mq[RDS_NAME_SZ];  // requests pay_svr -> syncd
+  char push_msg[RDS_NAME_SZ]; // push messages syncd -> pay_svr
+  char var[RDS_NAME_SZ];
 } ;
 typedef struct myredis_s* myredis_t ;
 
@@ -39,6 +40,8 @@ extern int myredis_write(myredis_t mr, const char *table, char *key, char *value
 extern bool is_myredis_ok(myredis_t mr);
 
 extern int myredis_add_and_fetch(myredis_t mr, long long *val);
+
+extern int myredis_get_push_msg(myredis_t mr, dbuffer_t *res);
 
 extern int myredis_reset(myredis_t mr, int type) ;
 

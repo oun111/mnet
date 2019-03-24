@@ -1,6 +1,6 @@
 -- MySQL dump 10.13  Distrib 5.6.24, for Linux (x86_64)
 --
--- Host: localhost    Database: pay_Db
+-- Host: localhost    Database: pay_db
 -- ------------------------------------------------------
 -- Server version	5.6.24
 
@@ -113,7 +113,32 @@ INSERT INTO `order_data` VALUES ('alp_00000000000000000011','mch_001','http://12
 UNLOCK TABLES;
 
 --
--- Dumping routines for database 'pay_Db'
+-- Table structure for table `risk_control_configs`
+--
+
+DROP TABLE IF EXISTS `risk_control_configs`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `risk_control_configs` (
+  `CHANNEL` varchar(64) NOT NULL,
+  `MAX_ORDERS_PER_MINUTE` int(11) NOT NULL,
+  `MAX_AMOUNT_PER_MINUTE` decimal(24,2) NOT NULL,
+  PRIMARY KEY (`CHANNEL`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `risk_control_configs`
+--
+
+LOCK TABLES `risk_control_configs` WRITE;
+/*!40000 ALTER TABLE `risk_control_configs` DISABLE KEYS */;
+INSERT INTO `risk_control_configs` VALUES ('alipay',2,31.20);
+/*!40000 ALTER TABLE `risk_control_configs` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Dumping routines for database 'pay_db'
 --
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -125,4 +150,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2019-03-23 22:49:42
+-- Dump completed on 2019-03-24 21:24:19

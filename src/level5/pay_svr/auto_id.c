@@ -18,9 +18,10 @@ int aid_init(auto_id_t id, char *name, void *rds_handle)
   id->val = 0LL;
 
   strncpy(id->id_name,name,sizeof(id->id_name));
-  snprintf(id->cache_name,sizeof(id->cache_name),"%s_cache",name);
-  snprintf(id->mq_name,sizeof(id->mq_name),"%s_mq",name);
-  snprintf(id->var_name,sizeof(id->var_name),"%s_var",name);
+  snprintf(id->cache,sizeof(id->cache),"%s_cache",name);
+  snprintf(id->mq,sizeof(id->mq),"%s_mq",name);
+  snprintf(id->var,sizeof(id->var),"%s_var",name);
+  snprintf(id->push_msg,sizeof(id->push_msg),"%s_push_mq",name);
 
   ALIAS_FMT(id);
 

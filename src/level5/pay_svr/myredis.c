@@ -59,9 +59,10 @@ int myredis_init(myredis_t mr, const char *host, int port, char *name)
     return -1;
   }
 
-  snprintf(mr->cache_name,sizeof(mr->cache_name),"%s",name);
-  snprintf(mr->mq_name,sizeof(mr->mq_name),"%s_mq",name);
-  snprintf(mr->var_name,sizeof(mr->var_name),"%s_var",name);
+  snprintf(mr->cache,sizeof(mr->cache),"%s",name);
+  snprintf(mr->mq,sizeof(mr->mq),"%s_mq",name);
+  snprintf(mr->push_msg,sizeof(mr->push_msg),"%s_push_mq",name);
+  snprintf(mr->var,sizeof(mr->var),"%s_var",name);
 
   return 0;
 }
@@ -70,13 +71,13 @@ static
 int myredis_write_cache(myredis_t mr, char *k, char *v)
 {
   int ret = 0;
-  char *tbl = mr->cache_name ;
+  char *tbl = mr->cache ;
   redisReply *rc = (redisReply*)redisCommand(REDIS_CTX,"hset %s %s %s",
                    tbl,k,v);
 
 
   if (rc->type==REDIS_REPLY_ERROR) {
-    log_error("write to cache '%s' fail: %s\n",mr->cache_name,rc->str) ;
+    log_error("write to cache '%s' fail: %s\n",mr->cache,rc->str) ;
     ret = -1;
   }
 
@@ -88,7 +89,7 @@ int myredis_write_cache(myredis_t mr, char *k, char *v)
 static
 int myredis_read_cache(myredis_t mr, char *k, redisReply **rc)
 {
-  char *tbl = mr->cache_name;
+  char *tbl = mr->cache;
 
 
   *rc = (redisReply*)redisCommand(REDIS_CTX,"hget %s %s",tbl,k);
@@ -104,7 +105,7 @@ int myredis_read_cache(myredis_t mr, char *k, redisReply **rc)
 static
 int myredis_read_cache_all(myredis_t mr, redisReply **rc)
 {
-  *rc = (redisReply*)redisCommand(REDIS_CTX,"hgetall %s",mr->cache_name);
+  *rc = (redisReply*)redisCommand(REDIS_CTX,"hgetall %s",mr->cache);
 
   if ((*rc)->type==REDIS_REPLY_ERROR) {
     log_error("read from redis fail: %s\n",(*rc)->str) ;
@@ -119,11 +120,11 @@ int myredis_mq_tx(myredis_t mr, char *m)
 {
   int ret = 0;
   redisReply *rc = (redisReply*)redisCommand(REDIS_CTX,"rpush %s %s ",
-                   mr->mq_name,m);
+                   mr->mq,m);
 
 
   if (rc->type==REDIS_REPLY_ERROR) {
-    log_error("write to mq '%s' fail: %s\n", mr->mq_name,rc->str) ;
+    log_error("write to mq '%s' fail: %s\n", mr->mq,rc->str) ;
     ret = -1;
   }
 
@@ -133,9 +134,9 @@ int myredis_mq_tx(myredis_t mr, char *m)
 }
 
 static
-int myredis_mq_rx(myredis_t mr, redisReply **rc)
+int myredis_mq_rx(myredis_t mr, const char *qname, redisReply **rc)
 {
-  *rc = (redisReply*)redisCommand(REDIS_CTX,"lpop %s ",mr->mq_name);
+  *rc = (redisReply*)redisCommand(REDIS_CTX,"lpop %s ",qname);
 
   if ((*rc)->type==REDIS_REPLY_ERROR) {
     log_error("read from redis fail: %s\n",(*rc)->str) ;
@@ -145,9 +146,25 @@ int myredis_mq_rx(myredis_t mr, redisReply **rc)
   return 0;
 }
 
+int myredis_get_push_msg(myredis_t mr, dbuffer_t *res)
+{
+  redisReply *rc = 0;
+  int r = myredis_mq_rx(mr,mr->push_msg,&rc), ret = -1;
+
+
+  if (!r) {
+    *res = write_dbuffer_string(*res,rc->str,rc->len);
+    ret = 0 ;
+  }
+
+  freeReplyObject(rc);
+
+  return ret ;
+}
+
 int myredis_add_and_fetch(myredis_t mr, long long *val)
 {
-  char *tbl = mr->var_name ;
+  char *tbl = mr->var ;
   redisReply *rc = 0;
   int ret = 0;
 
@@ -174,9 +191,9 @@ int myredis_add_and_fetch(myredis_t mr, long long *val)
 
 int myredis_reset(myredis_t mr, int type)
 {
-  char *tbl = type==ot_cache?mr->cache_name:
-              type==ot_mq?mr->mq_name:
-              mr->var_name ;
+  char *tbl = type==ot_cache?mr->cache:
+              type==ot_mq?mr->mq:
+              mr->var ;
   redisReply *rc = 0;
   int ret = 0;
 

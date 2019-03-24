@@ -184,7 +184,8 @@ int release_all_tree_map_items(tree_map_t entry)
 
 void delete_tree_map(tree_map_t entry)
 {
-  release_all_tree_map_items(entry);
+  if (entry)
+    release_all_tree_map_items(entry);
 }
 
 int get_tree_map_item_count(tree_map_t entry)

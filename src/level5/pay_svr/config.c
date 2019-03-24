@@ -24,6 +24,7 @@ struct global_config_keywords {
   const char *odrCache;
   const char *alipayCfgTbl ;
   const char *mchCfgTbl ;
+  const char *rcCfgTbl ;
   const char *odrTbl ;
   const char *riskCtl ;
 } 
@@ -43,6 +44,7 @@ g_confKW = {
   .alipayCfgTbl = "alipayConfigTableName",
   .mchCfgTbl    = "merchantConfigTableName",
   .odrTbl       = "orderTableName",
+  .rcCfgTbl     = "rcTableName",
   .riskCtl      = "riskControl",
 } ;
 
@@ -216,6 +218,11 @@ int process_merchant_configs(paySvr_config_t conf, dbuffer_t mchCfgStr)
   return do_process_configs(conf,&conf->mch_conf,g_confKW.merchants,mchCfgStr);
 }
 
+int process_rc_configs(paySvr_config_t conf, dbuffer_t rcCfgStr)
+{
+  return do_process_configs(conf,&conf->rc_conf,g_confKW.riskCtl,rcCfgStr);
+}
+
 int process_mysql_configs(paySvr_config_t conf)
 {
   char *pstr = (char*)g_confKW.mysql ;
@@ -237,9 +244,13 @@ int process_mysql_configs(paySvr_config_t conf)
   get_conf_str(pr,g_confKW.odrTbl,pcfg->order_table,
                sizeof(pcfg->order_table));
 
+  get_conf_str(pr,g_confKW.rcCfgTbl,pcfg->rc_conf_table,
+               sizeof(pcfg->rc_conf_table));
+
   return 0;
 }
 
+#if 0
 static
 int process_risk_control_configs(paySvr_config_t conf)
 {
@@ -255,20 +266,26 @@ int process_risk_control_configs(paySvr_config_t conf)
 
   return 0;
 }
+#endif
 
 tree_map_t get_rc_conf_by_channel(paySvr_config_t conf, const char *chan)
 {
-  tree_map_t chan_rc = 0;
+  tm_item_t pos,n;
   tree_map_t rc_cfg = get_tree_map_nest(conf->rc_conf,(char*)g_confKW.riskCtl);
 
   if (!rc_cfg)
     return NULL ;
 
-  chan_rc = get_tree_map_nest(rc_cfg,(char*)chan);
+  rbtree_postorder_for_each_entry_safe(pos,n,&rc_cfg->u.root,node) {
+    tree_map_t rc_map = pos->nest_map;
+    const char *rcname = get_tree_map_value(rc_map,"channel") ;
 
-  dump_tree_map(chan_rc);
+    //dump_tree_map(rc_map);
+    if (!strcasecmp(chan,rcname))
+      return rc_map ;
+  }
 
-  return chan_rc ;
+  return NULL;
 }
 
 int init_config(paySvr_config_t conf, const char *infile)
@@ -287,7 +304,7 @@ int init_config(paySvr_config_t conf, const char *infile)
 
   process_mysql_configs(conf);
 
-  process_risk_control_configs(conf);
+  //process_risk_control_configs(conf);
 
   return 0;
 }

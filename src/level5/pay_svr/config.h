@@ -11,6 +11,7 @@ struct mysql_config_s {
   char alipay_conf_table[32];
   char mch_conf_table[32];
   char order_table[32];
+  char rc_conf_table[32];
 } ;
 typedef struct mysql_config_s* mysql_conf_t ;
 
@@ -54,6 +55,8 @@ extern mysql_conf_t get_mysql_configs(paySvr_config_t conf);
 extern int process_merchant_configs(paySvr_config_t conf, dbuffer_t);
 
 extern int process_channel_configs(paySvr_config_t conf, dbuffer_t);
+
+extern int process_rc_configs(paySvr_config_t conf, dbuffer_t);
 
 extern tree_map_t get_rc_conf_by_channel(paySvr_config_t conf, const char *chan);
 

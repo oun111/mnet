@@ -12,7 +12,8 @@
     "Mysql" : {
       "merchantConfigTableName" : "merchant_configs",
       "alipayConfigTableName" : "channel_alipay_configs",
-      "orderTableName" : "order_data"
+      "orderTableName" : "order_data",
+      "rcTableName" : "risk_control_configs"
     }
   },
 

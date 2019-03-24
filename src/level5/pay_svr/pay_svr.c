@@ -122,7 +122,7 @@ get_remote_configs(myredis_t rds, char *tbl, char *key, dbuffer_t *res)
 
 int init_config2(myredis_conf_t rconf)
 {
-  dbuffer_t chan_res = 0, mch_res = 0;
+  dbuffer_t chan_res = 0, mch_res = 0, rc_res = 0;
   int ret = 0;
 
 
@@ -139,46 +139,18 @@ int init_config2(myredis_conf_t rconf)
 
     // merchants'
     get_remote_configs(&g_paySvrData.m_rds,mscfg->mch_conf_table,"",&mch_res);
+
+    // risk control
+    get_remote_configs(&g_paySvrData.m_rds,mscfg->rc_conf_table,"",&rc_res);
   }
   else {
     log_info("connect to redis %s:%d - %s fail, try read local configs\n",
         rconf->host, rconf->port, rconf->cfg_cache);
   }
-#if 0
-    mysql_conf_t mscfg = get_mysql_configs(&g_paySvrData.m_conf);
-    // XXX: test
-    if (dbuffer_data_size(mch_res)>0)
-    {
-      jsonKV_t *pr = jsons_parse(mch_res);
-
-      jsons_dump(pr);
-      jsonKV_t *p = jsons_find(pr,"param_type");
-      strcpy(p->value,"\"json1\"");
-
-      dbuffer_t str = alloc_default_dbuffer();
-
-      jsons_toString(pr,&str,true);
-
-      myredis_write(&g_paySvrData.m_rds,mscfg->mch_conf_table,"",str,mr__need_sync);
-    }
-    if (dbuffer_data_size(chan_res)>0)
-    {
-      jsonKV_t *pr = jsons_parse(chan_res);
-
-      jsons_dump(pr);
-      jsonKV_t *p = jsons_find(pr,"app_id");
-      strcpy(p->value,"\"9999\"");
-
-      dbuffer_t str = alloc_default_dbuffer();
-
-      jsons_toString(pr,&str,true);
-
-      myredis_write(&g_paySvrData.m_rds,mscfg->alipay_conf_table,"",str,mr__need_sync);
-    }
-#endif
 
   if (process_channel_configs(&g_paySvrData.m_conf,chan_res) ||
-      process_merchant_configs(&g_paySvrData.m_conf,mch_res)) {
+      process_merchant_configs(&g_paySvrData.m_conf,mch_res) ||
+      process_rc_configs(&g_paySvrData.m_conf,rc_res)) {
     ret = -1;
     goto __done;
   }
@@ -192,6 +164,7 @@ int init_config2(myredis_conf_t rconf)
 __done:
   drop_dbuffer(chan_res);
   drop_dbuffer(mch_res);
+  drop_dbuffer(rc_res);
 
   return ret;
 }

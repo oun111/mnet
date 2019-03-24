@@ -886,6 +886,9 @@ int alipay_init(Network_t net)
   add_http_action(pe,&action__alipay_notify);
   add_http_action(pe,&action__alipay_query);
 
+  // TODO: create the 'push messages rx' thread here, 
+  //  use to update configs dynamically
+
   return 0;
 }
 

@@ -229,7 +229,7 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
   // risk control arguments
   {
     // max order count within last 1 minute
-    char *rck = "1min_orderCount" ;
+    char *rck = "max_orders_per_minute" ;
     char *tmp = get_tree_map_value(rc_cfg,rck);
     if (!tmp) {
       snprintf(msg,sizeof(msg),"risk control keyword '%s' not found",rck);
@@ -239,8 +239,8 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
     }
     rc_cfg_paras.odrCntPerM = atoi(tmp);
 
-    // max amount with last 1 minute 
-    rck = "1min_orderAmount" ;
+    // max amount within last 1 minute 
+    rck = "max_amount_per_minute" ;
     tmp = get_tree_map_value(rc_cfg,rck);
     if (!tmp) {
       snprintf(msg,sizeof(msg),"risk control keyword '%s' not found",rck);

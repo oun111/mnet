@@ -5,9 +5,10 @@
 
 struct auto_id_s {
   void *myrds_handle ;
-  char cache_name[RDS_NAME_SZ];
-  char mq_name[RDS_NAME_SZ];
-  char var_name[RDS_NAME_SZ];
+  char cache[RDS_NAME_SZ];
+  char mq[RDS_NAME_SZ];  // requests pay_svr -> syncd
+  char push_msg[RDS_NAME_SZ]; // push messages syncd -> pay_svr
+  char var[RDS_NAME_SZ];
   char id_name[32]; 
   /*unsigned*/long long val;
   char alias_val[96];

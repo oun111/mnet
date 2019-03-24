@@ -130,13 +130,15 @@ class syncd(object):
     self.sync_back_cb = {
       'merchant_configs'       : ('name', self.sync_back_mch_cfg),
       'channel_alipay_configs' : ('app_id', self.sync_back_alipay_cfg),
-      'order_data'             : ('orderid', self.sync_back_order_data)
+      'order_data'             : ('orderid', self.sync_back_order_data),
+      'risk_control_configs'   : ('channel', self.sync_back_rc_cfg)
     }
 
     self.sync_cb = {
       'merchant_configs'       : ('name',self.sync_mch_cfg),
       'channel_alipay_configs' : ('app_id',self.sync_chan_alipay_cfg),
-      'order_data'             : ('orderid',self.sync_order_data)
+      'order_data'             : ('orderid',self.sync_order_data),
+      'risk_control_configs'   : ('channel',self.sync_rc_cfg)
     }
 
     self.rds_status = myredis_status()
@@ -252,6 +254,13 @@ class syncd(object):
     self.do_sql_insert_update(mch_map,table,key)
 
 
+  def sync_rc_cfg(self,table,key,vmap):
+
+    mch_map = vmap['riskControl']
+
+    self.do_sql_insert_update(mch_map,table,key)
+
+
   def do_sync(self,rdsTbl,key,table,v):
 
     resMap = {}
@@ -297,6 +306,16 @@ class syncd(object):
     top['channels']= alip
 
     return json.dumps(top),len(nrows)
+
+
+  def sync_back_rc_cfg(self,rows):
+
+    top   = {}
+    nrows = self.to_lower(rows)
+
+    top['riskControl'] = nrows
+
+    return json.dumps(top,cls=DecimalEncoder),len(nrows)
 
 
   def do_sync_back(self,rdsTbl,key,table):
