@@ -115,8 +115,8 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
 
     p->subname = alloc_default_dbuffer(chan);
     p->pay_params = params;
-    p->rc.odrAmtPerM = 0.0;
-    p->rc.odrCntPerM = 0;
+    p->rc.max_amount = 0.0;
+    p->rc.max_orders = 0;
     p->rc.time = 0L;
 
     INIT_LIST_HEAD(&p->upper); 
@@ -191,9 +191,38 @@ void update_paydata_rc_arguments(pay_data_t pd, double amount)
 
 
   if ((ts.tv_sec-pd->rc.time)<60) {
-    pd->rc.odrAmtPerM += amount ;
-    pd->rc.odrCntPerM ++ ;
+    pd->rc.max_amount += amount ;
+    pd->rc.max_orders ++ ;
   }
+}
+
+static int get_rc_paras(tree_map_t rc_cfg, struct risk_control_s *rcp, dbuffer_t *reason)
+{
+  // max order count 
+  char *rck = "max_orders" ;
+  char *tmp = get_tree_map_value(rc_cfg,rck);
+  char msg[256] = "";
+
+  if (!tmp) {
+    snprintf(msg,sizeof(msg),"risk control keyword '%s' not found",rck);
+    log_error("%s\n",msg);
+    write_dbuf_str(*reason,msg);
+    return -1 ;
+  }
+  rcp->max_orders = atoi(tmp);
+
+  // max amount 
+  rck = "max_amount" ;
+  tmp = get_tree_map_value(rc_cfg,rck);
+  if (!tmp) {
+    snprintf(msg,sizeof(msg),"risk control keyword '%s' not found",rck);
+    log_error("%s\n",msg);
+    write_dbuf_str(*reason,msg);
+    return -1 ;
+  }
+  rcp->max_amount = atof(tmp);
+
+  return 0;
 }
 
 pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t *reason)
@@ -227,31 +256,11 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
   clock_gettime(CLOCK_REALTIME,&ts);
 
   // risk control arguments
-  {
-    // max order count within last 1 minute
-    char *rck = "max_orders_per_minute" ;
-    char *tmp = get_tree_map_value(rc_cfg,rck);
-    if (!tmp) {
-      snprintf(msg,sizeof(msg),"risk control keyword '%s' not found",rck);
-      log_error("%s\n",msg);
-      write_dbuf_str(*reason,msg);
-      return NULL ;
-    }
-    rc_cfg_paras.odrCntPerM = atoi(tmp);
-
-    // max amount within last 1 minute 
-    rck = "max_amount_per_minute" ;
-    tmp = get_tree_map_value(rc_cfg,rck);
-    if (!tmp) {
-      snprintf(msg,sizeof(msg),"risk control keyword '%s' not found",rck);
-      log_error("%s\n",msg);
-      write_dbuf_str(*reason,msg);
-      return NULL ;
-    }
-    rc_cfg_paras.odrAmtPerM = atof(tmp);
+  if (get_rc_paras(rc_cfg,&rc_cfg_paras,reason)) {
+    return NULL;
   }
 
-  //log_debug("odrCntPerM: %d, odrAmtPerM: %f\n",odrCntPerM,odrAmtPerM);
+  //log_debug("max_orders: %d, max_amount: %f\n",max_orders,max_amount);
 
 
   // get best pay route
@@ -261,16 +270,16 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
 
     if (pos->rc.time==0L || (ts.tv_sec-pos->rc.time)>60) {
       pos->rc.time = ts.tv_sec;
-      pos->rc.odrCntPerM = 0;
-      pos->rc.odrAmtPerM = 0.0;
+      pos->rc.max_orders = 0;
+      pos->rc.max_amount = 0.0;
     }
 
     if ((ts.tv_sec-pos->rc.time)<60) {
       // 
-      if (pos->rc.odrCntPerM>=rc_cfg_paras.odrCntPerM)
+      if (pos->rc.max_orders>=rc_cfg_paras.max_orders)
         continue ;
 
-      if (pos->rc.odrAmtPerM>=rc_cfg_paras.odrAmtPerM)
+      if (pos->rc.max_amount>=rc_cfg_paras.max_amount)
         continue ;
     }
 

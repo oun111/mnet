@@ -828,6 +828,8 @@ int do_alipay_query(Network_t net,connection_t pconn,tree_map_t user_params)
   put_tree_map_string(qry_res,STATUS,get_pay_status_str(po->status));
   snprintf(tmp,sizeof(tmp),"%s%.02f",param_type==pt_json?"$":"",po->amount);
   put_tree_map_string(qry_res,AMT,tmp);
+  snprintf(tmp,sizeof(tmp),"%s%lld",param_type==pt_json?"$":"",po->create_time);
+  put_tree_map_string(qry_res,"create_time",tmp);
 
   create_http_normal_res2(&pconn->txb,param_type,qry_res);
   delete_tree_map(qry_res);

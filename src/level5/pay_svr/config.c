@@ -281,7 +281,7 @@ tree_map_t get_rc_conf_by_channel(paySvr_config_t conf, const char *chan)
     const char *rcname = get_tree_map_value(rc_map,"channel") ;
 
     //dump_tree_map(rc_map);
-    if (!strcasecmp(chan,rcname))
+    if (rcname && !strcasecmp(chan,rcname))
       return rc_map ;
   }
 

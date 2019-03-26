@@ -17,12 +17,13 @@
     }
   },
 
-  "riskControl" : {
-    "alipay" : {
-      "1min_orderCount" : "2",
-      "1min_orderAmount" : "20.0"
+  "riskControl" : [
+    {
+      "channel": "alipay",
+      "max_orders" : "2",
+      "max_amount" : "20.0"
     }
-  },
+    ],
 
   "channels": {
 

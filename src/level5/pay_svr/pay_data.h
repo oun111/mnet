@@ -8,8 +8,9 @@
 
 struct risk_control_s {
   unsigned long time ;
-  int odrCntPerM ;  // max order count per minute
-  double odrAmtPerM ; // max order amount per minute
+  int max_orders ;  // max order count per minute
+  double max_amount ; // max order amount per minute
+  long long period; // period to check 
 } ;
 
 struct pay_data_item_s {
