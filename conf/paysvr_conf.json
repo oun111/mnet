@@ -21,7 +21,8 @@
     {
       "channel": "alipay",
       "max_orders" : "2",
-      "max_amount" : "20.0"
+      "max_amount" : "20.0",
+      "period"     : "60"
     }
     ],
 

@@ -198,29 +198,32 @@ void update_paydata_rc_arguments(pay_data_t pd, double amount)
 
 static int get_rc_paras(tree_map_t rc_cfg, struct risk_control_s *rcp, dbuffer_t *reason)
 {
-  // max order count 
-  char *rck = "max_orders" ;
-  char *tmp = get_tree_map_value(rc_cfg,rck);
-  char msg[256] = "";
+  char *tmp = 0;
+#define FETCH_RC_KEY(rck,__rc_cfg,tmp,r) do{ \
+  char msg[256] = ""; \
+  tmp = get_tree_map_value(__rc_cfg,rck) ;\
+  if (!tmp) { \
+    snprintf(msg,sizeof(msg),"risk control keyword '%s' not found",rck); \
+    log_error("%s\n",msg);  \
+    write_dbuf_str(r,msg); \
+    return -1 ; \
+  } \
+}while(0)
 
-  if (!tmp) {
-    snprintf(msg,sizeof(msg),"risk control keyword '%s' not found",rck);
-    log_error("%s\n",msg);
-    write_dbuf_str(*reason,msg);
-    return -1 ;
-  }
+
+  FETCH_RC_KEY("max_orders",rc_cfg,tmp,*reason);
   rcp->max_orders = atoi(tmp);
 
   // max amount 
-  rck = "max_amount" ;
-  tmp = get_tree_map_value(rc_cfg,rck);
-  if (!tmp) {
-    snprintf(msg,sizeof(msg),"risk control keyword '%s' not found",rck);
-    log_error("%s\n",msg);
-    write_dbuf_str(*reason,msg);
-    return -1 ;
-  }
+  FETCH_RC_KEY("max_amount",rc_cfg,tmp,*reason) ;
   rcp->max_amount = atof(tmp);
+
+  // period
+  FETCH_RC_KEY("period",rc_cfg,tmp,*reason) ;
+  rcp->period = atol(tmp);
+
+  log_debug("max_orders: %d, max_amount: %f, period: %lld\n",
+      rcp->max_orders, rcp->max_amount, rcp->period);
 
   return 0;
 }
@@ -260,21 +263,19 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
     return NULL;
   }
 
-  //log_debug("max_orders: %d, max_amount: %f\n",max_orders,max_amount);
-
 
   // get best pay route
   list_for_each_entry(pos,&pc->pay_data_list,upper) {
     if (pos->is_online==false)
       continue ;
 
-    if (pos->rc.time==0L || (ts.tv_sec-pos->rc.time)>60) {
+    if (pos->rc.time==0L || (ts.tv_sec-pos->rc.time)>rc_cfg_paras.period) {
       pos->rc.time = ts.tv_sec;
       pos->rc.max_orders = 0;
       pos->rc.max_amount = 0.0;
     }
 
-    if ((ts.tv_sec-pos->rc.time)<60) {
+    if ((ts.tv_sec-pos->rc.time)<rc_cfg_paras.period) {
       // 
       if (pos->rc.max_orders>=rc_cfg_paras.max_orders)
         continue ;

@@ -367,7 +367,8 @@ class syncd(object):
     mapList = {
       "order_data"       : (self.rds_cfg.odrTbl,self.rds_cfg.odrMq),
       "merchant_configs" : (self.rds_cfg.cfgTbl,self.rds_cfg.cfgMq),
-      "channel_alipay_configs" : (self.rds_cfg.cfgTbl,self.rds_cfg.cfgMq)
+      "channel_alipay_configs" : (self.rds_cfg.cfgTbl,self.rds_cfg.cfgMq),
+      "risk_control_configs" :   (self.rds_cfg.cfgTbl,self.rds_cfg.cfgMq)
     }
 
     mp1['status'] = self.rds_status.mr__need_sync_back

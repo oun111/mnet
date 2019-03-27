@@ -535,6 +535,8 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
     goto __done ;
   }
 
+  log_debug("route to app_id: %s\n",get_tree_map_value(pd->pay_params,APPID));
+
   pay_params = pd->pay_params ;
   url = get_tree_map_value(pay_params,REQ_URL);
 
