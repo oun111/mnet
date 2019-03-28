@@ -38,7 +38,8 @@ CREATE TABLE `channel_alipay_configs` (
   `SIGN_TYPE` varchar(16) NOT NULL,
   `VERSION` varchar(8) NOT NULL,
   `NOTIFY_URL` varchar(512) NOT NULL,
-  `RETURN_URL` varchar(512) NOT NULL
+  `RETURN_URL` varchar(512) NOT NULL,
+  `online` varchar(8) NOT NULL DEFAULT '1'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -48,7 +49,7 @@ CREATE TABLE `channel_alipay_configs` (
 
 LOCK TABLES `channel_alipay_configs` WRITE;
 /*!40000 ALTER TABLE `channel_alipay_configs` DISABLE KEYS */;
-INSERT INTO `channel_alipay_configs` VALUES (0,'alipay','https://openapi.alipay.com/gateway.do','html','/home/user1/zyw/work/11ygalipay/ALI_rsa_public_key.2019032263662110.pem','/home/user1/zyw/work/11ygalipay/rsa_private_key.2019032263662110.pem','QUICK_WAP_PAY','5m','2019032263662110','alipay.trade.wap.pay','JSON','utf-8','RSA2','1.0','http://frpgz1.idcfengye.com:10047/alipay/notify','https://127.0.0.1/index'),(1,'alipay','https://openapi.alipay.com/gateway.do','html','/home/user1/zyw/work/11ygalipay/ALI_rsa_public_key.2019031163542035.pem','/home/user1/zyw/work/11ygalipay/rsa_private_key.2019031163542035.pem','QUICK_WAP_PAY','5m','2019031163542035','alipay.trade.wap.pay','JSON','utf-8','RSA2','1.0','http://frpgz1.idcfengye.com:10047/alipay/notify','https://127.0.0.1/index'),(2,'alipay','https://openapi.alipay.com/gateway.do','html','/home/user1/zyw/work/11ygalipay/ALI_rsa_public_key.2019032163594873.pem','/home/user1/zyw/work/11ygalipay/rsa_private_key.2019032163594873.pem','QUICK_WAP_PAY','5m','2019032163594873','alipay.trade.wap.pay','JSON','utf-8','RSA2','1.0','http://frpgz1.idcfengye.com:10047/alipay/notify','https://127.0.0.1/index');
+INSERT INTO `channel_alipay_configs` VALUES (0,'alipay','https://openapi.alipay.com/gateway.do','html','/home/user1/zyw/work/11ygalipay/ALI_rsa_public_key.2019032263662110.pem','/home/user1/zyw/work/11ygalipay/rsa_private_key.2019032263662110.pem','QUICK_WAP_PAY','5m','2019032263662110','alipay.trade.wap.pay','JSON','utf-8','RSA2','1.0','http://frpgz1.idcfengye.com:10047/alipay/notify','https://127.0.0.1/index','1'),(1,'alipay','https://openapi.alipay.com/gateway.do','html','/home/user1/zyw/work/11ygalipay/ALI_rsa_public_key.2019031163542035.pem','/home/user1/zyw/work/11ygalipay/rsa_private_key.2019031163542035.pem','QUICK_WAP_PAY','5m','2019031163542035','alipay.trade.wap.pay','JSON','utf-8','RSA2','1.0','http://frpgz1.idcfengye.com:10047/alipay/notify','https://127.0.0.1/index','1'),(2,'alipay','https://openapi.alipay.com/gateway.do','html','/home/user1/zyw/work/11ygalipay/ALI_rsa_public_key.2019032163594873.pem','/home/user1/zyw/work/11ygalipay/rsa_private_key.2019032163594873.pem','QUICK_WAP_PAY','5m','2019032163594873','alipay.trade.wap.pay','JSON','utf-8','RSA2','1.0','http://frpgz1.idcfengye.com:10047/alipay/notify','https://127.0.0.1/index','1');
 /*!40000 ALTER TABLE `channel_alipay_configs` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -108,7 +109,7 @@ CREATE TABLE `order_data` (
 
 LOCK TABLES `order_data` WRITE;
 /*!40000 ALTER TABLE `order_data` DISABLE KEYS */;
-INSERT INTO `order_data` VALUES ('alp_00000000000000000006','mch_002','http://127.0.0.1:8080/epl_datong/myalipayNotifyResponse','100001','alipay','2019032163594873',0.01,0,0,1553677239687112),('alp_00000000000000000007','mch_002','http://127.0.0.1:8080/epl_datong/myalipayNotifyResponse','100002','alipay','2019031163542035',0.01,0,0,1553677279054402),('alp_00000000000000000008','mch_002','http://127.0.0.1:8080/epl_datong/myalipayNotifyResponse','100003','alipay','2019032263662110',0.01,0,0,1553677287221598),('alp_00000000000000000009','mch_001','http://127.0.0.1:8080/epl_datong/myalipayNotifyResponse','1625363905-34379','alipay','2019032163594873',0.01,0,0,1553678065068159),('alp_00000000000000000010','mch_001','http://127.0.0.1:8080/epl_datong/myalipayNotifyResponse','1625363905-34395','alipay','2019031163542035',0.01,0,0,1553678226518122),('alp_00000000000000000011','mch_001','http://127.0.0.1:8080/epl_datong/myalipayNotifyResponse','1625363905-34467','alipay','2019032263662110',0.01,2,2,1553678894724994),('alp_00000000000000000012','mch_001','http://127.0.0.1:8080/epl_datong/myalipayNotifyResponse','1625363905-34633','alipay','2019032163594873',0.10,2,2,1553680513154726),('alp_00000000000000000013','mch_001','http://127.0.0.1:8080/epl_datong/myalipayNotifyResponse','1625363905-34641','alipay','2019031163542035',0.20,2,2,1553680585553438),('alp_00000000000000000014','mch_001','http://127.0.0.1:8080/epl_datong/myalipayNotifyResponse','1625363905-34649','alipay','2019032263662110',0.30,2,2,1553680643914200),('alp_00000000000000000015','mch_001','http://127.0.0.1:8080/epl_datong/huitongAlih5payNotifyResponse','1625363905-34796','alipay','2019032163594873',0.01,2,2,1553682082431015);
+INSERT INTO `order_data` VALUES ('alp_00000000000000000012','mch_002','http://127.0.0.1:8080/epl_datong/myalipayNotifyResponse','100001','alipay','2019032163594873',0.01,0,0,1553737471528615);
 /*!40000 ALTER TABLE `order_data` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -134,7 +135,7 @@ CREATE TABLE `risk_control_configs` (
 
 LOCK TABLES `risk_control_configs` WRITE;
 /*!40000 ALTER TABLE `risk_control_configs` DISABLE KEYS */;
-INSERT INTO `risk_control_configs` VALUES ('alipay',9999,11.20,60);
+INSERT INTO `risk_control_configs` VALUES ('alipay',1,11.20,60);
 /*!40000 ALTER TABLE `risk_control_configs` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -151,4 +152,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2019-03-27 18:23:05
+-- Dump completed on 2019-03-28 10:47:16
