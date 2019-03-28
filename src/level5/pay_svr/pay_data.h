@@ -20,8 +20,6 @@ struct pay_data_item_s {
 
   tree_map_t pay_params ;
 
-  bool is_online ;
-
   struct list_head upper ;
 } ;
 typedef struct pay_data_item_s* pay_data_t ;

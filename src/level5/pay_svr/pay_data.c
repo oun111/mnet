@@ -126,8 +126,6 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
   pv = (char*)subname ;
   write_dbuf_str(p->subname,pv);
 
-  p->is_online = true;
-
   return p;
 }
 
@@ -266,7 +264,10 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
 
   // get best pay route
   list_for_each_entry(pos,&pc->pay_data_list,upper) {
-    if (pos->is_online==false)
+    char *ol = get_tree_map_value(pos->pay_params,"online");
+
+    //dump_tree_map(pos->pay_params);
+    if (!ol || *ol=='0')
       continue ;
 
     if (pos->rc.time==0L || (ts.tv_sec-pos->rc.time)>rc_cfg_paras.period) {
@@ -274,6 +275,7 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
       pos->rc.max_orders = 0;
       pos->rc.max_amount = 0.0;
     }
+    log_debug("current rc: %ld, %d, %f\n",pos->rc.time,pos->rc.max_orders,pos->rc.max_amount);
 
     if ((ts.tv_sec-pos->rc.time)<rc_cfg_paras.period) {
       // 
