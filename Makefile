@@ -24,5 +24,7 @@ distclean:
 dist:
 	mkdir -p  $(PAYSVR_DIST_PATH)
 	cp src/mnet_test $(PAYSVR_DIST_PATH)
+	cp scripts/run_paysvr.py $(PAYSVR_DIST_PATH)
+	cp src/level5/pay_svr/syncd.py $(PAYSVR_DIST_PATH)
 	cp ./conf/paysvr_conf.json $(PAYSVR_DIST_PATH)
 	cp ./modules/*.dlo $(PAYSVR_DIST_PATH)
