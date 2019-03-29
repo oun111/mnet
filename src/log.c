@@ -91,6 +91,9 @@ int do_open_log(log_t log, char *type)
 
 int new_log(log_t log)
 {
+  struct tm tm1 ;
+  time_t t = time(0);
+
   do_close_log(log,"info");
   do_close_log(log,"debug");
   do_close_log(log,"error");
@@ -98,6 +101,12 @@ int new_log(log_t log)
   do_open_log(log,"info");
   do_open_log(log,"debug");
   do_open_log(log,"error");
+
+  localtime_r(&t,&tm1);
+
+  log->curr.year = tm1.tm_year;
+  log->curr.month= tm1.tm_mon;
+  log->curr.day  = tm1.tm_mday;
 
   return 0;
 }
@@ -133,10 +142,20 @@ write_log(log_t log, char *msg,const size_t sz_buf, const int log_type)
   char *mb = 0;
   struct timespec ts ;
   char *color_end = "", *color = "" ;
-  FILE *fd = log_type==l_inf?log->fd_info:
-             log_type==l_dbg?log->fd_debug:
-             log->fd_error;
+  FILE *fd = 0;
 
+
+  localtime_r(&t,&tm1);
+
+  // check if date changes
+  if (!(tm1.tm_year==log->curr.year && tm1.tm_mon==log->curr.month && 
+      tm1.tm_mday==log->curr.day)) {
+    new_log(log);
+  }
+
+  fd = log_type==l_inf?log->fd_info:
+       log_type==l_dbg?log->fd_debug:
+       log->fd_error;
 
   if (!fd) {
     fd    = stdout;
@@ -156,7 +175,6 @@ write_log(log_t log, char *msg,const size_t sz_buf, const int log_type)
   mb = log->msg_buf ;
 
 
-  localtime_r(&t,&tm1);
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID,&ts);
   snprintf(mb,sz_buf+100,"%s %d-%02d-%02d %02d:%02d:%02d %ld %s %s",
            color,

@@ -15,6 +15,12 @@ struct log_s {
   char name[32];
   char path[PATH_MAX];
   dbuffer_t msg_buf ;
+
+  struct date_t {
+    int year;
+    int month;
+    int day;
+  } curr;
 } ;
 
 typedef struct log_s* log_t ;

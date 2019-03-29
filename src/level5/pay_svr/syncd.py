@@ -23,8 +23,8 @@ class mysql_configs(object):
   address = "127.0.0.1"
   port    = 3306
   db      = "pay_db"
-  usr     = "athena"
-  pwd     = "hmc5TFSoFth6gbh3"
+  usr     = "root"
+  pwd     = "123"
 
 
 """

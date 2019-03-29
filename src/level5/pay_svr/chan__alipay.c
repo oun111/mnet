@@ -39,6 +39,7 @@
 #define TNO          "trade_no"
 #define MCHID        "mch_id"
 #define TAMT         "total_amount"
+#define RETURL       "return_url"
 #define AMT          "amount"
 #define NURL         "notify_url"
 #define STATUS       "status"
@@ -228,7 +229,8 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   time_t curr = time(NULL);
   struct tm *tm = localtime(&curr);
   char tmp[96] = "";
-  char *body = 0, *subject = 0, *out_trade_no = 0, *amount=0;
+  char *body = 0, *subject = 0, *out_trade_no = 0, 
+       *amount=0, *ret_url = 0;
 
 
   body = get_tree_map_value(user_params,"body");
@@ -253,6 +255,12 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   amount = get_tree_map_value(user_params,TAMT);
   if (!amount) {
     FORMAT_ERR(errbuf,"no 'amount' found\n");
+    return -1;
+  }
+
+  ret_url = get_tree_map_value(user_params,RETURL);
+  if (!ret_url) {
+    FORMAT_ERR(errbuf,"no '%s' found\n",RETURL);
     return -1;
   }
 
@@ -282,8 +290,7 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   put_tree_map_string(pay_data,NURL,
       get_tree_map_value(pay_params,NURL));
 
-  put_tree_map_string(pay_data,"return_url",
-      get_tree_map_value(pay_params,"return_url"));
+  put_tree_map_string(pay_data,"return_url",ret_url);
 
   put_tree_map_string(pay_data,SIGNTYPE,
       get_tree_map_value(pay_params,SIGNTYPE));
