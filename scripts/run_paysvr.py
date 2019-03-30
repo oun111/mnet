@@ -18,8 +18,8 @@ conf= (basepath + "paysvr_conf.json")
 mod = basepath
 logFlushInterval = 5
 numWorkers = 0
-#logToFile = "-L /tmp/"
-logToFile = ""
+logToFile = "-L /tmp/"
+#logToFile = ""
 
 
 if opt=="0" or opt=="1":

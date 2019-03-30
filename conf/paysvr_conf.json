@@ -1,6 +1,6 @@
 {
   "Globals": {
-    "BindAddress" : "127.0.0.1",
+    "BindAddress" : "192.168.18.10",
     "ListenPort" : 5481,
     "NotifyPort" : 1366,
     "Redis" : {
