@@ -747,6 +747,8 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
 
   st = !strcmp(ptr,"TRADE_SUCCESS")?s_paid:s_err;
 
+  set_order_message(po,ptr);
+
   // update order status
   set_order_status(po,st);
 

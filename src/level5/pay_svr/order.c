@@ -68,6 +68,7 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
       p->mch.notify_url = NULL;
       p->chan.name = NULL;
       p->chan.mch_no = NULL;
+      p->chan.message= NULL;
     }
   }
 
@@ -93,6 +94,10 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
   if (!is_dbuffer_valid(p->chan.mch_no)) 
     p->chan.mch_no = alloc_default_dbuffer();
   write_dbuf_str(p->chan.mch_no,chan_mch_no);
+
+  if (!is_dbuffer_valid(p->chan.message)) 
+    p->chan.message = alloc_default_dbuffer();
+  write_dbuf_str(p->chan.message,"");
 
   p->amount = amount ;
 
@@ -148,6 +153,8 @@ int drop_order_internal(order_entry_t entry, order_info_t p, bool fast)
     drop_dbuffer(p->chan.name);
 
     drop_dbuffer(p->chan.mch_no);
+
+    drop_dbuffer(p->chan.message);
   }
 
   obj_pool_free(entry->pool,p);
@@ -189,6 +196,8 @@ int init_order_entry(order_entry_t entry, ssize_t pool_size)
     pos->chan.name = NULL;
 
     pos->chan.mch_no = NULL;
+
+    pos->chan.message= NULL;
   }
 
   log_debug("done!\n");
@@ -222,6 +231,11 @@ int get_order_status(order_info_t p)
 void set_order_un_status(order_info_t p, int st)
 {
   p->un_status = st;
+}
+
+void set_order_message(order_info_t p, const char *msg)
+{
+  write_dbuf_str(p->chan.message,msg);
 }
 
 size_t get_order_count(order_entry_t entry)

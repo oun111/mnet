@@ -41,6 +41,8 @@ struct order_info_s {
     dbuffer_t name ;
 
     dbuffer_t mch_no;
+
+    dbuffer_t message;
   } chan ;
 
   double amount ;
@@ -98,5 +100,7 @@ extern int get_order_status(order_info_t p);
 extern void set_order_un_status(order_info_t p, int st);
 
 extern char* get_pay_status_str(int st);
+
+extern void set_order_message(order_info_t p, const char *msg);
 
 #endif /* __ORDER_H__*/

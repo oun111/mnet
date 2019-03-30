@@ -34,7 +34,8 @@ init_rds_order_entry(rds_order_entry_t entry, void *myrds_handle, char *name)
 int save_rds_order1(rds_order_entry_t entry, const char *table, char *id, 
                     char *mch_no, char *mch_notify_url, char *mch_sid,   
                     char *chan_name, char *chan_mch_no, double amount, 
-                    int status, int un_status, long long create_time)
+                    int status, int un_status, long long create_time,
+                    char *chan_message)
 {
   tree_map_t map = new_tree_map();
   char tmp[64]="";
@@ -48,6 +49,7 @@ int save_rds_order1(rds_order_entry_t entry, const char *table, char *id,
   put_tree_map_string(map,"mch_orderid",mch_sid);
   put_tree_map_string(map,"chan_name",chan_name);
   put_tree_map_string(map,"chan_mch_no",chan_mch_no);
+  put_tree_map_string(map,"chan_message",chan_message);
 
   snprintf(tmp,sizeof(tmp),"$%f",amount);
   put_tree_map_string(map,"amount",tmp);
@@ -61,7 +63,6 @@ int save_rds_order1(rds_order_entry_t entry, const char *table, char *id,
   snprintf(tmp,sizeof(tmp),"$%lld",create_time);
   put_tree_map_string(map,"create_time",tmp);
 
-  //treemap_to_jsons_str(map,&str);
   jsonKV_t *pr = jsons_parse_tree_map(map);
   pr = jsons_add_to_array(NULL,pr);
   jsons_toString(pr,&str,true);
@@ -92,7 +93,8 @@ int save_rds_order(rds_order_entry_t entry, const char *table, rds_order_t po)
 {
   return save_rds_order1(entry,table,po->id,po->mch.no,po->mch.notify_url,
                          po->mch.out_trade_no,po->chan.name,po->chan.mch_no,
-                         po->amount,po->status,po->un_status,po->create_time);
+                         po->amount,po->status,po->un_status,po->create_time,
+                         po->chan.message);
 }
 
 int get_rds_order_index(rds_order_entry_t entry, const char *table, 
@@ -146,6 +148,7 @@ get_rds_order(rds_order_entry_t entry, const char *table,
       p->mch.notify_url   = alloc_default_dbuffer();
       p->chan.name   = alloc_default_dbuffer();
       p->chan.mch_no = alloc_default_dbuffer();
+      p->chan.message= alloc_default_dbuffer();
     }
   }
 
@@ -180,6 +183,9 @@ get_rds_order(rds_order_entry_t entry, const char *table,
 
   tmp = get_tree_map_value(odr_map,"chan_mch_no");
   write_dbuf_str(p->chan.mch_no,tmp);
+
+  tmp = get_tree_map_value(odr_map,"chan_message");
+  write_dbuf_str(p->chan.message,tmp);
 
   tmp = get_tree_map_value(odr_map,"orderid");
   strcpy(p->id,tmp);
@@ -240,6 +246,8 @@ int drop_rds_order_internal(rds_order_entry_t entry, rds_order_t p, bool fast)
     drop_dbuffer(p->chan.name);
 
     drop_dbuffer(p->chan.mch_no);
+
+    drop_dbuffer(p->chan.message);
   }
 
   obj_pool_free(entry->pool,p);
