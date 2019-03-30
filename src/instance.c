@@ -239,6 +239,11 @@ int parse_cmd_line(int argc, char *argv[])
   return 0;
 }
 
+void sig_term_handler(int sn)
+{
+  g_inst.worker_stop = 1;
+}
+
 int instance_start(int argc, char *argv[])
 {
   int fd = -1, pid = -1;
@@ -273,6 +278,10 @@ int instance_start(int argc, char *argv[])
       break ;
     }
   }
+
+  // signals
+  signal(SIGTERM,sig_term_handler);
+  signal(SIGINT,sig_term_handler);
 
 
   if (g_inst.is_master == 0) {
@@ -317,6 +326,8 @@ int instance_start(int argc, char *argv[])
     wait(0);
   }
 
+  instance_stop();
+
   return 0;
 }
 
@@ -325,9 +336,7 @@ int instance_stop()
   module_t pmod = NULL;
 
 
-  log_info("instance stop\n");
-
-  g_inst.worker_stop = 1;
+  log_info("releasing resources...\n");
 
   // invoke release() within all modules
   for (int n=0;(pmod=get_module(n));n++) {
@@ -341,6 +350,8 @@ int instance_stop()
   release_conn_pool(&g_inst.g_nets);
 
   release_module_list();
+
+  close_log(&g_log);
 
   return 0;
 }

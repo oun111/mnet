@@ -204,6 +204,8 @@ get_rds_order(rds_order_entry_t entry, const char *table,
 
   jsons_release(pr);
 
+  delete_tree_map(map);
+
 __done:
   drop_dbuffer(str);
 
@@ -270,7 +272,15 @@ int release_all_rds_orders(rds_order_entry_t entry)
   rds_order_t pos,n;
 
   list_for_each_objPool_item(pos,n,entry->pool) {
-    drop_rds_order_internal(entry,pos,false);
+    drop_dbuffer(pos->mch.out_trade_no);
+
+    drop_dbuffer(pos->mch.notify_url);
+
+    drop_dbuffer(pos->chan.name);
+
+    drop_dbuffer(pos->chan.mch_no);
+
+    drop_dbuffer(pos->chan.message);
   }
 
   release_obj_pool(entry->pool,struct order_info_s);

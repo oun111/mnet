@@ -330,6 +330,6 @@ void __http_svr_entry(const char *host, int port, int notify_port)
 
 void __http_svr_exit()
 {
-  http_svr_release();
+  //http_svr_release();
 }
 
