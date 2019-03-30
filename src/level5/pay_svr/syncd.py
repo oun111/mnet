@@ -13,18 +13,18 @@ import decimal
 class myredis_configs(object):
   address = "127.0.0.1"
   port    = 6379
-  cfgTbl  = "myrds_002"
-  cfgMq   = (cfgTbl+"_mq")
-  odrTbl = "myrds_003"
-  odrMq  = (odrTbl+"_mq")
+  cfgTbl  = ""
+  cfgMq   = ""
+  odrTbl  = ""
+  odrMq   = ""
 
 
 class mysql_configs(object):
   address = "127.0.0.1"
   port    = 3306
-  db      = "pay_db"
-  usr     = "athena"
-  pwd     = "hmc5TFSoFth6gbh3"
+  db      = ""
+  usr     = ""
+  pwd     = ""
 
 
 """
@@ -147,10 +147,11 @@ class syncd(object):
     rcfg  = self.rds_cfg
     mscfg = self.mysql_cfg
 
-    # update configs
+    #
+    # update redis configs
+    # 
     gcfg = json.loads(cfg_contents)
     cfg = gcfg['Globals']['Redis']
-
     if (len(cfg)>0):
       rcfg.address = cfg['address']
       rcfg.port    = cfg['port']
@@ -160,6 +161,19 @@ class syncd(object):
       rcfg.odrMq   = (rcfg.odrTbl + "_mq" )
       print("redis configs: host: {0}:{1}, table: {2}, mq: {3}".
           format(rcfg.address,rcfg.port,rcfg.cfgTbl,rcfg.cfgMq))
+
+    #
+    # update mysql configs
+    # 
+    cfg = gcfg['Globals']['Mysql']
+    if (len(cfg)>0):
+      mscfg.address = cfg['address']
+      mscfg.port    = cfg['port']
+      mscfg.db      = cfg['db']
+      mscfg.usr     = cfg['usr']
+      mscfg.pwd     = cfg['pwd']
+      print("mysql configs: host: {0}:{1}".
+          format(mscfg.address,mscfg.port))
 
     self.m_rds   = myredis(rcfg.address,rcfg.port)
     self.m_mysql = Mysql(mscfg.address,mscfg.port,mscfg.db,

@@ -13,7 +13,12 @@
       "merchantConfigTableName" : "merchant_configs",
       "alipayConfigTableName" : "channel_alipay_configs",
       "orderTableName" : "order_data",
-      "rcTableName" : "risk_control_configs"
+      "rcTableName" : "risk_control_configs",
+      "address" : "127.0.0.1",
+      "port"    : 3306,
+      "db"      : "pay_db",
+      "usr"     : "athena",
+      "pwd"     : "hmc5TFSoFth6gbh3"
     }
   },
 
