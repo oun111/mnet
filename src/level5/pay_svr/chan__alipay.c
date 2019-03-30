@@ -265,7 +265,7 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
     return -1;
   }
 #else
-  ret_url = get_tree_map_value(pay_data,RETURL);
+  ret_url = get_tree_map_value(pay_params,RETURL);
   if (!ret_url) {
     FORMAT_ERR(errbuf,"no '%s' found\n",RETURL);
     return -1;
