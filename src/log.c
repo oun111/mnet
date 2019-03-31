@@ -84,14 +84,14 @@ int do_open_log(log_t log, char *type)
   return 0;
 }
 
-int new_log(log_t log)
+int new_log(log_t log, bool renameOld)
 {
   struct tm tm1 ;
   time_t t = time(0);
 
-  do_close_log(log,"info",true);
-  do_close_log(log,"debug",true);
-  do_close_log(log,"error",true);
+  do_close_log(log,"info", renameOld);
+  do_close_log(log,"debug",renameOld);
+  do_close_log(log,"error",renameOld);
 
   do_open_log(log,"info");
   do_open_log(log,"debug");
@@ -110,10 +110,13 @@ int init_log(log_t log, char *path, char *name)
 {
   strcpy(log->path,path);
   strcpy(log->name,name);
+  log->fd_info  = NULL;
+  log->fd_error = NULL;
+  log->fd_debug = NULL;
 
   printf("%s: logger name '%s', logging to %s\n",__func__,name,path);
 
-  return new_log(log);
+  return new_log(log,false);
 }
 
 int close_log(log_t log)
@@ -145,7 +148,7 @@ write_log(log_t log, char *msg,const size_t sz_buf, const int log_type)
   // check if date changes
   if (!(tm1.tm_year==log->curr.year && tm1.tm_mon==log->curr.month && 
       tm1.tm_mday==log->curr.day)) {
-    new_log(log);
+    new_log(log,true);
   }
 
   fd = log_type==l_inf?log->fd_info:
