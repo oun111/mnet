@@ -185,7 +185,8 @@ get_rds_order(rds_order_entry_t entry, const char *table,
   write_dbuf_str(p->chan.mch_no,tmp);
 
   tmp = get_tree_map_value(odr_map,"chan_message");
-  write_dbuf_str(p->chan.message,tmp);
+  if (tmp) 
+    write_dbuf_str(p->chan.message,tmp);
 
   tmp = get_tree_map_value(odr_map,"orderid");
   strcpy(p->id,tmp);
