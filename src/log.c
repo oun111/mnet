@@ -1,6 +1,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <time.h>
 #include <alloca.h>
@@ -30,36 +31,30 @@
 
 
 static 
-int do_close_log(log_t log, char *type)
+int do_close_log(log_t log, char *type, bool bRename)
 {
-  struct tm tm1 ;
-  time_t t = time(0);
-  int needclose = 0;
-
-  localtime_r(&t,&tm1);
-
   if (!strcmp(type,"info") && log->fd_info) {
+    fflush(log->fd_info);
     fclose(log->fd_info);
-    needclose = 1;
   }
   else if (!strcmp(type,"error") && log->fd_error) {
+    fflush(log->fd_error);
     fclose(log->fd_error);
-    needclose = 1;
   }
   else if (!strcmp(type,"debug") && log->fd_debug) {
+    fflush(log->fd_debug);
     fclose(log->fd_debug);
-    needclose = 1;
   }
   else   return -1;
 
-  if (needclose) {
+  if (bRename==true) {
     char logpath[PATH_MAX] = "", tmp[PATH_MAX] = "";
     char fmt[] = "%s/%s_%s.log.%d-%d-%d",
          oldfmt[] = "%s/%s_%s.log";
 
     sprintf(tmp,oldfmt,log->path,log->name,type);
     sprintf(logpath,fmt,log->path,log->name,type,
-        tm1.tm_year+1900,tm1.tm_mon,tm1.tm_mday);
+        log->curr.year+1900,log->curr.month+1,log->curr.day);
     rename(tmp,logpath);
   }
 
@@ -94,9 +89,9 @@ int new_log(log_t log)
   struct tm tm1 ;
   time_t t = time(0);
 
-  do_close_log(log,"info");
-  do_close_log(log,"debug");
-  do_close_log(log,"error");
+  do_close_log(log,"info",true);
+  do_close_log(log,"debug",true);
+  do_close_log(log,"error",true);
 
   do_open_log(log,"info");
   do_open_log(log,"debug");
@@ -123,9 +118,9 @@ int init_log(log_t log, char *path, char *name)
 
 int close_log(log_t log)
 {
-  do_close_log(log,"info");
-  do_close_log(log,"debug");
-  do_close_log(log,"error");
+  do_close_log(log,"info",false);
+  do_close_log(log,"debug",false);
+  do_close_log(log,"error",false);
 
   if (is_dbuffer_valid(log->msg_buf))
     drop_dbuffer(log->msg_buf);
@@ -178,7 +173,7 @@ write_log(log_t log, char *msg,const size_t sz_buf, const int log_type)
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID,&ts);
   snprintf(mb,sz_buf+100,"%s %d-%02d-%02d %02d:%02d:%02d %ld %s %s",
            color,
-           tm1.tm_year+1900,tm1.tm_mon,tm1.tm_mday,tm1.tm_hour,tm1.tm_min,
+           tm1.tm_year+1900,tm1.tm_mon+1,tm1.tm_mday,tm1.tm_hour,tm1.tm_min,
            tm1.tm_sec,ts.tv_nsec,
            msg,
            color_end);
