@@ -230,7 +230,7 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   struct tm *tm = localtime(&curr);
   char tmp[96] = "";
   char *body = 0, *subject = 0, *out_trade_no = 0, 
-       *amount=0, *ret_url = 0;
+       *amount=0, *ret_url = 0, *orderid = 0;
 
 
   body = get_tree_map_value(user_params,"body");
@@ -245,12 +245,8 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
     return -1;
   }
 
-  // XXX: test
-#if 1
-  out_trade_no = aid_add_and_fetch(&g_alipayData.aid,1L);
-#else
-  out_trade_no = "1625363905-18147";
-#endif
+  orderid = aid_add_and_fetch(&g_alipayData.aid,1L);
+  log_debug("create new order id: %s\n",orderid);
 
   amount = get_tree_map_value(user_params,TAMT);
   if (!amount) {
@@ -271,6 +267,14 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
     return -1;
   }
 #endif
+
+
+  // user out_trade_no to be alipay request order id
+  out_trade_no = get_tree_map_value(user_params,OTNO);
+  if (!out_trade_no) {
+    FORMAT_ERR(errbuf,"no 'out_trade_no' found\n");
+    return -1;
+  }
 
 
   pay_biz = new_tree_map();
@@ -398,12 +402,7 @@ int create_alipay_link(dbuffer_t *errbuf,connection_t out_conn, const char *url,
   dbuffer_t strParams = create_html_params(pay_data);
   tree_map_t res_map = new_tree_map();
   order_entry_t pe = get_order_entry();
-  // XXX: test
-#if 1
   char *odrid = aid_fetch(&g_alipayData.aid);
-#else
-  char *odrid = "1625363905-18147";
-#endif
   order_info_t po = get_order(pe,odrid);
   char tmp[16]="", *ptr = 0;
   int param_type = pt_json;
@@ -449,12 +448,7 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
 {
   order_entry_t pe = get_order_entry();
   rds_order_entry_t pre = get_rds_order_entry();
-  // XXX: test
-#if 1
   char *pOdrId = aid_fetch(&g_alipayData.aid);
-#else
-  char *pOdrId = "1625363905-18147";
-#endif
   char *mch_no = get_tree_map_value(user_params,MCHID);
   char *nurl = get_tree_map_value(user_params,NURL);
   char *tno = get_tree_map_value(user_params,OTNO);
@@ -666,12 +660,44 @@ int do_verify_sign(pay_data_t pd, tree_map_t user_params)
   return ret;
 }
 
+static
+order_info_t get_order_by_otn(const char *tno, dbuffer_t *errbuf, bool *bRel)
+{
+  paySvr_config_t pc = get_running_configs();
+  mysql_conf_t mcfg = get_mysql_configs(pc);
+  rds_order_entry_t pre = get_rds_order_entry();
+  order_entry_t pe = get_order_entry();
+  order_info_t po = get_order_by_outTradeNo(pe,(char*)tno);
+
+
+  if (!po) {
+    int ret = 0;
+    // try query redis cache
+    dbuffer_t orderid = alloc_default_dbuffer();
+    if (get_rds_order_index(pre,mcfg->order_table,tno,&orderid) || 
+        !(po = get_rds_order(pre,mcfg->order_table,orderid,false))) {
+      FORMAT_ERR(errbuf,"found no order info by out_trade_no '%s'!\n",tno);
+      ret = -2;
+    }
+    else {
+      *bRel = true ;
+    }
+
+    drop_dbuffer(orderid);
+
+    if (ret==-2)
+      return NULL ;
+  }
+
+  return po ;
+}
+
 static 
 int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
 {
   const char *alipay_notify_res = "success";
   char *tno = get_tree_map_value(user_params,OTNO);
-  order_entry_t pe = get_order_entry();
+  //order_entry_t pe = get_order_entry();
   rds_order_entry_t pre = get_rds_order_entry();
   paySvr_config_t pc = get_running_configs();
   mysql_conf_t mcfg = get_mysql_configs(pc);
@@ -711,6 +737,7 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
     return -1;
   }
 
+#if 0
   po = get_order(pe,tno);
   if (!po) {
     rel = true ;
@@ -719,6 +746,11 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
       return -1;
     }
   }
+#else
+  po = get_order_by_otn(tno,NULL,&rel);
+  if (!po)
+    goto __done ;
+#endif
 
   if (!(pm=get_merchant(pme,po->mch.no))) {
     log_error("no such merchant '%s'\n",po->mch.no);
@@ -789,10 +821,10 @@ static
 int do_alipay_query(Network_t net,connection_t pconn,tree_map_t user_params)
 {
   char *tno = get_tree_map_value(user_params,OTNO);
-  order_entry_t pe = get_order_entry();
+  //order_entry_t pe = get_order_entry();
   rds_order_entry_t pre = get_rds_order_entry();
-  paySvr_config_t pc = get_running_configs();
-  mysql_conf_t mcfg = get_mysql_configs(pc);
+  //paySvr_config_t pc = get_running_configs();
+  //mysql_conf_t mcfg = get_mysql_configs(pc);
   order_info_t po = 0;
   tree_map_t qry_res = 0;
   char tmp[64] = "", *ptr = 0;
@@ -817,6 +849,7 @@ int do_alipay_query(Network_t net,connection_t pconn,tree_map_t user_params)
     return -1;
   }
 
+#if 0
   po = get_order_by_outTradeNo(pe,tno);
   if (!po) {
     // try query redis cache
@@ -835,6 +868,11 @@ int do_alipay_query(Network_t net,connection_t pconn,tree_map_t user_params)
     if (ret==-2)
       goto __done ;
   }
+#else
+  po = get_order_by_otn(tno,errbuf,&bRel);
+  if (!po) 
+    goto __done ;
+#endif
 
   ptr = get_tree_map_value(pm->mch_info,PARAM_TYPE);
   if (ptr) {

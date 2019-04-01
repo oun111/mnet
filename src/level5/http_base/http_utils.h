@@ -15,7 +15,7 @@ enum http_param_types{
   char tmp[96],msg[128]; \
   snprintf(tmp,sizeof(tmp),fmt,## arg); \
   snprintf(msg,sizeof(msg),"{\"status\":%d,\"message\":\"%s\"}",-1,tmp); \
-  create_http_normal_res((__errbuf__),pt_html,msg); \
+  if (__errbuf__) create_http_normal_res((__errbuf__),pt_html,msg); \
   log_error("%s",tmp);  \
 } while(0)
 
