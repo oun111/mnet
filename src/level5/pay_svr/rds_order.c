@@ -49,7 +49,8 @@ int save_rds_order1(rds_order_entry_t entry, const char *table, char *id,
   put_tree_map_string(map,"mch_orderid",mch_sid);
   put_tree_map_string(map,"chan_name",chan_name);
   put_tree_map_string(map,"chan_mch_no",chan_mch_no);
-  put_tree_map_string(map,"chan_message",chan_message);
+  if (chan_message)
+    put_tree_map_string(map,"chan_message",chan_message);
 
   snprintf(tmp,sizeof(tmp),"$%f",amount);
   put_tree_map_string(map,"amount",tmp);
