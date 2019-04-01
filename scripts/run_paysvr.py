@@ -23,7 +23,7 @@ logToFile = "-L /tmp/"
 
 
 if opt=="0" or opt=="1":
-  os.system("rm -f /tmp/mnet_*.log")
+  #os.system("rm -f /tmp/mnet_*.log")
   os.system(("killall " + app))
   os.system(("killall " + syncd))
 

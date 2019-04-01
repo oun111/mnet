@@ -8,6 +8,10 @@ import time
 import sys
 import getopt
 import decimal
+import logging
+
+
+logger = logging.getLogger('syncd_log')
 
 
 class myredis_configs(object):
@@ -91,9 +95,9 @@ class myredis(object):
     self.m_rds = redis.Redis(connection_pool=pool)
 
     if (self.m_rds==None):
-      print("connect to redis {0}:{1} fail!".format(host,port))
+      logger.debug("connect to redis {0}:{1} fail!".format(host,port))
     else:
-      print("connect to redis {0}:{1} ok!".format(host,port))
+      logger.debug("connect to redis {0}:{1} ok!".format(host,port))
 
 
   def read(self,dict1,key):
@@ -159,7 +163,7 @@ class syncd(object):
       rcfg.cfgMq   = (rcfg.cfgTbl + "_mq" )
       rcfg.odrTbl  = cfg['orderCache']
       rcfg.odrMq   = (rcfg.odrTbl + "_mq" )
-      print("redis configs: host: {0}:{1}, table: {2}, mq: {3}".
+      logger.debug("redis configs: host: {0}:{1}, table: {2}, mq: {3}".
           format(rcfg.address,rcfg.port,rcfg.cfgTbl,rcfg.cfgMq))
 
     #
@@ -172,7 +176,7 @@ class syncd(object):
       mscfg.db      = cfg['db']
       mscfg.usr     = cfg['usr']
       mscfg.pwd     = cfg['pwd']
-      print("mysql configs: host: {0}:{1}".
+      logger.debug("mysql configs: host: {0}:{1}".
           format(mscfg.address,mscfg.port))
 
     self.m_rds   = myredis(rcfg.address,rcfg.port)
@@ -222,7 +226,7 @@ class syncd(object):
 
   def do_sql_insert_update(self,dct1,table,key):
 
-    #print("dct: ",dct1)
+    #logger.debug("dct: ",dct1)
     for ch in dct1:
       strSql  = ""
       kval    = ch[key]
@@ -245,7 +249,7 @@ class syncd(object):
                     "(" + instList + ")" +
                     " values(" + valList + ")")
 
-      print("===redis -> mysql=== "+strSql)
+      logger.debug("===redis -> mysql=== "+strSql)
 
       mysql.update(strSql)
 
@@ -355,7 +359,7 @@ class syncd(object):
 
     # query database for results
     rows = mysql.query(table," * ",cond)
-    #print("rows: {0}".format(rows))
+    #logger.debug("rows: {0}".format(rows))
     vj,numRows = cb(rows)
 
     if (numRows>0):
@@ -368,7 +372,7 @@ class syncd(object):
     resMap['value']  = vj
 
     fj = json.dumps(resMap)
-    print("***mysql -> redis*** {0} : {1}".format(db_key,fj))
+    logger.debug("***mysql -> redis*** {0} : {1}".format(db_key,fj))
 
     # sync back to redis
     rds.write(rdsTbl,key,fj)
@@ -392,12 +396,12 @@ class syncd(object):
     rk = (tbl + "#" + key)
     rv = json.dumps(mp1)
 
-    #print("req: "+rv)
+    #logger.debug("req: "+rv)
 
 
     mk = mapList.get(tbl)
     if (mk==None):
-      print("table '{0}' not support yet!\n".format(tbl))
+      logger.debug("table '{0}' not support yet!\n".format(tbl))
       exit(0)
 
     if (tbl=='order_data'):
@@ -407,7 +411,7 @@ class syncd(object):
     self.m_rds.write(mk[0],rk,rv)
     self.m_rds.pushq(mk[1],rk)
 
-    print("write syncd command with table '{0}' done\n".format(tbl))
+    logger.debug("write syncd command with table '{0}' done\n".format(tbl))
 
 
 
@@ -448,19 +452,24 @@ class syncd(object):
   def run(self):
     cfg = self.rds_cfg;
 
-    while (True):
+    try:
 
-      self.do_synchronize(cfg.cfgTbl,cfg.cfgMq)
+      while (True):
 
-      self.do_synchronize(cfg.odrTbl,cfg.odrMq)
+        self.do_synchronize(cfg.cfgTbl,cfg.cfgMq)
 
-      time.sleep(0.08);
+        self.do_synchronize(cfg.odrTbl,cfg.odrMq)
+
+        time.sleep(0.08);
+
+    except:
+      logger.exception("logging exception")
 
 
 
 def start_sync_svr(biz):
 
-  print("starting local synchronize server...")
+  logger.debug("starting local synchronize server...")
 
   biz.run()
 
@@ -472,6 +481,25 @@ def manual_mysql_2_rds(biz,tbl,key):
 
 def manual_rds_2_mysql(biz,tbl,key,val):
   pass
+
+
+def init_log():
+    logger.setLevel(logging.DEBUG)
+
+    fh = logging.FileHandler("/tmp/syncd.log")
+    fh.setLevel(logging.DEBUG)
+
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter('%(asctime)s - %(module)s.%(funcName)s.%(lineno)d - %(levelname)s - %(message)s')
+    fh.setFormatter(formatter)
+    ch.setFormatter(formatter)
+
+    logger.addHandler(fh)
+    logger.addHandler(ch)
+
+    return logger
 
 
 def main():
@@ -497,6 +525,8 @@ def main():
   if (len(cfg)==0):
     print("need config file path...")
     exit(0)
+
+  logger = init_log()
 
 
   # read configs
