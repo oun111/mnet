@@ -184,14 +184,8 @@ void delete_pay_channels_entry(pay_channels_entry_t entry)
 
 void update_paydata_rc_arguments(pay_data_t pd, double amount)
 {
-  struct timespec ts ;
-  clock_gettime(CLOCK_REALTIME,&ts);
-
-
-  if ((ts.tv_sec-pd->rc.time)<60) {
-    pd->rc.max_amount += amount ;
-    pd->rc.max_orders ++ ;
-  }
+  pd->rc.max_amount += amount ;
+  pd->rc.max_orders ++ ;
 }
 
 static int get_rc_paras(tree_map_t rc_cfg, struct risk_control_s *rcp, dbuffer_t *reason)
