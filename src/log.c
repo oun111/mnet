@@ -70,13 +70,13 @@ int do_open_log(log_t log, char *type)
   sprintf(logpath,fmt,log->path,log->name,type);
 
   if (!strcmp(type,"info")) {
-    log->fd_info = fopen(logpath,"a+");
+    log->fd_info = fopen(logpath,"a");
   }
   else if (!strcmp(type,"error")) {
-    log->fd_error = fopen(logpath,"a+");
+    log->fd_error = fopen(logpath,"a");
   }
   else if (!strcmp(type,"debug")) {
-    log->fd_debug = fopen(logpath,"a+");
+    log->fd_debug = fopen(logpath,"a");
   }
   else   
     return -1;
