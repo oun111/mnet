@@ -176,15 +176,16 @@ int myredis_add_and_fetch(myredis_t mr, long long *val)
 
   rc = (redisReply*)redisCommand(REDIS_CTX,"incr %s",tbl);
 
-  if (rc->type==REDIS_REPLY_ERROR) {
-    log_error("incr '%s' fail: %s\n",tbl,rc->str) ;
+  if (!rc || rc->type==REDIS_REPLY_ERROR) {
+    log_error("incr '%s' fail: %s\n",tbl,rc?rc->str:"^_^") ;
     ret = -1;
   }
   else if (val) {
     *val = rc->integer ;
   }
 
-  freeReplyObject(rc);
+  if (rc)
+    freeReplyObject(rc);
 
   return ret;
 }

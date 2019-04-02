@@ -9,6 +9,7 @@ import sys
 import getopt
 import decimal
 import logging
+import logging.handlers
 
 
 logger = logging.getLogger('syncd_log')
@@ -55,14 +56,15 @@ class myredis_status(object):
 class Mysql(object):
 
   def __init__(self,host,port,db,usr,pwd):
+    self.do_connect(host,port,db,usr,pwd)
+
+
+  def do_connect(self,host,port,db,usr,pwd):
     self.m_conn = pymysql.connect(host=host,port=port,
                   user=usr,password=pwd,database=db,
                   autocommit=False,
                   cursorclass=pymysql.cursors.DictCursor)
 
-
-  def is_connect(self):
-    return self.m_conn.open==True
 
   def query(self,table,selist=" * ",cond=""):
     strsql = ("select " + selist + " from " + table + " " + cond)
@@ -91,13 +93,17 @@ class Mysql(object):
 class myredis(object):
 
   def __init__(self,host,port):
-    pool = redis.ConnectionPool(host=host,port=port,password='')
-    self.m_rds = redis.Redis(connection_pool=pool)
+    self.do_connect(host,port)
 
     if (self.m_rds==None):
       logger.debug("connect to redis {0}:{1} fail!".format(host,port))
     else:
       logger.debug("connect to redis {0}:{1} ok!".format(host,port))
+
+
+  def do_connect(self,host,port):
+    pool = redis.ConnectionPool(host=host,port=port,password='')
+    self.m_rds = redis.Redis(connection_pool=pool)
 
 
   def read(self,dict1,key):
@@ -423,14 +429,16 @@ class syncd(object):
     while (True):
 
       # read mq for cache keys
-      k = rds.topq(rdsMq)
+      #k = rds.topq(rdsMq)
+      k = rds.popq(rdsMq)
       if (k==None):
         break
 
       # read redis by key
       v = rds.read(rdsTbl,k)
       if (v==None):
-        rds.popq(rdsMq)
+        #rds.popq(rdsMq)
+        logger.error("gets nothing by key {0}".format(k))
         continue
 
       jres = json.loads(v)
@@ -445,22 +453,52 @@ class syncd(object):
       elif (stat==rst.mr__need_sync):
         self.do_sync(rdsTbl,str(k),tbl,v)
 
-      rds.popq(rdsMq)
+      #rds.popq(rdsMq)
 
+
+  def do_reconnect_redis(self):
+    rcfg  = self.rds_cfg
+
+    logger.error("reconnect redis({0}:{1})...".format(rcfg.address,rcfg.port))
+    self.m_rds.do_connect(rcfg.address,rcfg.port)
+
+
+  def do_reconnect_mysql(self):
+    mscfg = self.mysql_cfg
+
+    logger.error("reconnect mysql({0}:{1})...".format(mscfg.address,mscfg.port))
+    self.m_mysql.do_connect(mscfg.address,mscfg.port,mscfg.db,mscfg.usr,mscfg.pwd)
 
 
   def run(self):
     cfg = self.rds_cfg;
+    reconn_mysql = 0
 
     try:
 
       while (True):
 
-        self.do_synchronize(cfg.cfgTbl,cfg.cfgMq)
+        try:
 
-        self.do_synchronize(cfg.odrTbl,cfg.odrMq)
+          if (reconn_mysql==1):
+            reconn_mysql = 0
+            self.do_reconnect_mysql()
 
-        time.sleep(0.08);
+          self.do_synchronize(cfg.cfgTbl,cfg.cfgMq)
+
+          self.do_synchronize(cfg.odrTbl,cfg.odrMq)
+
+          time.sleep(0.08);
+
+        except redis.ConnectionError, e:
+          self.do_reconnect_redis()
+
+          time.sleep(2)
+
+        except pymysql.OperationalError,e:
+          reconn_mysql = 1
+
+          time.sleep(2)
 
     except:
       logger.exception("logging exception")
@@ -483,16 +521,18 @@ def manual_rds_2_mysql(biz,tbl,key,val):
   pass
 
 
-def init_log():
+def init_log(logpath):
     logger.setLevel(logging.DEBUG)
 
-    fh = logging.FileHandler("/tmp/syncd.log")
+    #fh = logging.FileHandler("/tmp/syncd.log")
+    fh = logging.handlers.TimedRotatingFileHandler((logpath+"/"+"syncd.log"),when='D')
+    fh.suffix = "%Y-%m-%d.log"
     fh.setLevel(logging.DEBUG)
 
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)
 
-    formatter = logging.Formatter('%(asctime)s - %(module)s.%(funcName)s.%(lineno)d - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(module)s(%(process)d)%(funcName)s.%(lineno)d - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
 
@@ -509,7 +549,8 @@ def main():
   val = ""
   cfg = ""
   cont = ""
-  opts, args = getopt.getopt(sys.argv[1:], "hc:t:k:v:")
+  logpath = "/tmp/"
+  opts, args = getopt.getopt(sys.argv[1:], "hc:t:k:v:L:")
 
   for a,opt in opts:
     if (a=='-c'):
@@ -520,14 +561,17 @@ def main():
       key = opt
     elif (a=='-v'):
       val = opt
+    elif (a=='-L'):
+      logpath = opt
 
 
   if (len(cfg)==0):
     print("need config file path...")
     exit(0)
 
-  logger = init_log()
 
+  # initialize log
+  logger = init_log(logpath)
 
   # read configs
   with open(cfg,"r") as m_fd:

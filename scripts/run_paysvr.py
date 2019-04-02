@@ -2,6 +2,7 @@
 
 import os
 from sys import argv
+from multiprocessing import cpu_count
 
 if len(argv)!=2:
   print("needs 1 argument")
@@ -20,6 +21,7 @@ logFlushInterval = 5
 numWorkers = 0
 logToFile = "-L /tmp/"
 #logToFile = ""
+numSyncds = cpu_count()
 
 
 if opt=="0" or opt=="1":
@@ -34,6 +36,10 @@ if opt=="0" or opt=="1":
 
      run = (basepath + app)
      os.system("{0} -l {1} -cp {2} -mF {3} -mW {4} {5} &".format(run,mod,conf,logFlushInterval,numWorkers,logToFile))
+
+     n = 0
      run = (basepath + syncd)
-     os.system("{0} -c {1} &".format(run,conf))
+     while (n<numSyncds):
+       os.system("{0} -c {1} {2} &".format(run,conf,logToFile))
+       n = n+1
 
