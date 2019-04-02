@@ -172,7 +172,7 @@ ssize_t http_svr_rx_raw(Network_t net, connection_t pconn)
   szhdr = get_http_hdr_size(b,sz_in);
   // not enough data
   if (szhdr==0L) {
-    //log_error("no header size\n");
+    log_error("no header size\n");
     return -1;
   }
 
@@ -182,12 +182,13 @@ ssize_t http_svr_rx_raw(Network_t net, connection_t pconn)
     //log_info("no body size\n");
   }
 
-  //log_debug("szreq: %zd, sz_in: %zu, szhdr: %zd\n",szReq,sz_in,szhdr);
+  log_debug("szreq: %zd, sz_in: %zu, szhdr: %zd\n",szReq,sz_in,szhdr);
 
   // total req size
   szReq += szhdr ;
 
-  return szReq==sz_in?szReq:-1;
+  //return szReq==sz_in?szReq:-1;
+  return szReq;
 }
 
 static
