@@ -35,5 +35,5 @@ if opt=="0" or opt=="1":
      run = (basepath + app)
      os.system("{0} -l {1} -cp {2} -mF {3} -mW {4} {5} &".format(run,mod,conf,logFlushInterval,numWorkers,logToFile))
      run = (basepath + syncd)
-     os.system("{0} -c {1} >/tmp/syncd.log &".format(run,conf))
+     os.system("{0} -c {1} &".format(run,conf))
 
