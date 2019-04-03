@@ -58,6 +58,8 @@ struct order_info_s {
   struct rb_node idx_node ;
 
   struct list_head pool_item;
+
+  struct list_head cached_item;
 } ;
 typedef struct order_info_s* order_info_t ;
 
@@ -71,6 +73,8 @@ struct order_entry_s {
   size_t num_orders ;
 
   objPool_t pool ;
+
+  struct list_head cached_orders;
 } ;
 typedef struct order_entry_s* order_entry_t ;
 

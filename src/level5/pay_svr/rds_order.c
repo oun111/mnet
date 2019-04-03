@@ -28,6 +28,8 @@ init_rds_order_entry(rds_order_entry_t entry, void *myrds_handle, char *name)
     pos->chan.name = alloc_default_dbuffer();
 
     pos->chan.mch_no = alloc_default_dbuffer();
+
+    pos->chan.message= alloc_default_dbuffer();
   }
 }
 

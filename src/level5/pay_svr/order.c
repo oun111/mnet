@@ -8,6 +8,9 @@
 #include "log.h"
 
 
+static
+int drop_order_internal(order_entry_t entry, order_info_t p, bool fast);
+
 static const char *g_orderStatusStr[] = 
 {
   "unpay",
@@ -60,6 +63,15 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
     return p ;
   }
 
+  // remove last memory order if there're much too 
+  if (entry->num_orders>=entry->pool->pool_size) {
+    order_info_t last = list_last_entry(&entry->cached_orders,
+                               struct order_info_s,cached_item);
+    if (last)
+      drop_order_internal(entry,last,true);
+    //log_debug("fast free order '%s'\n",last->id);
+  }
+
   p = obj_pool_alloc(entry->pool,struct order_info_s);
   if (!p) {
     p = obj_pool_alloc_slow(entry->pool,struct order_info_s);
@@ -108,7 +120,7 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
   {
     struct timeval tv;
     gettimeofday(&tv,NULL);
-    p->create_time = tv.tv_sec*1000000 + tv.tv_usec ;
+    p->create_time = (tv.tv_sec+2208988800)*1000000 + tv.tv_usec ;
   }
 
   if (MY_RB_TREE_INSERT(&entry->u.root,p,id,node,compare)) {
@@ -123,6 +135,9 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
     obj_pool_free(entry->pool,p);
     return NULL;
   }
+
+  // add to cache list
+  list_add(&p->cached_item,&entry->cached_orders);
 
   entry->num_orders ++;
 
@@ -144,6 +159,8 @@ int drop_order_internal(order_entry_t entry, order_info_t p, bool fast)
 {
   rb_erase(&p->node,&entry->u.root);
   rb_erase(&p->idx_node,&entry->u.index_root);
+
+  list_del(&p->cached_item);
 
   if (!fast) {
     drop_dbuffer(p->mch.out_trade_no);
@@ -186,6 +203,8 @@ int init_order_entry(order_entry_t entry, ssize_t pool_size)
   entry->u.index_root = RB_ROOT ;
 
   entry->num_orders = 0L;
+
+  INIT_LIST_HEAD(&entry->cached_orders);
 
   entry->pool = create_obj_pool("order pool",pool_size,struct order_info_s);
   list_for_each_objPool_item(pos,n,entry->pool) {
