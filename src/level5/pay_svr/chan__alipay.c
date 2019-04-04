@@ -765,15 +765,6 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
     param_type = !strcmp(ptr,"json")?pt_json:pt_html ;
   }
 
-  /* connect merchant server(treat as 'backend')  */
-  out_conn = do_out_connect(net,NULL,po->mch.notify_url,po);
-  if (!out_conn) {
-    log_error("connection to '%s' fail\n",po->mch.notify_url);
-    goto __done;
-  }
-
-  log_debug("connecting to '%s' ok!\n",po->mch.notify_url);
-
   // update order status by ALI status
   ptr = get_tree_map_value(user_params,"trade_status");
 
@@ -791,6 +782,15 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   if (save_rds_order(pre,mcfg->order_table,po)) {
     log_error("update order '%s' to redis fail\n",po->id);
   }
+
+  /* connect merchant server(treat as 'backend')  */
+  out_conn = do_out_connect(net,NULL,po->mch.notify_url,po);
+  if (!out_conn) {
+    log_error("connection to '%s' fail\n",po->mch.notify_url);
+    goto __done;
+  }
+
+  log_debug("connecting to '%s' ok!\n",po->mch.notify_url);
 
   // construct the 'merchant notify'
   notify = new_tree_map();
