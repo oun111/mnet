@@ -3,6 +3,7 @@
     "BindAddress" : "192.168.18.10",
     "ListenPort" : 5481,
     "NotifyPort" : 1366,
+    "MaxCachedOrders" : 2048,
     "Redis" : {
       "cfgCache": "myrds_002",
       "orderCache": "myrds_003",
