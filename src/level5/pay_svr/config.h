@@ -48,6 +48,8 @@ extern int get_listen_port(paySvr_config_t conf);
 
 extern int get_notify_port(paySvr_config_t conf);
 
+extern int get_max_cached_orders(paySvr_config_t conf);
+
 extern int get_myredis_configs(paySvr_config_t conf, myredis_conf_t pcfg);
 
 extern mysql_conf_t get_mysql_configs(paySvr_config_t conf);

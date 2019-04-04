@@ -14,6 +14,7 @@ struct global_config_keywords {
   const char *bindAddr;
   const char *listenPort;
   const char *notifyPort;
+  const char *maxCachedOdrs;
   const char *channels;
   const char *merchants;
   const char *redis;
@@ -33,6 +34,7 @@ g_confKW = {
   .bindAddr     = "BindAddress",
   .listenPort   = "ListenPort",
   .notifyPort   = "NotifyPort",
+  .maxCachedOdrs= "MaxCachedOrders",
   .channels     = "channels",
   .merchants    = "merchants",
   .redis        = "Redis",
@@ -103,6 +105,25 @@ int get_notify_port(paySvr_config_t conf)
   }
 
   p = jsons_find(pg,g_confKW.notifyPort);
+  if (!p) {
+    log_error("entry '%s' not found\n",g_confKW.notifyPort);
+    return -1;
+  }
+
+  return jsons_integer(p->value);
+}
+
+int get_max_cached_orders(paySvr_config_t conf)
+{
+  jsonKV_t *pg = jsons_find(conf->m_root,g_confKW.gsSec), *p= 0;
+
+
+  if (!pg) {
+    log_error("entry '%s' not found\n",g_confKW.gsSec);
+    return -1;
+  }
+
+  p = jsons_find(pg,g_confKW.maxCachedOdrs);
   if (!p) {
     log_error("entry '%s' not found\n",g_confKW.notifyPort);
     return -1;

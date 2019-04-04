@@ -172,7 +172,7 @@ __done:
 void pay_svr_module_init(int argc, char *argv[])
 {
   char host[32] = "" ;
-  int port = 0, notify_port = 0, ret = 0;
+  int port = 0, notify_port = 0, ret = 0, maxOdrs = 0;
   struct myredis_config_s rconf ;
 
 
@@ -204,7 +204,9 @@ void pay_svr_module_init(int argc, char *argv[])
 
   init_backend_entry(&g_paySvrData.m_backends,-1);
 
-  init_order_entry(&g_paySvrData.m_orders,-1);
+  maxOdrs = get_max_cached_orders(&g_paySvrData.m_conf);
+
+  init_order_entry(&g_paySvrData.m_orders,/*-1*/maxOdrs);
 
   init_rds_order_entry(&g_paySvrData.m_rOrders,g_paySvrData.m_rds.ctx,
                        rconf.order_cache);

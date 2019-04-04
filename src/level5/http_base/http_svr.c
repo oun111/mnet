@@ -184,6 +184,11 @@ ssize_t http_svr_rx_raw(Network_t net, connection_t pconn)
 
   log_debug("szreq: %zd, sz_in: %zu, szhdr: %zd\n",szReq,sz_in,szhdr);
 
+  if ((szReq+szhdr)>sz_in) {
+    //log_debug("incomplete req\n");
+    return -1;
+  }
+
   // total req size
   szReq += szhdr ;
 

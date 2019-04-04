@@ -63,7 +63,7 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
     return p ;
   }
 
-  // remove last memory order if there're much too 
+  // remove last memory order if much too orders
   if (entry->num_orders>=entry->pool->pool_size) {
     order_info_t last = list_last_entry(&entry->cached_orders,
                                struct order_info_s,cached_item);
@@ -136,7 +136,7 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
     return NULL;
   }
 
-  // add to cache list
+  // add to hot list head
   list_add(&p->cached_item,&entry->cached_orders);
 
   entry->num_orders ++;
@@ -219,7 +219,7 @@ int init_order_entry(order_entry_t entry, ssize_t pool_size)
     pos->chan.message= NULL;
   }
 
-  log_debug("done!\n");
+  log_debug("max order cache size: %zu\n",entry->pool->pool_size);
 
   return 0;
 }

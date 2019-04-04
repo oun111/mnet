@@ -15,13 +15,14 @@ typedef struct objPool_s* objPool_t ;
 
 
 #define DEFAULT_POOL_SIZE  16
+#define MAX_POOL_SIZE      8192
 
 #define create_obj_pool(desc,ps,t)  ({\
   objPool_t p = kmalloc(sizeof(struct objPool_s),0L); \
   if (p) {  \
     INIT_LIST_HEAD(&p->free_pool);  \
     p->cache = kmem_cache_create(desc,sizeof(t),0L,0L,NULL);  \
-    p->pool_size = (ps)>0&&(ps)<DEFAULT_POOL_SIZE?(ps):DEFAULT_POOL_SIZE ;  \
+    p->pool_size = (ps)>0&&(ps)<MAX_POOL_SIZE?(ps):DEFAULT_POOL_SIZE ;  \
     for (int i=0;i<p->pool_size;i++) {   \
       typeof(t) *po = kmem_cache_alloc(p->cache,0L);  \
       list_add(&po->pool_item,&p->free_pool);  \
