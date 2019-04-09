@@ -21,6 +21,8 @@ struct log_s {
     int month;
     int day;
   } curr;
+
+  int pid;
 } ;
 
 typedef struct log_s* log_t ;
@@ -49,6 +51,9 @@ void __hex_dump(FILE *fd, char *buf, size_t len);
 
 extern
 int do_flush_log(FILE *fd);
+
+extern
+void update_log_pid(log_t log);
 
 
 enum log_type {
@@ -87,6 +92,8 @@ enum log_type {
   do_flush_log(g_log.fd_error);  \
   do_flush_log(g_log.fd_debug);  \
 } while(0)
+
+#define save_log_pid() update_log_pid(&g_log)
 
 #endif /* __LOG_H__*/
 

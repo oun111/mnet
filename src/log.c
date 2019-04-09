@@ -174,10 +174,11 @@ write_log(log_t log, char *msg,const size_t sz_buf, const int log_type)
 
 
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID,&ts);
-  snprintf(mb,sz_buf+100,"%s %d-%02d-%02d %02d:%02d:%02d %ld %s %s",
+  snprintf(mb,sz_buf+100,"%s %d-%02d-%02d %02d:%02d:%02d %ld (%d) %s %s",
            color,
            tm1.tm_year+1900,tm1.tm_mon+1,tm1.tm_mday,tm1.tm_hour,tm1.tm_min,
            tm1.tm_sec,ts.tv_nsec,
+           log->pid,
            msg,
            color_end);
 
@@ -215,3 +216,9 @@ int do_flush_log(FILE *fd)
 
   return 0;
 }
+
+void update_log_pid(log_t log)
+{
+  log->pid = getpid();
+}
+

@@ -34,6 +34,8 @@ struct __attribute__((__aligned__(64))) main_instance_s {
 
   size_t log_flush_intv ;
 
+  int conn_timeout ;
+
   struct Network_s g_nets ;
 
   pthread_t idle_t ;
@@ -59,6 +61,8 @@ g_inst =
 
   .log_flush_intv = 10,
 
+  .conn_timeout   = 3600,
+
   .worker_stop    = 0,
 
   .use_log        = 0,
@@ -68,9 +72,9 @@ g_inst =
 
 
 connection_t add_to_event_poll(Network_t net, int fd, proto_opt *l4opt, 
-                               proto_opt *l5opt, bool bSSL)
+                               proto_opt *l5opt, bool bSSL, bool markActive)
 {
-  connection_t pconn = alloc_conn(net,fd,l4opt,l5opt,bSSL);
+  connection_t pconn = alloc_conn(net,fd,l4opt,l5opt,bSSL,markActive);
 
 
   if (!pconn) {
@@ -157,6 +161,7 @@ void* instance_event_loop()
             do_close(net,pconn);
             continue ;
           } 
+          update_connection_times(pconn);
         }   
         /* ready to send */
         if (event & EPOLLOUT) {
@@ -165,6 +170,7 @@ void* instance_event_loop()
             do_close(net,pconn);
             continue ;
           }
+          update_connection_times(pconn);
         }
       }
 
@@ -178,7 +184,7 @@ void* instance_event_loop()
 
 void* idle_task(void *arg)
 {
-  int sec = 0;
+  int sec = 0, conn_to = 0;
 
   while(!(g_inst.worker_stop&1)) {
 
@@ -186,6 +192,11 @@ void* idle_task(void *arg)
       flush_logs();
       sec = 0;
       //printf("pid %d flushing logs...\n",getpid());
+    }
+
+    if (conn_to++ >= g_inst.conn_timeout) {
+      if (!scan_timeout_connections(&g_inst.g_nets,g_inst.conn_timeout))
+        conn_to = 0;
     }
 
     sleep(1);
@@ -201,6 +212,7 @@ void dump_instance_params()
   log_info("name: %s\n",g_inst.name);
   log_info("num_workers: %zu\n",g_inst.num_workers);
   log_info("log_flush_intv: %zu(s)\n",g_inst.log_flush_intv);
+  log_info("connection timeout: %d(s)\n",g_inst.conn_timeout);
   log_info("main param list ends =================\n");
 }
 
@@ -227,11 +239,16 @@ int parse_cmd_line(int argc, char *argv[])
       init_log(&g_log,logpath,"app");
 #endif
     }
+    // connection timeout
+    else if (!strcmp(argv[i],"-cTo")) {
+      g_inst.conn_timeout = atoi(argv[i+1]);
+    }
     else if (!strcmp(argv[i],"-h")) {
       printf("%s help message\n",argv[0]);
       printf("-mF:  <log flush interval>\n");
       printf("-mC:  <max client connections>\n");
       printf("-mW:  <max workers count>\n");
+      printf("-cTo: <connection timeouts>\n");
       printf("-L:   <use log output>\n");
       g_inst.exit = 1;
     }
@@ -283,6 +300,7 @@ int instance_start(int argc, char *argv[])
   signal(SIGTERM,sig_term_handler);
   signal(SIGINT,sig_term_handler);
 
+  save_log_pid();
 
   if (g_inst.is_master == 0) {
 
@@ -291,7 +309,7 @@ int instance_start(int argc, char *argv[])
     pthread_create(&g_inst.idle_t,NULL,idle_task,NULL);
 
 
-    log_debug("worker %d start working\n",getpid());
+    log_debug("worker %d start working\n",g_log.pid);
 
     /* create thread-based epoll */
     fd = init_epoll();
@@ -376,7 +394,7 @@ connection_t register_protocols(Network_t net, int fd, int mod_id, int l4proto, 
   if (l5proto>=local_l4 && l5proto<max_protos)
     l5opt = &pmod->opts[l5proto];
 
-  pconn = add_to_event_poll(net,fd,l4opt,l5opt,pmod->ssl);
+  pconn = add_to_event_poll(net,fd,l4opt,l5opt,pmod->ssl,l5proto!=-1);
   if (pconn)
     pconn->module_id = mod_id ;
 

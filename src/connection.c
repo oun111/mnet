@@ -6,10 +6,81 @@
 #include "log.h"
 
 
+static
+void add_to_active_list(Network_t net, connection_t pconn)
+{
+  pthread_rwlock_wrlock(&net->active.lck);
+
+  list_add(&pconn->active_item,&net->active.list);
+
+  pthread_rwlock_unlock(&net->active.lck);
+}
+
+static
+void remove_from_active_list(Network_t net, connection_t pconn)
+{
+  pthread_rwlock_wrlock(&net->active.lck);
+
+  list_del(&pconn->active_item);
+
+  pthread_rwlock_unlock(&net->active.lck);
+}
+
+static
+void init_active_list(Network_t net)
+{
+  pthread_rwlock_init(&net->active.lck,NULL);
+
+  // the active list
+  INIT_LIST_HEAD(&net->active.list);
+}
+
+static
+void release_active_list(Network_t net)
+{
+  pthread_rwlock_destroy(&net->active.lck);
+}
+
+int scan_timeout_connections(Network_t net, int tos)
+{
+  connection_t pos, n;
+  long long curr = time(NULL);
+
+
+  if (pthread_rwlock_tryrdlock(&net->active.lck)) 
+    return -1;
+
+  list_for_each_entry_safe(pos,n,&net->active.list,active_item) {
+
+    pthread_rwlock_unlock(&net->active.lck);
+
+    // check for timeout connection(s)
+    if ((curr-pos->last_active)>tos) {
+      log_debug("client %d is idle, force to disconnect\n",pos->fd);
+      pos->l5opt.close(net,pos);
+      pos->l4opt.close(net,pos);
+    }
+
+    if (pthread_rwlock_tryrdlock(&net->active.lck)) 
+      return -1;
+  }
+
+  pthread_rwlock_unlock(&net->active.lck);
+
+  return 0;
+}
+
+void update_connection_times(connection_t pconn)
+{
+  pconn->last_active = time(NULL);
+}
+
 int init_conn_pool(Network_t net, ssize_t pool_size)
 {
   connection_t pos,n ;
 
+
+  init_active_list(net);
 
   net->pool = create_obj_pool("normal-connection-pool",
                               pool_size,struct connection_s);
@@ -28,16 +99,22 @@ void release_conn_pool(Network_t net)
 {
   connection_t pos,n ;
 
+  if (!net || !net->pool) {
+    return ;
+  }
+
   list_for_each_objPool_item(pos,n,net->pool) {
     drop_dbuffer(pos->txb);
     drop_dbuffer(pos->rxb);
   }
 
   release_obj_pool(net->pool,struct connection_s);
+
+  release_active_list(net);
 }
 
 connection_t alloc_conn(Network_t net, int fd, proto_opt *l4opt,
-                        proto_opt *l5opt, bool bSSL)
+                        proto_opt *l5opt, bool bSSL, bool markActive)
 {
   connection_t pconn = obj_pool_alloc(net->pool,struct connection_s);
 
@@ -67,6 +144,12 @@ connection_t alloc_conn(Network_t net, int fd, proto_opt *l4opt,
 
   pconn->ssl = NULL;
 
+  pconn->last_active = 0;
+
+  if (markActive==true) {
+    add_to_active_list(net,pconn);
+  }
+
   if (bSSL) {
     pconn->ssl = ssl_init();
 
@@ -78,6 +161,8 @@ connection_t alloc_conn(Network_t net, int fd, proto_opt *l4opt,
 
 int free_conn(Network_t net, connection_t pconn)
 {
+  remove_from_active_list(net,pconn);
+
   pconn->is_close = 1;
 
   obj_pool_free(net->pool,pconn);
