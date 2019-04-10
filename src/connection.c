@@ -3,7 +3,10 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/socket.h>
 #include "log.h"
+
+
 
 
 static
@@ -41,11 +44,17 @@ void release_active_list(Network_t net)
   pthread_rwlock_destroy(&net->active.lck);
 }
 
-int scan_timeout_connections(Network_t net, int tos)
+int scan_timeout_conns(void *pnet, void *ptos)
 {
   connection_t pos, n;
   long long curr = time(NULL);
+  Network_t net = (Network_t)pnet;
+  const int tos = (int)(uintptr_t)ptos ;
+  static int sec = 0;
 
+
+  if (sec++ < tos)
+    return 0;
 
   if (pthread_rwlock_tryrdlock(&net->active.lck)) 
     return -1;
@@ -56,9 +65,8 @@ int scan_timeout_connections(Network_t net, int tos)
 
     // check for timeout connection(s)
     if ((curr-pos->last_active)>tos) {
-      log_debug("client %d is idle, force to disconnect\n",pos->fd);
-      pos->l5opt.close(net,pos);
-      pos->l4opt.close(net,pos);
+      shutdown(pos->fd,SHUT_RDWR);
+      log_debug("disconnect idle client %d\n",pos->fd);
     }
 
     if (pthread_rwlock_tryrdlock(&net->active.lck)) 
@@ -67,10 +75,12 @@ int scan_timeout_connections(Network_t net, int tos)
 
   pthread_rwlock_unlock(&net->active.lck);
 
+  sec = 0;
+
   return 0;
 }
 
-void update_connection_times(connection_t pconn)
+void update_conn_times(connection_t pconn)
 {
   pconn->last_active = time(NULL);
 }

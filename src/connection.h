@@ -79,8 +79,8 @@ extern connection_t alloc_conn(Network_t net, int fd, proto_opt *l4opt,
 
 extern int free_conn(Network_t net, connection_t pconn);
 
-extern int scan_timeout_connections(Network_t net, int tos);
+extern int scan_timeout_conns(void *pnet, void *ptos);
 
-extern void update_connection_times(connection_t pconn);
+extern void update_conn_times(connection_t pconn);
 
 #endif /* __CONNECTION_H__*/

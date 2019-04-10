@@ -9,6 +9,7 @@
 #include "L4.h"
 #include "log.h"
 #include "module.h"
+#include "timer.h"
 
 
 DECLARE_LOG;
@@ -32,10 +33,6 @@ struct __attribute__((__aligned__(64))) main_instance_s {
 
   size_t num_workers;
 
-  size_t log_flush_intv ;
-
-  int conn_timeout ;
-
   struct Network_s g_nets ;
 
   pthread_t idle_t ;
@@ -45,6 +42,8 @@ struct __attribute__((__aligned__(64))) main_instance_s {
   int use_log:1 ;
 
   int exit ;
+
+  struct simple_timer_entry_s timers ;
 } 
 g_inst =
 {
@@ -59,10 +58,6 @@ g_inst =
 
   .is_master      = 0,
 
-  .log_flush_intv = 10,
-
-  .conn_timeout   = 3600,
-
   .worker_stop    = 0,
 
   .use_log        = 0,
@@ -70,6 +65,40 @@ g_inst =
   .exit           = 0,
 };
 
+
+static int flush_log(void *unuse, void *ptimeouts);
+
+static 
+struct simple_timer_s g_log_flusher =
+{
+  .cb = flush_log,
+
+  .timeouts = 5,
+} ;
+
+static
+struct simple_timer_s g_active_conn_timer = 
+{
+  .cb = scan_timeout_conns,
+
+  .timeouts = 3600,
+} ;
+
+
+static int flush_log(void *unuse, void *ptimeouts)
+{
+  static int sec = 0;
+  int timeouts = (int)(uintptr_t)ptimeouts ;
+
+
+  if (sec++ >= timeouts) {
+    flush_logs();
+    sec = 0;
+    //printf("pid %d flushing logs...\n",getpid());
+  }
+
+  return 0;
+}
 
 connection_t add_to_event_poll(Network_t net, int fd, proto_opt *l4opt, 
                                proto_opt *l5opt, bool bSSL, bool markActive)
@@ -141,7 +170,6 @@ void* instance_event_loop()
 
     int nEvents = epoll_wait(net->m_efd,net->elist,MAXEVENTS,-1);
 
-
     for (int i=0;i<nEvents;i++) {
 
       connection_t pconn = (connection_t)(net->elist[i].data.ptr);
@@ -161,7 +189,7 @@ void* instance_event_loop()
             do_close(net,pconn);
             continue ;
           } 
-          update_connection_times(pconn);
+          update_conn_times(pconn);
         }   
         /* ready to send */
         if (event & EPOLLOUT) {
@@ -170,7 +198,7 @@ void* instance_event_loop()
             do_close(net,pconn);
             continue ;
           }
-          update_connection_times(pconn);
+          update_conn_times(pconn);
         }
       }
 
@@ -184,20 +212,9 @@ void* instance_event_loop()
 
 void* idle_task(void *arg)
 {
-  int sec = 0, conn_to = 0;
-
   while(!(g_inst.worker_stop&1)) {
 
-    if (sec++ >= g_inst.log_flush_intv) {
-      flush_logs();
-      sec = 0;
-      //printf("pid %d flushing logs...\n",getpid());
-    }
-
-    if (conn_to++ >= g_inst.conn_timeout) {
-      if (!scan_timeout_connections(&g_inst.g_nets,g_inst.conn_timeout))
-        conn_to = 0;
-    }
+    scan_simple_timer_list(&g_inst.timers,&g_inst.g_nets);
 
     sleep(1);
   }
@@ -211,8 +228,8 @@ void dump_instance_params()
   log_info("main param list: =================\n");
   log_info("name: %s\n",g_inst.name);
   log_info("num_workers: %zu\n",g_inst.num_workers);
-  log_info("log_flush_intv: %zu(s)\n",g_inst.log_flush_intv);
-  log_info("connection timeout: %d(s)\n",g_inst.conn_timeout);
+  log_info("log flush interval: %d(s)\n",g_log_flusher.timeouts);
+  log_info("connection timeout: %d(s)\n",g_active_conn_timer.timeouts);
   log_info("main param list ends =================\n");
 }
 
@@ -222,7 +239,7 @@ int parse_cmd_line(int argc, char *argv[])
   for (int i=1; i<argc; i++) {
     // log flush interval
     if (!strcmp(argv[i],"-mF")) {
-      g_inst.log_flush_intv = atoi(argv[i+1]);
+      g_log_flusher.timeouts = atoi(argv[i+1]);
     }
     // max workers count
     else if (!strcmp(argv[i],"-mW")) {
@@ -241,7 +258,7 @@ int parse_cmd_line(int argc, char *argv[])
     }
     // connection timeout
     else if (!strcmp(argv[i],"-cTo")) {
-      g_inst.conn_timeout = atoi(argv[i+1]);
+      g_active_conn_timer.timeouts = atoi(argv[i+1]);
     }
     else if (!strcmp(argv[i],"-h")) {
       printf("%s help message\n",argv[0]);
@@ -305,6 +322,11 @@ int instance_start(int argc, char *argv[])
   if (g_inst.is_master == 0) {
 
     log_debug("starting idle task\n");
+
+    // timers init
+    init_timer_entry(&g_inst.timers);
+    register_simple_timer(&g_inst.timers,&g_log_flusher);
+    register_simple_timer(&g_inst.timers,&g_active_conn_timer);
 
     pthread_create(&g_inst.idle_t,NULL,idle_task,NULL);
 
