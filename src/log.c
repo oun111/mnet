@@ -222,3 +222,18 @@ void update_log_pid(log_t log)
   log->pid = getpid();
 }
 
+int flush_log(void *unuse, void *ptimeouts)
+{
+  static int sec = 0;
+  int timeouts = (int)(uintptr_t)ptimeouts ;
+
+
+  if (sec++ >= timeouts) {
+    flush_logs();
+    sec = 0;
+    //printf("pid %d flushing logs...\n",getpid());
+  }
+
+  return 0;
+}
+

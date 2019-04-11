@@ -66,39 +66,26 @@ g_inst =
 };
 
 
-static int flush_log(void *unuse, void *ptimeouts);
-
 static 
 struct simple_timer_s g_log_flusher =
 {
+  .desc = "log flusher",
+
   .cb = flush_log,
 
   .timeouts = 5,
 } ;
 
 static
-struct simple_timer_s g_active_conn_timer = 
+struct simple_timer_s g_tos_conn_killer = 
 {
+  .desc = "timeout connection killer",
+
   .cb = scan_timeout_conns,
 
-  .timeouts = 3600,
+  .timeouts = 86400,
 } ;
 
-
-static int flush_log(void *unuse, void *ptimeouts)
-{
-  static int sec = 0;
-  int timeouts = (int)(uintptr_t)ptimeouts ;
-
-
-  if (sec++ >= timeouts) {
-    flush_logs();
-    sec = 0;
-    //printf("pid %d flushing logs...\n",getpid());
-  }
-
-  return 0;
-}
 
 connection_t add_to_event_poll(Network_t net, int fd, proto_opt *l4opt, 
                                proto_opt *l5opt, bool bSSL, bool markActive)
@@ -229,7 +216,7 @@ void dump_instance_params()
   log_info("name: %s\n",g_inst.name);
   log_info("num_workers: %zu\n",g_inst.num_workers);
   log_info("log flush interval: %d(s)\n",g_log_flusher.timeouts);
-  log_info("connection timeout: %d(s)\n",g_active_conn_timer.timeouts);
+  log_info("connection timeout: %d(s)\n",g_tos_conn_killer.timeouts);
   log_info("main param list ends =================\n");
 }
 
@@ -258,7 +245,7 @@ int parse_cmd_line(int argc, char *argv[])
     }
     // connection timeout
     else if (!strcmp(argv[i],"-cTo")) {
-      g_active_conn_timer.timeouts = atoi(argv[i+1]);
+      g_tos_conn_killer.timeouts = atoi(argv[i+1]);
     }
     else if (!strcmp(argv[i],"-h")) {
       printf("%s help message\n",argv[0]);
@@ -326,7 +313,7 @@ int instance_start(int argc, char *argv[])
     // timers init
     init_timer_entry(&g_inst.timers);
     register_simple_timer(&g_inst.timers,&g_log_flusher);
-    register_simple_timer(&g_inst.timers,&g_active_conn_timer);
+    register_simple_timer(&g_inst.timers,&g_tos_conn_killer);
 
     pthread_create(&g_inst.idle_t,NULL,idle_task,NULL);
 

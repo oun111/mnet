@@ -55,6 +55,8 @@ int do_flush_log(FILE *fd);
 extern
 void update_log_pid(log_t log);
 
+extern 
+int flush_log(void *unuse, void *ptimeouts);
 
 enum log_type {
   l_dbg,

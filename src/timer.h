@@ -9,7 +9,7 @@ typedef int(*simple_timer_func)(void*,void*);
 
 struct simple_timer_s {
 
-  char desc[32];
+  char *desc;
 
   simple_timer_func cb ;
 
