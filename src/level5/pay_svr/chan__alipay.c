@@ -61,8 +61,7 @@ static struct http_action_s action__alipay_order;
 static
 int alipay_tx(Network_t net, connection_t pconn)
 {
-  pconn->l4opt.tx(net,pconn);
-  return 0;
+  return pconn->l4opt.tx(net,pconn);
 }
 
 static
@@ -254,20 +253,11 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
     return -1;
   }
 
-#if 1
   ret_url = get_tree_map_value(user_params,RETURL);
   if (!ret_url) {
     FORMAT_ERR(errbuf,"no '%s' found\n",RETURL);
     return -1;
   }
-#else
-  ret_url = get_tree_map_value(pay_params,RETURL);
-  if (!ret_url) {
-    FORMAT_ERR(errbuf,"no '%s' found\n",RETURL);
-    return -1;
-  }
-#endif
-
 
   // user out_trade_no to be alipay request order id
   out_trade_no = get_tree_map_value(user_params,OTNO);
@@ -533,7 +523,7 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   mch_id = get_tree_map_value(user_params,MCHID);
   if (!mch_id || !(pm=get_merchant(pme,mch_id))) {
     FORMAT_ERR(errbuf,"no such merchant '%s'\n",mch_id);
-    return 0;
+    goto __done ;
   }
 
   reason = alloc_default_dbuffer();
@@ -551,7 +541,7 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
 
   if (!url) {
     FORMAT_ERR(errbuf,"no 'url' configs\n");
-    return -1;
+    goto __done ;
   }
 
   pay_data = new_tree_map();
@@ -586,17 +576,23 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   }
 #endif
 
-  if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
-    alipay_tx(net,out_conn);
-  }
-
   log_debug("user out trade no '%s' done!\n",tno);
 
   ret = 0;
 
 __done:
-  delete_tree_map(pay_data);
-  drop_dbuffer(reason);
+
+  if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
+    if (!alipay_tx(net,out_conn))
+      close(out_conn->fd);
+    else 
+      log_error("send later by %d\n",out_conn->fd);
+  }
+
+  if (pay_data)
+    delete_tree_map(pay_data);
+  if (reason)
+    drop_dbuffer(reason);
 
   return ret;
 }
@@ -732,25 +728,21 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   // send a feed back to ALI
   create_http_normal_res(&pconn->txb,pt_html,alipay_notify_res);
 
+  if (!pconn->ssl || pconn->ssl->state==s_ok) {
+    if (!alipay_tx(net,pconn))
+      close(pconn->fd);
+    else 
+      log_error("send later by %d\n",pconn->fd);
+  }
+
   if (!tno) {
     log_error("no 'out_trade_no' field found\n");
     return -1;
   }
 
-#if 0
-  po = get_order(pe,tno);
-  if (!po) {
-    rel = true ;
-    if (!(po=get_rds_order(pre,mcfg->order_table,tno,false))) {
-      log_error("found no order info by id '%s'\n",tno);
-      return -1;
-    }
-  }
-#else
   po = get_order_by_otn(tno,NULL,&rel);
   if (!po)
     goto __done ;
-#endif
 
   if (!(pm=get_merchant(pme,po->mch.no))) {
     log_error("no such merchant '%s'\n",po->mch.no);
@@ -841,38 +833,17 @@ int do_alipay_query(Network_t net,connection_t pconn,tree_map_t user_params)
   ptr = get_tree_map_value(user_params,MCHID);
   if (!ptr || !(pm=get_merchant(pme,ptr))) {
     FORMAT_ERR(errbuf,"no such merchant '%s'\n",ptr);
-    return 0;
+    goto __done ;
   }
 
   if (!tno) {
     FORMAT_ERR(errbuf,"no 'out_trade_no' field supplied!\n");
-    return -1;
+    goto __done ;
   }
 
-#if 0
-  po = get_order_by_outTradeNo(pe,tno);
-  if (!po) {
-    // try query redis cache
-    dbuffer_t orderid = alloc_default_dbuffer();
-    if (get_rds_order_index(pre,mcfg->order_table,tno,&orderid) || 
-        !(po = get_rds_order(pre,mcfg->order_table,orderid,false))) {
-      FORMAT_ERR(errbuf,"found no order info by out_trade_no '%s'!\n",tno);
-      ret = -2;
-    }
-    else {
-      bRel = true ;
-    }
-
-    drop_dbuffer(orderid);
-
-    if (ret==-2)
-      goto __done ;
-  }
-#else
   po = get_order_by_otn(tno,errbuf,&bRel);
   if (!po) 
     goto __done ;
-#endif
 
   ptr = get_tree_map_value(pm->mch_info,PARAM_TYPE);
   if (ptr) {
@@ -891,13 +862,17 @@ int do_alipay_query(Network_t net,connection_t pconn,tree_map_t user_params)
   create_http_normal_res2(&pconn->txb,param_type,qry_res);
   delete_tree_map(qry_res);
 
-  if (!pconn->ssl || pconn->ssl->state==s_ok) {
-    alipay_tx(net,pconn);
-  }
-
   ret = 0;
 
 __done:
+
+  if (!pconn->ssl || pconn->ssl->state==s_ok) {
+    if (!alipay_tx(net,pconn))
+      close(pconn->fd);
+    else 
+      log_error("send later by %d\n",pconn->fd);
+  }
+
   if (bRel)
     release_rds_order(pre,po);
 

@@ -79,10 +79,16 @@ create_backend(backend_entry_t entry, int fd, int no, const char *addr,
   p->fd  = fd ;
   p->no  = no ;
 
+#if 0
   p->schema = write_dbuffer(p->schema,(char*)sch,strlen(sch));
   p->schema[strlen(sch)] = '\0';
   p->usr = write_dbuffer(p->usr,(char*)usr,strlen(usr));
   p->pwd = write_dbuffer(p->pwd,(char*)pwd,strlen(pwd));
+#else
+  write_dbuf_str(p->schema,sch);
+  write_dbuf_str(p->usr,usr);
+  write_dbuf_str(p->pwd,pwd);
+#endif
 
   strncpy(p->addr,addr,sizeof(p->addr)) ;
   p->port = port ;

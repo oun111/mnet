@@ -12,10 +12,10 @@ script,opt = argv
 
 
 logFlushInterval = 5
-connTimeout = 3
-numWorkers = 0  #cpu_count()
-#logToFile = "-L /tmp/"
-logToFile = ""
+connTimeout = 3600*24
+numWorkers = 0 #cpu_count()*2
+logToFile = "-L /tmp/"
+#logToFile = ""
 numSyncds = 1
 
 
