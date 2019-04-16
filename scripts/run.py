@@ -13,10 +13,10 @@ script,opt = argv
 
 logFlushInterval = 5
 connTimeout = 3600*24
-numWorkers = 0 #cpu_count()*2
-logToFile = "-L /tmp/"
+numWorkers = cpu_count()
+logToFile = "-L /home/user1/work/mnet/logs/"
 #logToFile = ""
-numSyncds = 1
+numSyncds = numWorkers  #1
 
 
 if opt=="0" or opt=="1":

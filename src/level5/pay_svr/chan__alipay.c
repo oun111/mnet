@@ -50,10 +50,16 @@ struct alipay_data_s {
 
   struct auto_id_s aid ;
 
+  struct rds_order_entry_s m_rOrders ;
+
+  struct myredis_s m_rds ;
+
 } g_alipayData  ;
 
 
 static int alipay_init(Network_t net);
+
+static void alipay_release();
 
 static struct http_action_s action__alipay_order;
 
@@ -69,7 +75,7 @@ int process_notify2user_resp(connection_t pconn, void *data, dbuffer_t resp,
                              size_t sz)
 {
   char *body = get_http_body_ptr(resp,sz);
-  rds_order_entry_t pre = get_rds_order_entry();
+  rds_order_entry_t pre = &g_alipayData.m_rOrders;
   paySvr_config_t pc = get_running_configs();
   mysql_conf_t mcfg = get_mysql_configs(pc);
   order_info_t po = data;
@@ -147,11 +153,6 @@ int alipay_rx(Network_t net, connection_t pconn)
   }
 
   return 0;
-}
-
-static
-void alipay_release()
-{
 }
 
 struct module_struct_s g_alipay_mod = {
@@ -437,7 +438,7 @@ static
 int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params)
 {
   order_entry_t pe = get_order_entry();
-  rds_order_entry_t pre = get_rds_order_entry();
+  rds_order_entry_t pre = &g_alipayData.m_rOrders;
   char *pOdrId = aid_fetch(&g_alipayData.aid);
   char *mch_no = get_tree_map_value(user_params,MCHID);
   char *nurl = get_tree_map_value(user_params,NURL);
@@ -661,7 +662,7 @@ order_info_t get_order_by_otn(const char *tno, dbuffer_t *errbuf, bool *bRel)
 {
   paySvr_config_t pc = get_running_configs();
   mysql_conf_t mcfg = get_mysql_configs(pc);
-  rds_order_entry_t pre = get_rds_order_entry();
+  rds_order_entry_t pre = &g_alipayData.m_rOrders;
   order_entry_t pe = get_order_entry();
   order_info_t po = get_order_by_outTradeNo(pe,(char*)tno);
 
@@ -694,7 +695,7 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   const char *alipay_notify_res = "success";
   char *tno = get_tree_map_value(user_params,OTNO);
   //order_entry_t pe = get_order_entry();
-  rds_order_entry_t pre = get_rds_order_entry();
+  rds_order_entry_t pre = &g_alipayData.m_rOrders;
   paySvr_config_t pc = get_running_configs();
   mysql_conf_t mcfg = get_mysql_configs(pc);
   pay_channels_entry_t pce = get_pay_channels_entry() ;
@@ -813,10 +814,7 @@ static
 int do_alipay_query(Network_t net,connection_t pconn,tree_map_t user_params)
 {
   char *tno = get_tree_map_value(user_params,OTNO);
-  //order_entry_t pe = get_order_entry();
-  rds_order_entry_t pre = get_rds_order_entry();
-  //paySvr_config_t pc = get_running_configs();
-  //mysql_conf_t mcfg = get_mysql_configs(pc);
+  rds_order_entry_t pre = &g_alipayData.m_rOrders;
   order_info_t po = 0;
   tree_map_t qry_res = 0;
   char tmp[64] = "", *ptr = 0;
@@ -911,10 +909,24 @@ static
 int alipay_init(Network_t net)
 {
   http_action_entry_t pe = get_http_action_entry();
-  myredis_t rds = get_myredis();
+  struct myredis_config_s rconf ;
+  paySvr_config_t pc = get_running_configs();
   
 
-  aid_init(&g_alipayData.aid,"alp",rds->ctx);
+  if (!get_myredis_configs(pc,&rconf)) {
+
+    // init current module's redis connection
+    int ret = myredis_init(&g_alipayData.m_rds, rconf.host,
+                           rconf.port, rconf.cfg_cache);
+    log_info("connect to redis %s:%d ... %s\n",
+             rconf.host, rconf.port, ret?"fail!":"ok!");
+
+    // redis order cache
+    init_rds_order_entry(&g_alipayData.m_rOrders,g_alipayData.m_rds.ctx,rconf.order_cache);
+
+    // auto id
+    aid_init(&g_alipayData.aid,"alp",g_alipayData.m_rds.ctx);
+  }
 
   add_http_action(pe,&action__alipay_order);
   add_http_action(pe,&action__alipay_notify);
@@ -923,6 +935,16 @@ int alipay_init(Network_t net)
   // TODO: create the 'push messages rx' thread here, 
   //  use to update configs dynamically
 
+  log_info("init done!");
+
   return 0;
+}
+
+static
+void alipay_release()
+{
+  release_all_rds_orders(&g_alipayData.m_rOrders);
+
+  myredis_release(&g_alipayData.m_rds);
 }
 

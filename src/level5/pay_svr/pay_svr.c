@@ -31,10 +31,6 @@ struct pay_svr_data {
 
   struct merchant_entry_s m_merchant ;
 
-  struct myredis_s m_rds ;
-
-  struct rds_order_entry_s m_rOrders ;
-
 } g_paySvrData ;
 
 
@@ -62,16 +58,6 @@ order_entry_t get_order_entry()
 merchant_entry_t get_merchant_entry()
 {
   return &g_paySvrData.m_merchant ;
-}
-
-myredis_t get_myredis()
-{
-  return &g_paySvrData.m_rds ;
-}
-
-rds_order_entry_t get_rds_order_entry()
-{
-  return &g_paySvrData.m_rOrders;
 }
 
 static
@@ -120,14 +106,14 @@ get_remote_configs(myredis_t rds, char *tbl, char *key, dbuffer_t *res)
   return 0;
 }
 
-int init_config2(myredis_conf_t rconf)
+int init_config2(myredis_t p_rds, myredis_conf_t rconf)
 {
   dbuffer_t chan_res = 0, mch_res = 0, rc_res = 0;
   int ret = 0;
 
 
   // try read configs from redis
-  if (is_myredis_ok(&g_paySvrData.m_rds)==true) {
+  if (is_myredis_ok(p_rds)==true) {
     mysql_conf_t mscfg = get_mysql_configs(&g_paySvrData.m_conf);
 
 
@@ -135,13 +121,13 @@ int init_config2(myredis_conf_t rconf)
              rconf->host, rconf->port, rconf->cfg_cache);
 
     // channels'
-    get_remote_configs(&g_paySvrData.m_rds,mscfg->alipay_conf_table,"",&chan_res);
+    get_remote_configs(p_rds,mscfg->alipay_conf_table,"",&chan_res);
 
     // merchants'
-    get_remote_configs(&g_paySvrData.m_rds,mscfg->mch_conf_table,"",&mch_res);
+    get_remote_configs(p_rds,mscfg->mch_conf_table,"",&mch_res);
 
     // risk control
-    get_remote_configs(&g_paySvrData.m_rds,mscfg->rc_conf_table,"",&rc_res);
+    get_remote_configs(p_rds,mscfg->rc_conf_table,"",&rc_res);
   }
   else {
     log_info("connect to redis %s:%d - %s fail, try read local configs\n",
@@ -174,6 +160,7 @@ void pay_svr_module_init(int argc, char *argv[])
   char host[32] = "" ;
   int port = 0, notify_port = 0, ret = 0, maxOdrs = 0;
   struct myredis_config_s rconf ;
+  struct myredis_s m_rds ;
 
 
   if (parse_cmd_line(argc,argv))
@@ -192,15 +179,18 @@ void pay_svr_module_init(int argc, char *argv[])
   // redis params
   if (!get_myredis_configs(&g_paySvrData.m_conf,&rconf)) {
 
-    ret = myredis_init(&g_paySvrData.m_rds, rconf.host,
-                       rconf.port, rconf.cfg_cache);
+    ret = myredis_init(&m_rds, rconf.host, rconf.port, 
+                       rconf.cfg_cache);
     log_info("connect to redis %s:%d ... %s\n",
              rconf.host, rconf.port, ret?"fail!":"ok!");
   }
 
-  if (init_config2(&rconf)) {
+  ret = init_config2(&m_rds,&rconf) ;
+
+  myredis_release(&m_rds);
+
+  if (ret)
     return ;
-  }
 
   init_backend_entry(&g_paySvrData.m_backends,-1);
 
@@ -208,20 +198,16 @@ void pay_svr_module_init(int argc, char *argv[])
 
   init_order_entry(&g_paySvrData.m_orders,/*-1*/maxOdrs);
 
-  init_rds_order_entry(&g_paySvrData.m_rOrders,g_paySvrData.m_rds.ctx,
-                       rconf.order_cache);
-
   register_extra_modules();
 
   // FIXME: when I make test_crypto() call HERE,
   //  the app would crash, and if at the begining
   //  of this function it runs OK, I don't know why
+
 }
 
 void pay_svr_module_exit()
 {
-  release_all_rds_orders(&g_paySvrData.m_rOrders);
-
   release_all_orders(&g_paySvrData.m_orders);
 
   delete_pay_channels_entry(g_paySvrData.m_paych);
@@ -229,8 +215,6 @@ void pay_svr_module_exit()
   release_all_backends(&g_paySvrData.m_backends);
 
   release_all_merchants(&g_paySvrData.m_merchant);
-
-  myredis_release(&g_paySvrData.m_rds);
 
   __http_svr_exit();
 

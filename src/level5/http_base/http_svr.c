@@ -46,8 +46,6 @@ struct http_svr_conf {
 
 static int http_svr_init(Network_t net);
 
-static int http_svr_notify_init(Network_t net);
-
 
 http_action_entry_t get_http_action_entry()
 {
@@ -95,7 +93,7 @@ int http_svr_do_get(Network_t net, connection_t pconn,
 {
   char action[256] = "";
   size_t ln = 0L ;
-  char body[256] = "";
+  char body[/*256*/4096] = "";
 
 
   /* 

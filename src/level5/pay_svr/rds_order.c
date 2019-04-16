@@ -275,6 +275,10 @@ int release_all_rds_orders(rds_order_entry_t entry)
 {
   rds_order_t pos,n;
 
+
+  if (!entry || !entry->pool)
+    return -1;
+
   list_for_each_objPool_item(pos,n,entry->pool) {
     drop_dbuffer(pos->mch.out_trade_no);
 
