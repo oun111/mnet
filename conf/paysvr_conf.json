@@ -25,10 +25,16 @@
 
   "riskControl" : [
     {
-      "channel": "alipay",
-      "max_orders" : "2",
-      "max_amount" : "20.0",
-      "period"     : "60"
+      "rcid": "alp_001",
+      "max_orders" : 2,
+      "max_amount" : 20.0,
+      "period"     : 60
+    },
+    {
+      "rcid": "alp_002",
+      "max_orders" : 100,
+      "max_amount" : 888.0,
+      "period"     : 3600
     }
     ],
 
@@ -50,7 +56,8 @@
         "version": "1.0",
         "notify_url": "http://127.0.0.1:1366/alipay/notify",
         "return_url": "http://127.0.0.1/return/index",
-        "is_online" : 0
+        "is_online" : 0,
+        "rcid" : "alp_001"
       },
 
       {
@@ -68,7 +75,8 @@
         "version": "1.0",
         "notify_url": "http://127.0.0.1:1366/alipay/notify",
         "return_url": "http://127.0.0.1/return/index",
-        "is_online" : 0
+        "is_online" : 0,
+        "rcid" : "alp_001"
       }
     ],
 
