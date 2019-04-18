@@ -406,7 +406,7 @@ int jsons_lex_read(char *s, dbuffer_t *tkn, int pos)
     if (p>=strlen(s))
       return p;
     *tkn = write_dbuffer_string(*tkn,s+p0,(p-p0));
-    return p+1 ;
+    return p/*+1*/ ;
   }
 
   return -1;
