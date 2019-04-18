@@ -86,6 +86,39 @@ pay_channel_t new_pay_channel(const char *chan)
   return pc ;
 }
 
+static int get_rc_paras(tree_map_t rc_cfg, struct risk_control_s *rcp, dbuffer_t *reason)
+{
+  char *tmp = 0, *rcid = 0;
+#define FETCH_RC_KEY(rck,__rc_cfg,tmp,r) do{ \
+  char msg[256] = ""; \
+  tmp = get_tree_map_value(__rc_cfg,rck) ;\
+  if (!tmp) { \
+    snprintf(msg,sizeof(msg),"risk control keyword '%s' not found",rck); \
+    log_error("%s\n",msg);  \
+    if (r) write_dbuf_str(r,msg); \
+    return -1 ; \
+  } \
+}while(0)
+
+  FETCH_RC_KEY("rcid",rc_cfg,rcid,*reason);
+
+  FETCH_RC_KEY("max_orders",rc_cfg,tmp,*reason);
+  rcp->max_orders = atoi(tmp);
+
+  // max amount 
+  FETCH_RC_KEY("max_amount",rc_cfg,tmp,*reason) ;
+  rcp->max_amount = atof(tmp);
+
+  // period
+  FETCH_RC_KEY("period",rc_cfg,tmp,*reason) ;
+  rcp->period = atol(tmp);
+
+  log_info("rcid: %s, max_orders: %d, max_amount: %f, period: %lld\n",
+      rcid, rcp->max_orders, rcp->max_amount, rcp->period);
+
+  return 0;
+}
+
 pay_data_t 
 add_pay_data(pay_channels_entry_t entry, const char *chan, 
              const char *subname, tree_map_t params)
@@ -93,6 +126,7 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
   char *pv = 0;
   pay_channel_t pc = get_pay_channel(entry,chan);
   pay_data_t p = NULL;
+  char *rcid = 0;
 
 
   if (!pc) {
@@ -118,9 +152,27 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
     p->rc.max_amount = 0.0;
     p->rc.max_orders = 0;
     p->rc.time = 0L;
+    p->cfg_rc.max_amount = 0.0;
+    p->cfg_rc.max_orders = 0;
+    p->cfg_rc.time = 0L;
 
     INIT_LIST_HEAD(&p->upper); 
     list_add(&p->upper,&pc->pay_data_list);
+  }
+
+  // update risk control configs
+  rcid = get_tree_map_value(p->pay_params,"rcid");
+  if (rcid) {
+    extern paySvr_config_t get_running_configs();
+    paySvr_config_t conf = get_running_configs();
+    tree_map_t rc_cfg = get_rc_conf_by_rcid(conf,rcid);
+
+    if (rc_cfg) {
+      get_rc_paras(rc_cfg,&p->cfg_rc,NULL);
+    }
+    else {
+      log_error("found no risk control configs for rcid: %s\n", rcid);
+    }
   }
 
   pv = (char*)subname ;
@@ -188,47 +240,14 @@ void update_paydata_rc_arguments(pay_data_t pd, double amount)
   pd->rc.max_orders ++ ;
 }
 
-static int get_rc_paras(tree_map_t rc_cfg, struct risk_control_s *rcp, dbuffer_t *reason)
-{
-  char *tmp = 0;
-#define FETCH_RC_KEY(rck,__rc_cfg,tmp,r) do{ \
-  char msg[256] = ""; \
-  tmp = get_tree_map_value(__rc_cfg,rck) ;\
-  if (!tmp) { \
-    snprintf(msg,sizeof(msg),"risk control keyword '%s' not found",rck); \
-    log_error("%s\n",msg);  \
-    write_dbuf_str(r,msg); \
-    return -1 ; \
-  } \
-}while(0)
-
-
-  FETCH_RC_KEY("max_orders",rc_cfg,tmp,*reason);
-  rcp->max_orders = atoi(tmp);
-
-  // max amount 
-  FETCH_RC_KEY("max_amount",rc_cfg,tmp,*reason) ;
-  rcp->max_amount = atof(tmp);
-
-  // period
-  FETCH_RC_KEY("period",rc_cfg,tmp,*reason) ;
-  rcp->period = atol(tmp);
-
-  log_debug("max_orders: %d, max_amount: %f, period: %lld\n",
-      rcp->max_orders, rcp->max_amount, rcp->period);
-
-  return 0;
-}
-
 pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t *reason)
 {
-  extern paySvr_config_t get_running_configs();
-  paySvr_config_t conf = get_running_configs();
+  //extern paySvr_config_t get_running_configs();
+  //paySvr_config_t conf = get_running_configs();
   pay_channel_t pc  = get_pay_channel(entry,chan);
-  // get channel related risk control configs
-  tree_map_t rc_cfg = get_rc_conf_by_channel(conf,chan);
+  //tree_map_t rc_cfg = get_rc_conf_by_channel(conf,chan);
   pay_data_t pos ;
-  struct risk_control_s rc_cfg_paras ;
+  //struct risk_control_s rc_cfg_paras ;
   char msg[256] = "";
 
 
@@ -239,21 +258,25 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
     return NULL ;
   }
 
+#if 0
   if (!rc_cfg) {
     snprintf(msg,sizeof(msg),"no risk control params for channel '%s'",chan);
     log_error("%s\n",msg);
     write_dbuf_str(*reason,msg);
     return NULL ;
   }
+#endif
 
   // risk control timestamp
   struct timespec ts ;
   clock_gettime(CLOCK_REALTIME,&ts);
 
+#if 0
   // risk control arguments
   if (get_rc_paras(rc_cfg,&rc_cfg_paras,reason)) {
     return NULL;
   }
+#endif
 
 
   // get best pay route
@@ -264,19 +287,20 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
     if (!ol || *ol=='0')
       continue ;
 
-    if (pos->rc.time==0L || (ts.tv_sec-pos->rc.time)>rc_cfg_paras.period) {
+    if (pos->rc.time==0L || (ts.tv_sec-pos->rc.time)>pos->cfg_rc.period) {
       pos->rc.time = ts.tv_sec;
       pos->rc.max_orders = 0;
       pos->rc.max_amount = 0.0;
     }
+    log_debug("config rc: %lld, %d, %f\n",pos->cfg_rc.period,pos->cfg_rc.max_orders,pos->cfg_rc.max_amount);
     log_debug("current rc: %ld, %d, %f\n",pos->rc.time,pos->rc.max_orders,pos->rc.max_amount);
 
-    if ((ts.tv_sec-pos->rc.time)<rc_cfg_paras.period) {
+    if ((ts.tv_sec-pos->rc.time)<pos->cfg_rc.period) {
       // 
-      if (pos->rc.max_orders>=rc_cfg_paras.max_orders)
+      if (pos->rc.max_orders>=pos->cfg_rc.max_orders)
         continue ;
 
-      if (pos->rc.max_amount>=rc_cfg_paras.max_amount)
+      if (pos->rc.max_amount>=pos->cfg_rc.max_amount)
         continue ;
     }
 
@@ -315,7 +339,7 @@ int init_pay_data(pay_channels_entry_t *paych)
 
     rbtree_postorder_for_each_entry_safe(pos1,n1,&chansub->u.root,node) {
       add_pay_data(*paych,pos->key,pos1->key,pos1->nest_map);
-      log_debug("adding channel '%s - %s'\n",pos->key,pos1->key);
+      log_info("adding channel '%s - %s'\n",pos->key,pos1->key);
     }
   }
 

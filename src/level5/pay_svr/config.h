@@ -62,6 +62,8 @@ extern int process_rc_configs(paySvr_config_t conf, dbuffer_t);
 
 extern tree_map_t get_rc_conf_by_channel(paySvr_config_t conf, const char *chan);
 
+extern tree_map_t get_rc_conf_by_rcid(paySvr_config_t conf, const char *rcid);
+
 extern int init_config(paySvr_config_t conf, const char *infile);
 
 extern int free_config(paySvr_config_t conf);

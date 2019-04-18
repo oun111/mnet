@@ -271,24 +271,6 @@ int process_mysql_configs(paySvr_config_t conf)
   return 0;
 }
 
-#if 0
-static
-int process_risk_control_configs(paySvr_config_t conf)
-{
-  const char *pstr = g_confKW.riskCtl ;
-  jsonKV_t *pr = jsons_find(conf->m_root,pstr);
-
-  if (!pr) {
-    log_error("entry '%s' not found\n",pstr);
-    return -1;
-  }
-
-  conf->rc_conf = jsons_to_treemap(pr);
-
-  return 0;
-}
-#endif
-
 tree_map_t get_rc_conf_by_channel(paySvr_config_t conf, const char *chan)
 {
   tm_item_t pos,n;
@@ -303,6 +285,26 @@ tree_map_t get_rc_conf_by_channel(paySvr_config_t conf, const char *chan)
 
     //dump_tree_map(rc_map);
     if (rcname && !strcasecmp(chan,rcname))
+      return rc_map ;
+  }
+
+  return NULL;
+}
+
+tree_map_t get_rc_conf_by_rcid(paySvr_config_t conf, const char *rcid)
+{
+  tm_item_t pos,n;
+  tree_map_t rc_cfg = get_tree_map_nest(conf->rc_conf,(char*)g_confKW.riskCtl);
+
+  if (!rc_cfg)
+    return NULL ;
+
+  rbtree_postorder_for_each_entry_safe(pos,n,&rc_cfg->u.root,node) {
+    tree_map_t rc_map = pos->nest_map;
+    const char *rcname = get_tree_map_value(rc_map,"rcid") ;
+
+    //dump_tree_map(rc_map);
+    if (rcname && !strcasecmp(rcid,rcname))
       return rc_map ;
   }
 
