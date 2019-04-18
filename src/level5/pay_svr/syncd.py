@@ -525,19 +525,20 @@ def init_log(logpath):
     logger.setLevel(logging.DEBUG)
 
     #fh = logging.FileHandler("/tmp/syncd.log")
-    fh = logging.handlers.TimedRotatingFileHandler((logpath+"/"+"syncd.log"),when='D')
-    fh.suffix = "%Y-%m-%d.log"
-    fh.setLevel(logging.DEBUG)
-
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
 
     formatter = logging.Formatter('%(asctime)s - %(module)s(%(process)d)%(funcName)s.%(lineno)d - %(levelname)s - %(message)s')
-    fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
 
-    logger.addHandler(fh)
-    logger.addHandler(ch)
+    if (len(logpath)>0):
+      fh = logging.handlers.TimedRotatingFileHandler((logpath+"/"+"syncd.log"),when='D')
+      fh.suffix = "%Y-%m-%d.log"
+      fh.setLevel(logging.DEBUG)
+      fh.setFormatter(formatter)
+      logger.addHandler(fh)
+    else:
+      ch = logging.StreamHandler()
+      ch.setLevel(logging.DEBUG)
+      ch.setFormatter(formatter)
+      logger.addHandler(ch)
 
     return logger
 
@@ -549,7 +550,7 @@ def main():
   val = ""
   cfg = ""
   cont = ""
-  logpath = "/tmp/"
+  logpath = ""
   opts, args = getopt.getopt(sys.argv[1:], "hc:t:k:v:L:")
 
   for a,opt in opts:
