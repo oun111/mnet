@@ -170,7 +170,8 @@ ssize_t http_svr_rx_raw(Network_t net, connection_t pconn)
   szhdr = get_http_hdr_size(b,sz_in);
   // not enough data
   if (szhdr==0L) {
-    log_error("no header size\n");
+    log_error("no header size(sz_in: %zu)\n",sz_in);
+    log_error("rx: %s\n",b)
     return -1;
   }
 
