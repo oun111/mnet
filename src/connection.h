@@ -41,6 +41,10 @@ struct __attribute__((__aligned__(64))) connection_s {
 } ;
 
 
+typedef int(*try_lock_active)(Network_t);
+typedef void(*lock_active)(Network_t);
+typedef void(*unlock_active)(Network_t);
+
 
 struct __attribute__((__aligned__(64))) Network_s {
 
@@ -53,7 +57,12 @@ struct __attribute__((__aligned__(64))) Network_s {
 
   struct active_conn_s {
     struct list_head list ;
-    pthread_rwlock_t lck ;
+    //pthread_rwlock_t lck ;
+    pthread_mutex_t lck ;
+
+    try_lock_active try_lock;
+    lock_active lock;
+    unlock_active unlock;
   } active ;
 
   connection_t (*reg_local)(Network_t,int fd,int mod_id);

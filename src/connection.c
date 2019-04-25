@@ -7,32 +7,69 @@
 #include "log.h"
 
 
+static void init_active_lock(Network_t net)
+{
+  //pthread_rwlock_init(&net->active.lck,NULL);
 
+  pthread_mutex_init(&net->active.lck,NULL);
+}
+
+static void release_active_lock(Network_t net)
+{
+  //pthread_rwlock_destroy(&net->active.lck);
+
+  pthread_mutex_destroy(&net->active.lck);
+}
+
+static int try_lock_active_conn(Network_t net)
+{
+  //return pthread_rwlock_trywrlock(&net->active.lck); 
+
+  return pthread_mutex_trylock(&net->active.lck); 
+}
+
+static void lock_active_conn(Network_t net)
+{
+  //pthread_rwlock_wrlock(&net->active.lck);
+
+  pthread_mutex_lock(&net->active.lck);
+}
+
+static void unlock_active_conn(Network_t net)
+{
+  //pthread_rwlock_unlock(&net->active.lck);
+
+  pthread_mutex_unlock(&net->active.lck);
+}
 
 static
 void add_to_active_list(Network_t net, connection_t pconn)
 {
-  pthread_rwlock_wrlock(&net->active.lck);
+  net->active.lock(net);
 
   list_add(&pconn->active_item,&net->active.list);
 
-  pthread_rwlock_unlock(&net->active.lck);
+  net->active.unlock(net);
 }
 
 static
 void remove_from_active_list(Network_t net, connection_t pconn)
 {
-  pthread_rwlock_wrlock(&net->active.lck);
+  net->active.lock(net);
 
   list_del(&pconn->active_item);
 
-  pthread_rwlock_unlock(&net->active.lck);
+  net->active.unlock(net);
 }
 
 static
 void init_active_list(Network_t net)
 {
-  pthread_rwlock_init(&net->active.lck,NULL);
+  init_active_lock(net);
+
+  net->active.try_lock= try_lock_active_conn ;
+  net->active.lock    = lock_active_conn ;
+  net->active.unlock  = unlock_active_conn ;
 
   // the active list
   INIT_LIST_HEAD(&net->active.list);
@@ -41,12 +78,12 @@ void init_active_list(Network_t net)
 static
 void release_active_list(Network_t net)
 {
-  pthread_rwlock_destroy(&net->active.lck);
+  release_active_lock(net);
 }
 
 int scan_timeout_conns(void *pnet, void *ptos)
 {
-  connection_t pos, n;
+  connection_t pos,n ;
   long long curr = time(NULL);
   Network_t net = (Network_t)pnet;
   const int tos = (int)(uintptr_t)ptos ;
@@ -56,24 +93,23 @@ int scan_timeout_conns(void *pnet, void *ptos)
   if (sec++ < tos)
     return 0;
 
-  if (pthread_rwlock_tryrdlock(&net->active.lck)) 
+  if (net->active.try_lock(net)) 
     return -1;
 
   list_for_each_entry_safe(pos,n,&net->active.list,active_item) {
 
-    pthread_rwlock_unlock(&net->active.lck);
-
-    // check for timeout connection(s)
     if ((curr-pos->last_active)>tos) {
       shutdown(pos->fd,SHUT_RDWR);
-      log_debug("disconnect idle client %d\n",pos->fd);
+      continue;
     }
 
-    if (pthread_rwlock_tryrdlock(&net->active.lck)) 
+    net->active.unlock(net);
+
+    if (net->active.try_lock(net)) 
       return -1;
   }
 
-  pthread_rwlock_unlock(&net->active.lck);
+  net->active.unlock(net);
 
   sec = 0;
 
@@ -155,6 +191,9 @@ connection_t alloc_conn(Network_t net, int fd, proto_opt *l4opt,
   pconn->ssl = NULL;
 
   pconn->last_active = 0;
+
+  reset_dbuffer(pconn->txb);
+  reset_dbuffer(pconn->rxb);
 
   if (markActive==true) {
     add_to_active_list(net,pconn);

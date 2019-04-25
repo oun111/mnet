@@ -313,7 +313,7 @@ int instance_start(int argc, char *argv[])
     // timers init
     init_timer_entry(&g_inst.timers);
     register_simple_timer(&g_inst.timers,&g_log_flusher);
-    //register_simple_timer(&g_inst.timers,&g_tos_conn_killer);
+    register_simple_timer(&g_inst.timers,&g_tos_conn_killer);
 
     pthread_create(&g_inst.idle_t,NULL,idle_task,NULL);
 
