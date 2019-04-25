@@ -281,6 +281,18 @@ off_t dbuffer_lseek(dbuffer_t b, off_t offset, int whence, int rw)
   return *ptr;
 }
 
+int reset_dbuffer(dbuffer_t b)
+{
+  dbuf_hdr_t h = DBUF_HDR(b) ;
+
+  /* invalid dbuffer block */
+  if (!is_dbuffer_valid(b))
+    return -1;
+  
+  h->rp = h->wp = 0;
+  return 0;
+}
+
 #if TEST_CASES==1
 int dbuffer_test_case()
 {
