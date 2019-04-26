@@ -21,8 +21,9 @@
 #include "auto_id.h"
 #include "L4.h"
 #include "url_coder.h"
+#include "timer.h"
 
-#include "myrbtree.h"
+//#include "myrbtree.h"
 
 
 #define ALIPAY_DBG  0
@@ -53,6 +54,12 @@ struct alipay_data_s {
   struct rds_order_entry_s m_rOrders ;
 
   struct myredis_s m_rds ;
+
+  // used by dynamic updater
+  struct dynamic_updater_s {
+    struct myredis_s m_rds ;
+    dbuffer_t push_msg ;
+  } du ;
 
 } g_alipayData  ;
 
@@ -877,6 +884,68 @@ __done:
   return ret;
 }
 
+
+static int dynamic_cfg_updater(void *pnet, void *ptos)
+{
+  static int sec = 0;
+  const int tos = (int)(uintptr_t)ptos ;
+  dbuffer_t *pmsg = 0;
+
+
+  if (sec++ < tos) {
+    return 0;
+  }
+
+  sec = 0;
+
+  pmsg = &g_alipayData.du.push_msg ;
+
+  while (!myredis_get_push_msg(&g_alipayData.du.m_rds,pmsg) && 
+         dbuffer_data_size(*pmsg)>0L) {
+    //log_debug("fetch mq msg: %s(%zu)\n",*pmsg,dbuffer_data_size(*pmsg));
+  }
+
+  return 0;
+}
+
+
+static
+struct simple_timer_s g_cfg_updater = 
+{
+  .desc = "dynamic config updater",
+
+  .cb = dynamic_cfg_updater,
+
+  .timeouts = /*60*/1,
+} ;
+
+static 
+int init_dynamic_cfg_updater(const char *host, int port, const char *name)
+{
+  extern void add_external_timer(simple_timer_t t);
+  int ret = myredis_init(&g_alipayData.du.m_rds,host,port,(char*)name);
+
+
+  if (ret)
+    return -1;
+
+  g_alipayData.du.push_msg = alloc_default_dbuffer();
+
+  add_external_timer(&g_cfg_updater);
+
+  log_info("dynamic config updater init Ok!\n");
+
+  return 0;
+}
+
+static
+void destroy_dynamic_cfg_updater()
+{
+  myredis_release(&g_alipayData.du.m_rds);
+
+  drop_dbuffer(g_alipayData.du.push_msg);
+}
+
 static
 struct http_action_s action__alipay_order = 
 {
@@ -926,6 +995,10 @@ int alipay_init(Network_t net)
 
     // auto id
     aid_init(&g_alipayData.aid,"alp",g_alipayData.m_rds.ctx);
+
+    // for dynamic configs
+    if (!ret) 
+      init_dynamic_cfg_updater(rconf.host,rconf.port,rconf.cfg_cache);
   }
 
   add_http_action(pe,&action__alipay_order);
@@ -946,5 +1019,7 @@ void alipay_release()
   release_all_rds_orders(&g_alipayData.m_rOrders);
 
   myredis_release(&g_alipayData.m_rds);
+
+  destroy_dynamic_cfg_updater();
 }
 

@@ -453,3 +453,8 @@ Network_t get_current_net()
   return &g_inst.g_nets;
 }
 
+void add_external_timer(simple_timer_t t)
+{
+  register_simple_timer(&g_inst.timers,t);
+}
+

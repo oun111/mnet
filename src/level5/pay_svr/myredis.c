@@ -149,8 +149,15 @@ int myredis_mq_rx(myredis_t mr, const char *qname, redisReply **rc)
 int myredis_get_push_msg(myredis_t mr, dbuffer_t *res)
 {
   redisReply *rc = 0;
-  int r = myredis_mq_rx(mr,mr->push_msg,&rc), ret = -1;
+  int r = 0, ret = -1;
 
+
+  if (!is_myredis_ok(mr)) {
+    log_error("redis not ok!\n") ;
+    return -1;
+  }
+
+  r = myredis_mq_rx(mr,mr->push_msg,&rc), ret = -1;
 
   if (!r) {
     *res = write_dbuffer_string(*res,rc->str,rc->len);
