@@ -87,11 +87,7 @@ int scan_timeout_conns(void *pnet, void *ptos)
   long long curr = time(NULL);
   Network_t net = (Network_t)pnet;
   const int tos = (int)(uintptr_t)ptos ;
-  static int sec = 0;
 
-
-  if (sec++ < tos)
-    return 0;
 
   if (net->active.try_lock(net)) 
     return -1;
@@ -99,6 +95,7 @@ int scan_timeout_conns(void *pnet, void *ptos)
   list_for_each_entry_safe(pos,n,&net->active.list,active_item) {
 
     if ((curr-pos->last_active)>tos) {
+      //log_info("closing idle fd %d\n",pos->fd);
       shutdown(pos->fd,SHUT_RDWR);
       continue;
     }
@@ -110,8 +107,6 @@ int scan_timeout_conns(void *pnet, void *ptos)
   }
 
   net->active.unlock(net);
-
-  sec = 0;
 
   return 0;
 }

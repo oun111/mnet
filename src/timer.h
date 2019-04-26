@@ -15,6 +15,8 @@ struct simple_timer_s {
 
   unsigned int timeouts ;
 
+  unsigned int sec_count ;
+
   struct list_head upper ;
 
 } ;

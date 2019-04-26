@@ -887,22 +887,12 @@ __done:
 
 static int dynamic_cfg_updater(void *pnet, void *ptos)
 {
-  static int sec = 0;
-  const int tos = (int)(uintptr_t)ptos ;
-  dbuffer_t *pmsg = 0;
+  dbuffer_t *pmsg = &g_alipayData.du.push_msg ;
 
-
-  if (sec++ < tos) {
-    return 0;
-  }
-
-  sec = 0;
-
-  pmsg = &g_alipayData.du.push_msg ;
 
   while (!myredis_get_push_msg(&g_alipayData.du.m_rds,pmsg) && 
          dbuffer_data_size(*pmsg)>0L) {
-    //log_debug("fetch mq msg: %s(%zu)\n",*pmsg,dbuffer_data_size(*pmsg));
+    log_debug("fetch mq msg: %s(%zu)\n",*pmsg,dbuffer_data_size(*pmsg));
   }
 
   return 0;

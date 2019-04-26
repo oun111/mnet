@@ -28,6 +28,8 @@ int register_simple_timer(simple_timer_entry_t entry, simple_timer_t tm)
     return -1;
   }
 
+  tm->sec_count = 0;
+
   list_add(&tm->upper,&entry->list);
 
   log_info("timer '%s' registered\n",tm->desc);
@@ -41,7 +43,11 @@ int scan_simple_timer_list(simple_timer_entry_t entry, void *net)
 
 
   list_for_each_entry_safe(pos,n,&entry->list,upper) {
-    pos->cb(net,(void*)(uintptr_t)pos->timeouts);
+
+    if (pos->sec_count++ > pos->timeouts) {
+      pos->cb(net,(void*)(uintptr_t)pos->timeouts);
+      pos->sec_count = 0;
+    }
   }
 
   return 0;
