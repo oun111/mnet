@@ -203,6 +203,7 @@ int http_svr_rx(Network_t net, connection_t pconn)
 
   while ((sz_in=http_svr_rx_raw(net,pconn))>0) {
     dbuffer_t inb = dbuffer_ptr(pconn->rxb,0);
+    char ch = inb[sz_in];
 
     inb[sz_in] = '\0';
 
@@ -215,6 +216,8 @@ int http_svr_rx(Network_t net, connection_t pconn)
     else {
       rc = http_svr_do_get(net,pconn,inb,sz_in);
     }
+
+    inb[sz_in] = ch;
 
     if (rc==-1 && dbuffer_data_size(pconn->txb)==0L) 
       FORMAT_ERR(&pconn->txb,"internal error!\n");
