@@ -50,6 +50,13 @@ pay_channels_entry_t get_pay_channels_entry()
   return g_paySvrData.m_paych ;
 }
 
+void reset_pay_channels_entry(pay_channels_entry_t new_pce)
+{
+  delete_pay_channels_entry(g_paySvrData.m_paych);
+
+  g_paySvrData.m_paych = new_pce ;
+}
+
 order_entry_t get_order_entry()
 {
   return &g_paySvrData.m_orders ;

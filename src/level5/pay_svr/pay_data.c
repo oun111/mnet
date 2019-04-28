@@ -242,12 +242,8 @@ void update_paydata_rc_arguments(pay_data_t pd, double amount)
 
 pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t *reason)
 {
-  //extern paySvr_config_t get_running_configs();
-  //paySvr_config_t conf = get_running_configs();
   pay_channel_t pc  = get_pay_channel(entry,chan);
-  //tree_map_t rc_cfg = get_rc_conf_by_channel(conf,chan);
   pay_data_t pos ;
-  //struct risk_control_s rc_cfg_paras ;
   char msg[256] = "";
 
 
@@ -258,26 +254,9 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
     return NULL ;
   }
 
-#if 0
-  if (!rc_cfg) {
-    snprintf(msg,sizeof(msg),"no risk control params for channel '%s'",chan);
-    log_error("%s\n",msg);
-    write_dbuf_str(*reason,msg);
-    return NULL ;
-  }
-#endif
-
   // risk control timestamp
   struct timespec ts ;
   clock_gettime(CLOCK_REALTIME,&ts);
-
-#if 0
-  // risk control arguments
-  if (get_rc_paras(rc_cfg,&rc_cfg_paras,reason)) {
-    return NULL;
-  }
-#endif
-
 
   // get best pay route
   list_for_each_entry(pos,&pc->pay_data_list,upper) {

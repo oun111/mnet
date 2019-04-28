@@ -4,6 +4,7 @@ import pymysql
 import redis
 import json
 import re
+import os
 import time
 import sys
 import getopt
@@ -22,6 +23,7 @@ class myredis_configs(object):
   cfgMq   = ""
   odrTbl  = ""
   odrMq   = ""
+  pushMq  = ""
 
 
 class mysql_configs(object):
@@ -169,8 +171,9 @@ class syncd(object):
       rcfg.cfgMq   = (rcfg.cfgTbl + "_mq" )
       rcfg.odrTbl  = cfg['orderCache']
       rcfg.odrMq   = (rcfg.odrTbl + "_mq" )
-      logger.debug("redis configs: host: {0}:{1}, table: {2}, mq: {3}".
-          format(rcfg.address,rcfg.port,rcfg.cfgTbl,rcfg.cfgMq))
+      rcfg.pushMq  = (rcfg.cfgTbl + "_push_mq" )
+      logger.debug("redis configs: host: {0}:{1}, table: {2}, mq: {3}, pushmq: {4}".
+          format(rcfg.address,rcfg.port,rcfg.cfgTbl,rcfg.cfgMq,rcfg.pushMq))
 
     #
     # update mysql configs
@@ -384,6 +387,30 @@ class syncd(object):
     rds.write(rdsTbl,key,fj)
 
 
+  def manual_sync_back_by_index(self,idx):
+
+    mapLst = {
+      0 : ("merchant_configs",self.rds_cfg.pushMq),
+      1 : ("channel_alipay_configs",self.rds_cfg.pushMq),
+      2 : ("risk_control_configs",self.rds_cfg.pushMq)
+    }
+
+    nIndex = int(idx)
+    k = mapLst.get(nIndex)
+    if (k==None):
+      print("index {0} not supported, valid candidates are: {1}".format(nIndex,mapLst))
+      return
+
+    tbl = k[0]
+    mq  = k[1]
+
+    # sync target table
+    self.manual_sync_back(tbl,"")
+
+    # push notify
+    self.m_rds.pushq(mq,tbl)
+
+
 
   def manual_sync_back(self,tbl,key):
 
@@ -512,6 +539,11 @@ def start_sync_svr(biz):
   biz.run()
 
 
+def manual_mysql_2_rds2(biz,idx):
+  
+  biz.manual_sync_back_by_index(idx)
+
+
 def manual_mysql_2_rds(biz,tbl,key):
   
   biz.manual_sync_back(tbl,key)
@@ -548,10 +580,13 @@ def main():
   tbl = ""
   key = ""
   val = ""
-  cfg = ""
+  idx = ""
   cont = ""
   logpath = ""
-  opts, args = getopt.getopt(sys.argv[1:], "hc:t:k:v:L:")
+  opts, args = getopt.getopt(sys.argv[1:], "hc:t:k:v:L:i:")
+  cfg = os.path.dirname(os.path.realpath(__file__)) + "/paysvr_conf.json"
+
+  print("default config file: '{0}'".format(cfg))
 
   for a,opt in opts:
     if (a=='-c'):
@@ -564,11 +599,8 @@ def main():
       val = opt
     elif (a=='-L'):
       logpath = opt
-
-
-  if (len(cfg)==0):
-    print("need config file path...")
-    exit(0)
+    elif (a=='-i'):
+      idx = opt
 
 
   # initialize log
@@ -583,12 +615,14 @@ def main():
 
 
   # run the syncd server
-  if (len(tbl)==0 and len(key)==0 and len(val)==0):
+  if (len(tbl)==0 and len(key)==0 and len(val)==0 and len(idx)==0):
     start_sync_svr(biz)
     exit(0)
 
   # write a command to request: mysql -> redis
-  if (len(val)==0):
+  if (len(idx)>0):
+    manual_mysql_2_rds2(biz,idx)
+  elif (len(val)==0):
     manual_mysql_2_rds(biz,tbl,key)
   else:
     manual_rds_2_mysql(biz,tbl,key,val)

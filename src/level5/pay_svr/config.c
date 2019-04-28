@@ -221,6 +221,9 @@ int do_process_configs(paySvr_config_t conf, tree_map_t *target_conf,
     return -1;
   }
 
+  if (*target_conf)
+    delete_tree_map(*target_conf);
+
   *target_conf = jsons_to_treemap(cc) ;
 
   if (cfgStr)
@@ -324,6 +327,10 @@ int init_config(paySvr_config_t conf, const char *infile)
   
   if (err)
     return -1;
+
+  conf->chan_conf = NULL;
+  conf->mch_conf  = NULL;
+  conf->rc_conf   = NULL;
 
   process_mysql_configs(conf);
 

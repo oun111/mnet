@@ -57,8 +57,13 @@ struct alipay_data_s {
 
   // used by dynamic updater
   struct dynamic_updater_s {
-    struct myredis_s m_rds ;
     dbuffer_t push_msg ;
+
+    /* 
+     * bit0: update pay channels/risk control
+     * bit1: update merchant configs
+     */
+    int flags ; 
   } du ;
 
 } g_alipayData  ;
@@ -506,6 +511,49 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
   return 0;
 }
 
+static int do_cfg_update()
+{
+  dbuffer_t buff = 0;
+  myredis_t prds = &g_alipayData.m_rds ;
+  paySvr_config_t pc = get_running_configs();
+  mysql_conf_t mscfg = get_mysql_configs(pc);
+
+  if (g_alipayData.du.flags & 0x1) {
+    pay_channels_entry_t pce = 0;
+
+    // the risk control configs
+    get_remote_configs(prds,mscfg->rc_conf_table,"",&buff);
+    process_rc_configs(pc,buff);
+    drop_dbuffer(buff);
+
+    // the channel alipay configs
+    get_remote_configs(prds,mscfg->alipay_conf_table,"",&buff);
+    process_channel_configs(pc,buff);
+    drop_dbuffer(buff);
+
+    init_pay_data(&pce);
+    reset_pay_channels_entry(pce);
+
+    g_alipayData.du.flags &= ~(0x1);
+  }
+
+  if (g_alipayData.du.flags & 0x2) {
+    merchant_entry_t pme = get_merchant_entry();
+
+    // the merchant configs
+    get_remote_configs(prds,mscfg->mch_conf_table,"",&buff);
+    process_merchant_configs(pc,buff);
+    drop_dbuffer(buff);
+
+    release_all_merchants(pme);
+    init_merchant_data(pme);
+
+    g_alipayData.du.flags &= ~(0x2);
+  }
+
+  return 0;
+}
+
 static 
 int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
 {
@@ -525,6 +573,9 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
 
 
   log_debug("requesting user out trade no: '%s'\n",tno);
+
+  // if there're new configs, do updates
+  do_cfg_update();
 
   // TODO: verify merchant signature!!
 
@@ -884,16 +935,45 @@ __done:
   return ret;
 }
 
-
 static int dynamic_cfg_updater(void *pnet, void *ptos)
 {
+  struct myredis_s rds ;
+  struct myredis_config_s rconf ;
+  paySvr_config_t pc = get_running_configs();
+  mysql_conf_t mscfg = get_mysql_configs(pc);
   dbuffer_t *pmsg = &g_alipayData.du.push_msg ;
+  int ret = 0;
+  
 
-
-  while (!myredis_get_push_msg(&g_alipayData.du.m_rds,pmsg) && 
-         dbuffer_data_size(*pmsg)>0L) {
-    log_debug("fetch mq msg: %s(%zu)\n",*pmsg,dbuffer_data_size(*pmsg));
+  if (get_myredis_configs(pc,&rconf)) {
+    log_error("get myredis configs fail!\n");
+    return -1;
   }
+
+  // short connections to redis
+  ret = myredis_init(&rds,rconf.host,rconf.port,
+                     rconf.cfg_cache);
+
+  if (ret) {
+    log_error("connect to redis %s:%d fail!\n",
+              rconf.host, rconf.port);
+    return -1;
+  }
+
+  while (!myredis_get_push_msg(&rds,pmsg) && 
+         dbuffer_data_size(*pmsg)>0L) {
+
+    if (!strcmp(*pmsg,mscfg->rc_conf_table) || 
+        !strcmp(*pmsg,mscfg->alipay_conf_table)) {
+      g_alipayData.du.flags |= 0x1;
+    }
+
+    if (!strcmp(*pmsg,mscfg->mch_conf_table)) {
+      g_alipayData.du.flags |= 0x2;
+    }
+  }
+
+  myredis_release(&rds);
 
   return 0;
 }
@@ -909,17 +989,14 @@ struct simple_timer_s g_cfg_updater =
   .timeouts = /*60*/1,
 } ;
 
-static 
-int init_dynamic_cfg_updater(const char *host, int port, const char *name)
+static int init_dynamic_cfg_updater()
 {
   extern void add_external_timer(simple_timer_t t);
-  int ret = myredis_init(&g_alipayData.du.m_rds,host,port,(char*)name);
 
-
-  if (ret)
-    return -1;
 
   g_alipayData.du.push_msg = alloc_default_dbuffer();
+
+  g_alipayData.du.flags = 0;
 
   add_external_timer(&g_cfg_updater);
 
@@ -931,8 +1008,6 @@ int init_dynamic_cfg_updater(const char *host, int port, const char *name)
 static
 void destroy_dynamic_cfg_updater()
 {
-  myredis_release(&g_alipayData.du.m_rds);
-
   drop_dbuffer(g_alipayData.du.push_msg);
 }
 
@@ -985,11 +1060,10 @@ int alipay_init(Network_t net)
 
     // auto id
     aid_init(&g_alipayData.aid,"alp",g_alipayData.m_rds.ctx);
-
-    // for dynamic configs
-    if (!ret) 
-      init_dynamic_cfg_updater(rconf.host,rconf.port,rconf.cfg_cache);
   }
+
+  // for dynamic configs
+  init_dynamic_cfg_updater();
 
   add_http_action(pe,&action__alipay_order);
   add_http_action(pe,&action__alipay_notify);
