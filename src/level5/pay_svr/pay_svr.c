@@ -67,6 +67,7 @@ merchant_entry_t get_merchant_entry()
   return &g_paySvrData.m_merchant ;
 }
 
+
 static
 int parse_cmd_line(int argc, char *argv[])
 {
@@ -166,7 +167,7 @@ void pay_svr_module_init(int argc, char *argv[])
 {
   char host[32] = "" ;
   int port = 0, notify_port = 0, ret = 0, maxOdrs = 0;
-  struct myredis_config_s rconf ;
+  myredis_conf_t rconf = 0;
   struct myredis_s m_rds ;
 
 
@@ -184,15 +185,14 @@ void pay_svr_module_init(int argc, char *argv[])
   __http_svr_entry(host,port,notify_port);
 
   // redis params
-  if (!get_myredis_configs(&g_paySvrData.m_conf,&rconf)) {
+  rconf = get_myredis_configs(&g_paySvrData.m_conf);
 
-    ret = myredis_init(&m_rds, rconf.host, rconf.port, 
-                       rconf.cfg_cache);
-    log_info("connect to redis %s:%d ... %s\n",
-             rconf.host, rconf.port, ret?"fail!":"ok!");
-  }
+  ret = myredis_init(&m_rds, rconf->host, rconf->port, 
+                     rconf->cfg_cache);
+  log_info("connect to redis %s:%d ... %s\n",
+           rconf->host, rconf->port, ret?"fail!":"ok!");
 
-  ret = init_config2(&m_rds,&rconf) ;
+  ret = init_config2(&m_rds,rconf) ;
 
   myredis_release(&m_rds);
 

@@ -23,6 +23,7 @@ struct global_config_keywords {
   const char *port;
   const char *cfgCache;
   const char *odrCache;
+  const char *cfgScanIntv;
   const char *alipayCfgTbl ;
   const char *mchCfgTbl ;
   const char *rcCfgTbl ;
@@ -43,6 +44,7 @@ g_confKW = {
   .port         = "port",
   .cfgCache     = "cfgCache",
   .odrCache     = "orderCache",
+  .cfgScanIntv  = "cfgScanInterval",
   .alipayCfgTbl = "alipayConfigTableName",
   .mchCfgTbl    = "merchantConfigTableName",
   .odrTbl       = "orderTableName",
@@ -170,16 +172,21 @@ int get_conf_int(jsonKV_t *pr, const char *key, int *val)
   return 0;
 }
 
+myredis_conf_t get_myredis_configs(paySvr_config_t conf)
+{
+  return &conf->myrds_conf;
+}
+
 mysql_conf_t get_mysql_configs(paySvr_config_t conf)
 {
   return &conf->mysql_conf;
 }
 
-int 
-get_myredis_configs(paySvr_config_t conf, myredis_conf_t pcfg)
+int process_myredis_configs(paySvr_config_t conf)
 {
   char *pstr = (char*)g_confKW.redis ;
   jsonKV_t *pr = jsons_find(conf->m_root,pstr);
+  myredis_conf_t pcfg = &conf->myrds_conf ;
 
 
   if (!pr) {
@@ -194,6 +201,8 @@ get_myredis_configs(paySvr_config_t conf, myredis_conf_t pcfg)
   get_conf_str(pr,g_confKW.cfgCache,pcfg->cfg_cache,sizeof(pcfg->cfg_cache));
 
   get_conf_str(pr,g_confKW.odrCache,pcfg->order_cache,sizeof(pcfg->cfg_cache));
+
+  get_conf_int(pr,g_confKW.cfgScanIntv,&pcfg->cfg_scan_interval);
 
   return 0;
 }
@@ -333,6 +342,8 @@ int init_config(paySvr_config_t conf, const char *infile)
   conf->rc_conf   = NULL;
 
   process_mysql_configs(conf);
+
+  process_myredis_configs(conf);
 
   //process_risk_control_configs(conf);
 

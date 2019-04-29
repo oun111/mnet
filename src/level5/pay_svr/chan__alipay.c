@@ -938,25 +938,20 @@ __done:
 static int dynamic_cfg_updater(void *pnet, void *ptos)
 {
   struct myredis_s rds ;
-  struct myredis_config_s rconf ;
   paySvr_config_t pc = get_running_configs();
   mysql_conf_t mscfg = get_mysql_configs(pc);
+  myredis_conf_t rconf = get_myredis_configs(pc);
   dbuffer_t *pmsg = &g_alipayData.du.push_msg ;
   int ret = 0;
   
 
-  if (get_myredis_configs(pc,&rconf)) {
-    log_error("get myredis configs fail!\n");
-    return -1;
-  }
-
   // short connections to redis
-  ret = myredis_init(&rds,rconf.host,rconf.port,
-                     rconf.cfg_cache);
+  ret = myredis_init(&rds,rconf->host,rconf->port,
+                     rconf->cfg_cache);
 
   if (ret) {
     log_error("connect to redis %s:%d fail!\n",
-              rconf.host, rconf.port);
+              rconf->host, rconf->port);
     return -1;
   }
 
@@ -966,10 +961,12 @@ static int dynamic_cfg_updater(void *pnet, void *ptos)
     if (!strcmp(*pmsg,mscfg->rc_conf_table) || 
         !strcmp(*pmsg,mscfg->alipay_conf_table)) {
       g_alipayData.du.flags |= 0x1;
+      log_debug("updating '%s'...\n",*pmsg);
     }
 
     if (!strcmp(*pmsg,mscfg->mch_conf_table)) {
       g_alipayData.du.flags |= 0x2;
+      log_debug("updating '%s'...\n",*pmsg);
     }
   }
 
@@ -986,17 +983,22 @@ struct simple_timer_s g_cfg_updater =
 
   .cb = dynamic_cfg_updater,
 
-  .timeouts = /*60*/1,
+  .timeouts = 60,
 } ;
 
 static int init_dynamic_cfg_updater()
 {
   extern void add_external_timer(simple_timer_t t);
+  paySvr_config_t pc = get_running_configs();
+  myredis_conf_t rconf = get_myredis_configs(pc);
 
 
   g_alipayData.du.push_msg = alloc_default_dbuffer();
 
   g_alipayData.du.flags = 0;
+
+  g_cfg_updater.timeouts = rconf->cfg_scan_interval ;
+  log_info("redis config scan timeout: %ds\n",g_cfg_updater.timeouts);
 
   add_external_timer(&g_cfg_updater);
 
@@ -1043,24 +1045,22 @@ static
 int alipay_init(Network_t net)
 {
   http_action_entry_t pe = get_http_action_entry();
-  struct myredis_config_s rconf ;
   paySvr_config_t pc = get_running_configs();
+  myredis_conf_t rconf = get_myredis_configs(pc) ;
+  int ret = 0;
   
+  // init current module's redis connection
+  ret = myredis_init(&g_alipayData.m_rds, rconf->host,
+                     rconf->port, rconf->cfg_cache);
+  log_info("connect to redis %s:%d ... %s\n",
+           rconf->host, rconf->port, ret?"fail!":"ok!");
 
-  if (!get_myredis_configs(pc,&rconf)) {
+  // redis order cache
+  init_rds_order_entry(&g_alipayData.m_rOrders,g_alipayData.m_rds.ctx,
+                       rconf->order_cache);
 
-    // init current module's redis connection
-    int ret = myredis_init(&g_alipayData.m_rds, rconf.host,
-                           rconf.port, rconf.cfg_cache);
-    log_info("connect to redis %s:%d ... %s\n",
-             rconf.host, rconf.port, ret?"fail!":"ok!");
-
-    // redis order cache
-    init_rds_order_entry(&g_alipayData.m_rOrders,g_alipayData.m_rds.ctx,rconf.order_cache);
-
-    // auto id
-    aid_init(&g_alipayData.aid,"alp",g_alipayData.m_rds.ctx);
-  }
+  // auto id
+  aid_init(&g_alipayData.aid,"alp",g_alipayData.m_rds.ctx);
 
   // for dynamic configs
   init_dynamic_cfg_updater();

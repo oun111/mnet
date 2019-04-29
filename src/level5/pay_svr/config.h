@@ -15,6 +15,15 @@ struct mysql_config_s {
 } ;
 typedef struct mysql_config_s* mysql_conf_t ;
 
+struct myredis_config_s {
+  char host[32];
+  int port ;
+  char cfg_cache[32]; // config table in redis
+  char order_cache[32]; // order table in redis
+  int cfg_scan_interval ;
+} ;
+typedef struct myredis_config_s* myredis_conf_t ;
+
 
 struct paySvr_config_s {
 
@@ -28,18 +37,11 @@ struct paySvr_config_s {
 
   struct mysql_config_s mysql_conf;
 
+  struct myredis_config_s myrds_conf ;
+
 } __attribute__((__aligned__(64))) ;
 
 typedef struct paySvr_config_s* paySvr_config_t ;
-
-
-struct myredis_config_s {
-  char host[32];
-  int port ;
-  char cfg_cache[32]; // config table in redis
-  char order_cache[32]; // order table in redis
-} ;
-typedef struct myredis_config_s* myredis_conf_t ;
 
 
 extern int get_bind_address(paySvr_config_t conf, char *host);
@@ -50,7 +52,7 @@ extern int get_notify_port(paySvr_config_t conf);
 
 extern int get_max_cached_orders(paySvr_config_t conf);
 
-extern int get_myredis_configs(paySvr_config_t conf, myredis_conf_t pcfg);
+extern myredis_conf_t get_myredis_configs(paySvr_config_t conf);
 
 extern mysql_conf_t get_mysql_configs(paySvr_config_t conf);
 
