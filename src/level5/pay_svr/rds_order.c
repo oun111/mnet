@@ -15,8 +15,10 @@ init_rds_order_entry(rds_order_entry_t entry, void *myrds_handle, char *name)
 
 
   entry->myrds_handle = myrds_handle ;
+  /*
   snprintf(entry->cache,sizeof(entry->cache),"%s",name);
   snprintf(entry->mq,sizeof(entry->mq),"%s_mq",name);
+  */
 
   entry->pool = create_obj_pool("rds_order pool",-1,struct order_info_s);
 
@@ -72,13 +74,13 @@ int save_rds_order1(rds_order_entry_t entry, const char *table, char *id,
   jsons_release(pr);
 
   // write to redis: key: orderid, value: the whole order
-  if (myredis_write((myredis_t)entry,table,id,str,mr__need_sync)) {
+  if (myredis_write((myredis_t)entry->myrds_handle,table,id,str,mr__need_sync)) {
     log_error("write failed\n");
     ret = -1;
   }
 
   // save index: key: merchant out-trade-no, value: orderid
-  if (myredis_write((myredis_t)entry,table,mch_sid,id,mr__ok)) {
+  if (myredis_write((myredis_t)entry->myrds_handle,table,mch_sid,id,mr__ok)) {
     log_error("write index failed\n");
     ret = -1;
   }
@@ -107,7 +109,7 @@ int get_rds_order_index(rds_order_entry_t entry, const char *table,
 
 
   for (int i=0;/*i<10 &&*/ rc==1; i++) {
-    rc = myredis_read((myredis_t)entry,table,out_trade_no,orderid);
+    rc = myredis_read((myredis_t)entry->myrds_handle,table,out_trade_no,orderid);
   }
 
   // get nothing
@@ -133,7 +135,7 @@ get_rds_order(rds_order_entry_t entry, const char *table,
 
 
   for (int i=0;/*i<10 &&*/ rc==1; i++) {
-    rc = myredis_read((myredis_t)entry,table,orderid,&str);
+    rc = myredis_read((myredis_t)entry->myrds_handle,table,orderid,&str);
   }
 
   // get nothing

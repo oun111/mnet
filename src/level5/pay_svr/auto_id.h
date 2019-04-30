@@ -5,12 +5,9 @@
 
 struct auto_id_s {
   void *myrds_handle ;
-  char cache[RDS_NAME_SZ];
-  char mq[RDS_NAME_SZ];  // requests pay_svr -> syncd
-  char push_msg[RDS_NAME_SZ]; // push messages syncd -> pay_svr
-  char var[RDS_NAME_SZ];
+  int  port ;
   char id_name[32]; 
-  /*unsigned*/long long val;
+  long long val;
   char alias_val[96];
 } ;
 typedef struct auto_id_s *auto_id_t ;

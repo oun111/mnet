@@ -12,9 +12,6 @@ typedef order_info_t rds_order_t ;
 struct rds_order_entry_s {
   void *myrds_handle ;
 
-  char cache[RDS_NAME_SZ];
-  char mq[RDS_NAME_SZ];
-
   objPool_t pool ;
 } ;
 typedef struct rds_order_entry_s* rds_order_entry_t ;

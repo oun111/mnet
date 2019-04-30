@@ -1056,11 +1056,11 @@ int alipay_init(Network_t net)
            rconf->host, rconf->port, ret?"fail!":"ok!");
 
   // redis order cache
-  init_rds_order_entry(&g_alipayData.m_rOrders,g_alipayData.m_rds.ctx,
+  init_rds_order_entry(&g_alipayData.m_rOrders,&g_alipayData.m_rds,
                        rconf->order_cache);
 
   // auto id
-  aid_init(&g_alipayData.aid,"alp",g_alipayData.m_rds.ctx);
+  aid_init(&g_alipayData.aid,"alp",&g_alipayData.m_rds);
 
   // for dynamic configs
   init_dynamic_cfg_updater();

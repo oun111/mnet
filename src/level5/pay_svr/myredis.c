@@ -33,6 +33,18 @@
 
 #define REDIS_CTX  ((redisContext*)(mr->ctx))
 
+#define MYREDIS_SAFE_EXECUTE(__mr,__rc,fmt,args...) do{ \
+  do { \
+    for (;!is_myredis_ok(__mr);) {  \
+      myredis_release(__mr);  \
+      __mr->ctx = redisConnect(__mr->host,__mr->port); \
+      log_info("reconnected to %s:%d\n",__mr->host,__mr->port); \
+      sleep(1); \
+    } \
+    __rc = (redisReply*)redisCommand(__mr->ctx,fmt,##args); \
+  } while (!(__rc)); \
+} while(0)
+
 
 bool is_myredis_ok(myredis_t mr)
 {
@@ -59,6 +71,8 @@ int myredis_init(myredis_t mr, const char *host, int port, char *name)
     return -1;
   }
 
+  strncpy(mr->host,host,sizeof(mr->host));
+  mr->port = port ;
   snprintf(mr->cache,sizeof(mr->cache),"%s",name);
   snprintf(mr->mq,sizeof(mr->mq),"%s_mq",name);
   snprintf(mr->push_msg,sizeof(mr->push_msg),"%s_push_mq",name);
@@ -72,9 +86,11 @@ int myredis_write_cache(myredis_t mr, char *k, char *v)
 {
   int ret = 0;
   char *tbl = mr->cache ;
-  redisReply *rc = (redisReply*)redisCommand(REDIS_CTX,"hset %s %s %s",
-                   tbl,k,v);
+  redisReply *rc = 0;
 
+
+  // reconnect and re-execute command if lost connections
+  MYREDIS_SAFE_EXECUTE(mr,rc,"hset %s %s %s",tbl,k,v);
 
   if (rc->type==REDIS_REPLY_ERROR) {
     log_error("write to cache '%s' fail: %s\n",mr->cache,rc->str) ;
@@ -92,7 +108,8 @@ int myredis_read_cache(myredis_t mr, char *k, redisReply **rc)
   char *tbl = mr->cache;
 
 
-  *rc = (redisReply*)redisCommand(REDIS_CTX,"hget %s %s",tbl,k);
+  // reconnect and re-execute command if lost connections
+  MYREDIS_SAFE_EXECUTE(mr,*rc,"hget %s %s",tbl,k);
 
   if ((*rc)->type==REDIS_REPLY_ERROR) {
     log_error("read from redis fail: %s\n",(*rc)->str) ;
@@ -105,7 +122,8 @@ int myredis_read_cache(myredis_t mr, char *k, redisReply **rc)
 static
 int myredis_read_cache_all(myredis_t mr, redisReply **rc)
 {
-  *rc = (redisReply*)redisCommand(REDIS_CTX,"hgetall %s",mr->cache);
+  // reconnect and re-execute command if lost connections
+  MYREDIS_SAFE_EXECUTE(mr,*rc,"hgetall %s",mr->cache);
 
   if ((*rc)->type==REDIS_REPLY_ERROR) {
     log_error("read from redis fail: %s\n",(*rc)->str) ;
@@ -119,9 +137,11 @@ static
 int myredis_mq_tx(myredis_t mr, char *m)
 {
   int ret = 0;
-  redisReply *rc = (redisReply*)redisCommand(REDIS_CTX,"rpush %s %s ",
-                   mr->mq,m);
+  redisReply *rc = 0;
 
+
+  // reconnect and re-execute command if lost connections
+  MYREDIS_SAFE_EXECUTE(mr,rc,"rpush %s %s ",mr->mq,m);
 
   if (rc->type==REDIS_REPLY_ERROR) {
     log_error("write to mq '%s' fail: %s\n", mr->mq,rc->str) ;
@@ -136,10 +156,11 @@ int myredis_mq_tx(myredis_t mr, char *m)
 static
 int myredis_mq_rx(myredis_t mr, const char *qname, redisReply **rc)
 {
-  *rc = (redisReply*)redisCommand(REDIS_CTX,"lpop %s ",qname);
+  // reconnect and re-execute command if lost connections
+  MYREDIS_SAFE_EXECUTE(mr,*rc,"lpop %s ",qname);
 
-  if ((*rc)->type==REDIS_REPLY_ERROR) {
-    log_error("read from redis fail: %s\n",(*rc)->str) ;
+  if (!*rc || (*rc)->type==REDIS_REPLY_ERROR) {
+    log_error("read from redis fail: %s\n",*rc?(*rc)->str:"^_^") ;
     return -1 ;
   }
 
@@ -151,11 +172,6 @@ int myredis_get_push_msg(myredis_t mr, dbuffer_t *res)
   redisReply *rc = 0;
   int r = 0, ret = -1;
 
-
-  if (!is_myredis_ok(mr)) {
-    log_error("redis not ok!\n") ;
-    return -1;
-  }
 
   r = myredis_mq_rx(mr,mr->push_msg,&rc), ret = -1;
 
@@ -176,12 +192,8 @@ int myredis_add_and_fetch(myredis_t mr, long long *val)
   int ret = 0;
 
 
-  if (!is_myredis_ok(mr)) {
-    log_error("redis not ok!\n");
-    return -1;
-  }
-
-  rc = (redisReply*)redisCommand(REDIS_CTX,"incr %s",tbl);
+  // reconnect and re-execute command if lost connections
+  MYREDIS_SAFE_EXECUTE(mr,rc,"incr %s",tbl);
 
   if (!rc || rc->type==REDIS_REPLY_ERROR) {
     log_error("incr '%s' fail: %s\n",tbl,rc?rc->str:"^_^") ;
@@ -206,12 +218,8 @@ int myredis_reset(myredis_t mr, int type)
   int ret = 0;
 
 
-  if (!is_myredis_ok(mr)) {
-    log_error("redis not ok!\n");
-    return -1;
-  }
-
-  rc = (redisReply*)redisCommand(REDIS_CTX,"del %s",tbl);
+  // reconnect and re-execute command if lost connections
+  MYREDIS_SAFE_EXECUTE(mr,rc,"del %s",tbl);
 
   if (rc->type==REDIS_REPLY_ERROR) {
     log_error("reset '%s' fail: %s\n",tbl,rc->str) ;
@@ -234,11 +242,6 @@ myredis_write(myredis_t mr, const char *table, char *key,
   int status = st>=mr__na&&st<=mr__ok?st:mr__need_sync;
   int ret = 0;
 
-
-  if (!is_myredis_ok(mr)) {
-    log_error("redis not ok!\n");
-    return -1;
-  }
 
   k = alloc_dbuffer(kl);
   v = alloc_dbuffer(vl);
@@ -276,11 +279,6 @@ int myredis_read(myredis_t mr, const char *table, const char *key,
   tree_map_t map = 0, submap = 0;
   dbuffer_t pd = 0;
 
-
-  if (!is_myredis_ok(mr)) {
-    log_error("redis not ok!\n");
-    return -1;
-  }
 
   k = alloc_dbuffer(kl);
   // key in redis table

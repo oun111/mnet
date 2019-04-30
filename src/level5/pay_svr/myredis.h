@@ -23,6 +23,8 @@ struct myredis_s {
   char mq[RDS_NAME_SZ];  // requests pay_svr -> syncd
   char push_msg[RDS_NAME_SZ]; // push messages syncd -> pay_svr
   char var[RDS_NAME_SZ];
+  char host[RDS_NAME_SZ];
+  int  port ;
 } ;
 typedef struct myredis_s* myredis_t ;
 

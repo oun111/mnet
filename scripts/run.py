@@ -16,7 +16,7 @@ connTimeout = 3600*24
 numWorkers = cpu_count()
 logToFile = "-L /home/user1/work/mnet/logs/"
 #logToFile = ""
-numSyncds = numWorkers  #1
+numSyncds = numWorkers 
 
 
 if opt=="0" or opt=="1":
