@@ -126,6 +126,10 @@ class myredis(object):
   def pushq(self,mq,v):
     self.m_rds.rpush(mq,v)
 
+
+  def publish(self,mq,v):
+    self.m_rds.publish(mq,v)
+
   def popq(self,mq):
     return self.m_rds.lpop(mq)
 
@@ -408,7 +412,7 @@ class syncd(object):
     self.manual_sync_back(tbl,"")
 
     # push notify
-    self.m_rds.pushq(mq,tbl)
+    self.m_rds.publish(mq,tbl)
 
 
 

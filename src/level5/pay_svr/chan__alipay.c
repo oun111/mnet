@@ -64,6 +64,8 @@ struct alipay_data_s {
      * bit1: update merchant configs
      */
     int flags ; 
+
+    struct myredis_s rds ;
   } du ;
 
 } g_alipayData  ;
@@ -511,7 +513,7 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
   return 0;
 }
 
-static int do_cfg_update()
+static int do_dynamic_update()
 {
   dbuffer_t buff = 0;
   myredis_t prds = &g_alipayData.m_rds ;
@@ -575,7 +577,7 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   log_debug("requesting user out trade no: '%s'\n",tno);
 
   // if there're new configs, do updates
-  do_cfg_update();
+  do_dynamic_update();
 
   // TODO: verify merchant signature!!
 
@@ -935,9 +937,9 @@ __done:
   return ret;
 }
 
-static int dynamic_cfg_updater(void *pnet, void *ptos)
+static int fetch_du_notice(void *pnet, void *ptos)
 {
-  struct myredis_s rds ;
+  myredis_t prds = &g_alipayData.du.rds ;
   paySvr_config_t pc = get_running_configs();
   mysql_conf_t mscfg = get_mysql_configs(pc);
   myredis_conf_t rconf = get_myredis_configs(pc);
@@ -945,17 +947,19 @@ static int dynamic_cfg_updater(void *pnet, void *ptos)
   int ret = 0;
   
 
-  // short connections to redis
-  ret = myredis_init(&rds,rconf->host,rconf->port,
-                     rconf->cfg_cache);
+  // a single redis connection for subscribe/publish
+  if (!is_myredis_ok(prds)) {
+    ret = myredis_init(prds,rconf->host,rconf->port,
+                       rconf->cfg_cache);
 
-  if (ret) {
-    log_error("connect to redis %s:%d fail!\n",
-              rconf->host, rconf->port);
-    return -1;
+    if (ret) {
+      log_error("connect to redis %s:%d fail!\n",
+                rconf->host, rconf->port);
+      return -1;
+    }
   }
 
-  while (!myredis_get_push_msg(&rds,pmsg) && 
+  while (!myredis_get_push_msg(prds,pmsg) && 
          dbuffer_data_size(*pmsg)>0L) {
 
     if (!strcmp(*pmsg,mscfg->rc_conf_table) || 
@@ -970,18 +974,17 @@ static int dynamic_cfg_updater(void *pnet, void *ptos)
     }
   }
 
-  myredis_release(&rds);
+  //myredis_release(&rds);
 
   return 0;
 }
-
 
 static
 struct simple_timer_s g_cfg_updater = 
 {
   .desc = "dynamic config updater",
 
-  .cb = dynamic_cfg_updater,
+  .cb = fetch_du_notice,
 
   .timeouts = 60,
 } ;
@@ -1011,6 +1014,8 @@ static
 void destroy_dynamic_cfg_updater()
 {
   drop_dbuffer(g_alipayData.du.push_msg);
+
+  myredis_release(&g_alipayData.du.rds);
 }
 
 static

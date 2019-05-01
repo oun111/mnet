@@ -61,7 +61,7 @@ void myredis_release(myredis_t mr)
 
 int myredis_init(myredis_t mr, const char *host, int port, char *name)
 {
-  myredis_release(mr);
+  //myredis_release(mr);
 
   mr->ctx = redisConnect(host,port);
 
@@ -157,7 +157,8 @@ static
 int myredis_mq_rx(myredis_t mr, const char *qname, redisReply **rc)
 {
   // reconnect and re-execute command if lost connections
-  MYREDIS_SAFE_EXECUTE(mr,*rc,"lpop %s ",qname);
+  //MYREDIS_SAFE_EXECUTE(mr,*rc,"lpop %s ",qname);
+  MYREDIS_SAFE_EXECUTE(mr,*rc,"subscribe %s ",qname);
 
   if (!*rc || (*rc)->type==REDIS_REPLY_ERROR) {
     log_error("read from redis fail: %s\n",*rc?(*rc)->str:"^_^") ;
@@ -175,8 +176,8 @@ int myredis_get_push_msg(myredis_t mr, dbuffer_t *res)
 
   r = myredis_mq_rx(mr,mr->push_msg,&rc), ret = -1;
 
-  if (!r) {
-    *res = write_dbuffer_string(*res,rc->str,rc->len);
+  if (!r && rc->elements==3 && !strcmp(rc->element[0]->str,"message")) {
+    *res = write_dbuffer_string(*res,rc->element[2]->str,rc->element[2]->len);
     ret = 0 ;
   }
 
