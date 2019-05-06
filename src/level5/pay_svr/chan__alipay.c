@@ -53,7 +53,9 @@ struct alipay_data_s {
 
   struct rds_order_entry_s m_rOrders ;
 
-  struct myredis_s m_rds ;
+  struct myredis_s m_rds ; // fetch order data
+
+  struct myredis_s m_cfg_rds ; // fetch config data
 
   // used by dynamic updater
   struct dynamic_updater_s {
@@ -65,7 +67,7 @@ struct alipay_data_s {
      */
     int flags ; 
 
-    struct myredis_s rds ;
+    struct myredis_s rds ; // fetch subscribe/publish notice
   } du ;
 
 } g_alipayData  ;
@@ -516,7 +518,7 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
 static int do_dynamic_update()
 {
   dbuffer_t buff = 0;
-  myredis_t prds = &g_alipayData.m_rds ;
+  myredis_t prds = &g_alipayData.m_cfg_rds ;
   paySvr_config_t pc = get_running_configs();
   mysql_conf_t mscfg = get_mysql_configs(pc);
 
@@ -1056,9 +1058,14 @@ int alipay_init(Network_t net)
   
   // init current module's redis connection
   ret = myredis_init(&g_alipayData.m_rds, rconf->host,
-                     rconf->port, rconf->cfg_cache);
+                     rconf->port, rconf->order_cache);
   log_info("connect to redis %s:%d ... %s\n",
            rconf->host, rconf->port, ret?"fail!":"ok!");
+
+  // share same redis connection with 'g_alipayData.m_rds', 
+  //  but access 'cfg cache' instead of 'order cache'
+  myredis_dup(&g_alipayData.m_rds,&g_alipayData.m_cfg_rds,
+              rconf->cfg_cache);
 
   // redis order cache
   init_rds_order_entry(&g_alipayData.m_rOrders,&g_alipayData.m_rds,

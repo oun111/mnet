@@ -33,6 +33,8 @@ extern void myredis_release(myredis_t mr);
 
 extern int myredis_init(myredis_t mr, const char *host, int port, char *name);
 
+extern void myredis_dup(myredis_t src, myredis_t dst, char *newname) ;
+
 extern int myredis_read(myredis_t mr, const char *table, const char *key, 
                         dbuffer_t *value);
 

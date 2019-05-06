@@ -81,6 +81,27 @@ int myredis_init(myredis_t mr, const char *host, int port, char *name)
   return 0;
 }
 
+void myredis_dup(myredis_t src, myredis_t dst, char *newname) 
+{
+  dst->ctx = src->ctx ;
+
+  strncpy(dst->host,src->host,sizeof(dst->host));
+  dst->port = src->port ;
+
+  if (newname) {
+    snprintf(dst->cache,sizeof(dst->cache),"%s",newname);
+    snprintf(dst->mq,sizeof(dst->mq),"%s_mq",newname);
+    snprintf(dst->push_msg,sizeof(dst->push_msg),"%s_push_mq",newname);
+    snprintf(dst->var,sizeof(dst->var),"%s_var",newname);
+  }
+  else {
+    strncpy(dst->cache,src->cache,sizeof(dst->cache));
+    strncpy(dst->mq,src->mq,sizeof(dst->mq));
+    strncpy(dst->push_msg,src->push_msg,sizeof(dst->push_msg));
+    strncpy(dst->var,src->var,sizeof(dst->var));
+  }
+}
+
 static
 int myredis_write_cache(myredis_t mr, char *k, char *v)
 {
