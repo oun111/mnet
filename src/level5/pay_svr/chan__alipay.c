@@ -328,6 +328,10 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   put_tree_map_string(pay_biz,"timeout_express",
       get_tree_map_value(pay_params,"timeout_express"));
 
+  // no credit cards
+  put_tree_map_string(pay_biz,"disable_pay_channels",
+      "creditCard,credit_group");
+
 #if 1
   dbuffer_t strBiz = create_json_params(pay_biz);
 #else
