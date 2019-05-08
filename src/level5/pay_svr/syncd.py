@@ -144,10 +144,11 @@ class syncd(object):
   def __init__(self,cfg_contents):
 
     self.sync_back_cb = {
-      'merchant_configs'       : ('name', self.sync_back_mch_cfg),
-      'channel_alipay_configs' : ('app_id', self.sync_back_alipay_cfg),
-      'order_data'             : ('orderid', self.sync_back_order_data),
-      'risk_control_configs'   : ('channel', self.sync_back_rc_cfg)
+      'merchant_configs'       : (['name'], self.sync_back_mch_cfg),
+      'channel_alipay_configs' : (['app_id'], self.sync_back_alipay_cfg),
+      'order_data'             : (['orderid','mch_orderid'], self.sync_back_order_data),
+      #'order_data'             : (['orderid'], self.sync_back_order_data),
+      'risk_control_configs'   : (['channel'], self.sync_back_rc_cfg)
     }
 
     self.sync_cb = {
@@ -359,26 +360,30 @@ class syncd(object):
     # extract target mysql key
     klst   = key.split('#')
     db_key = klst[len(klst)-1]
+    nk = 0
 
-    # construct sql query condition list
-    if (len(db_key)>0):
-      k = self.sync_back_cb[table][0]
-      cond = " where " + k + " = '" + db_key + "'"
-    else:
-      cond = ""
+    for ks in self.sync_back_cb[table][0] :
+      # construct sql query condition list
+      if (len(db_key)>0):
+        #k = self.sync_back_cb[table][0]
+        k = ks
+        cond = " where " + k + " = '" + db_key + "'"
+      else:
+        cond = ""
 
-    # callback method
-    cb = self.sync_back_cb[table][1]
+      # callback method
+      cb = self.sync_back_cb[table][1]
 
-    # query database for results
-    rows = mysql.query(table," * ",cond)
-    #logger.debug("rows: {0}".format(rows))
-    vj,numRows = cb(rows)
+      # query database for results
+      rows = mysql.query(table," * ",cond)
+      #logger.debug("rows: {0}".format(rows))
+      vj,numRows = cb(rows)
 
-    if (numRows>0):
-      stat = self.rds_status.mr__ok
-    else:
-      stat = self.rds_status.mr__na
+      if (numRows>0):
+        stat = self.rds_status.mr__ok
+        break
+      else:
+        stat = self.rds_status.mr__na
 
     resMap['status'] = stat
     resMap['table']  = table
