@@ -1,155 +1,61 @@
--- MySQL dump 10.16  Distrib 10.2.12-MariaDB, for Linux (x86_64)
---
--- Host: localhost    Database: pay_db
--- ------------------------------------------------------
--- Server version	10.2.12-MariaDB
 
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8 */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-
---
--- Table structure for table `channel_alipay_configs`
---
-
-DROP TABLE IF EXISTS `channel_alipay_configs`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `channel_alipay_configs` (
-  `ID` int(11) NOT NULL DEFAULT 0,
-  `NAME` char(48) NOT NULL,
-  `REQ_URL` varchar(512) NOT NULL,
-  `PARAM_TYPE` char(16) NOT NULL DEFAULT 'html',
-  `PUBLIC_KEY_PATH` varchar(512) NOT NULL,
-  `PRIVATE_KEY_PATH` varchar(512) NOT NULL,
-  `PRODUCT_CODE` char(64) NOT NULL,
-  `TIMEOUT_EXPRESS` char(16) NOT NULL,
-  `APP_ID` varchar(64) NOT NULL,
-  `METHOD` varchar(64) NOT NULL,
-  `FORMAT` varchar(32) NOT NULL,
-  `CHARSET` varchar(16) NOT NULL,
-  `SIGN_TYPE` varchar(16) NOT NULL,
-  `VERSION` varchar(8) NOT NULL,
-  `NOTIFY_URL` varchar(512) NOT NULL,
-  `RETURN_URL` varchar(512) NOT NULL,
-  `online` varchar(8) NOT NULL DEFAULT '1'
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `channel_alipay_configs`
---
-
-LOCK TABLES `channel_alipay_configs` WRITE;
-/*!40000 ALTER TABLE `channel_alipay_configs` DISABLE KEYS */;
-INSERT INTO `channel_alipay_configs` VALUES (0,'alipay','https://openapi.alipay.com/gateway.do','html','/home/user1/zyw/work/11ygalipay/ALI_rsa_public_key.2019032263662110.pem','/home/user1/zyw/work/11ygalipay/rsa_private_key.2019032263662110.pem','QUICK_WAP_PAY','5m','2019032263662110','alipay.trade.wap.pay','JSON','utf-8','RSA2','1.0','http://frpgz1.idcfengye.com:10047/alipay/notify','https://127.0.0.1/index','1'),(1,'alipay','https://openapi.alipay.com/gateway.do','html','/home/user1/zyw/work/11ygalipay/ALI_rsa_public_key.2019031163542035.pem','/home/user1/zyw/work/11ygalipay/rsa_private_key.2019031163542035.pem','QUICK_WAP_PAY','5m','2019031163542035','alipay.trade.wap.pay','JSON','utf-8','RSA2','1.0','http://frpgz1.idcfengye.com:10047/alipay/notify','https://127.0.0.1/index','1'),(2,'alipay','https://openapi.alipay.com/gateway.do','html','/home/user1/zyw/work/11ygalipay/ALI_rsa_public_key.2019032163594873.pem','/home/user1/zyw/work/11ygalipay/rsa_private_key.2019032163594873.pem','QUICK_WAP_PAY','5m','2019032163594873','alipay.trade.wap.pay','JSON','utf-8','RSA2','1.0','http://frpgz1.idcfengye.com:10047/alipay/notify','https://127.0.0.1/index','1');
-/*!40000 ALTER TABLE `channel_alipay_configs` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `merchant_configs`
---
-
-DROP TABLE IF EXISTS `merchant_configs`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `merchant_configs` (
-  `ID` int(11) NOT NULL AUTO_INCREMENT,
-  `NAME` char(48) NOT NULL,
-  `SIGN_TYPE` char(16) NOT NULL DEFAULT 'MD5',
-  `PUBKEY` varchar(4096) DEFAULT NULL,
-  `PRIVKEY` varchar(4096) DEFAULT NULL,
-  `PARAM_TYPE` char(16) NOT NULL DEFAULT 'html',
-  PRIMARY KEY (`ID`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=latin1;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `merchant_configs`
---
-
-LOCK TABLES `merchant_configs` WRITE;
-/*!40000 ALTER TABLE `merchant_configs` DISABLE KEYS */;
-INSERT INTO `merchant_configs` VALUES (1,'mch_001','md5','123456789','','json'),(2,'mch_002','md5','absdfsd456','','json');
-/*!40000 ALTER TABLE `merchant_configs` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `order_data`
---
-
-DROP TABLE IF EXISTS `order_data`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `order_data` (
-  `ORDERID` varchar(32) NOT NULL,
-  `MCH_NO` varchar(32) NOT NULL,
-  `MCH_NOTIFY_URL` varchar(512) NOT NULL,
-  `MCH_ORDERID` varchar(32) NOT NULL,
-  `CHAN_NAME` varchar(32) NOT NULL,
-  `CHAN_MCH_NO` varchar(32) NOT NULL,
-  `AMOUNT` decimal(16,2) NOT NULL,
-  `STATUS` int(11) NOT NULL DEFAULT 0,
-  `USER_NOTIFY_STATUS` int(11) NOT NULL DEFAULT 0,
-  `CREATE_TIME` bigint(20) NOT NULL DEFAULT 0,
-  PRIMARY KEY (`ORDERID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `order_data`
---
-
-LOCK TABLES `order_data` WRITE;
-/*!40000 ALTER TABLE `order_data` DISABLE KEYS */;
-INSERT INTO `order_data` VALUES ('alp_00000000000000000012','mch_002','http://127.0.0.1:8080/epl_datong/myalipayNotifyResponse','100001','alipay','2019032163594873',0.01,0,0,1553737471528615);
-/*!40000 ALTER TABLE `order_data` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `risk_control_configs`
---
-
-DROP TABLE IF EXISTS `risk_control_configs`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `risk_control_configs` (
-  `CHANNEL` varchar(64) NOT NULL,
-  `MAX_ORDERS` int(11) NOT NULL,
-  `MAX_AMOUNT` decimal(24,2) NOT NULL,
-  `PERIOD` int(11) NOT NULL,
-  PRIMARY KEY (`CHANNEL`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  `RCID` varchar(64) NOT NULL COMMENT '风控配置项标识/名称',
+  `MAX_ORDERS` int(11) NOT NULL COMMENT '风控时间段内 支付宝通道  最大可支付订单 数量',
+  `MAX_AMOUNT` decimal(24,2) NOT NULL COMMENT '风控时间段内支付宝通道  最大可支付金额',
+  `PERIOD` int(11) NOT NULL COMMENT '风控时间段 周期，单位 秒',
+  PRIMARY KEY (`RCID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
 
---
--- Dumping data for table `risk_control_configs`
---
 
-LOCK TABLES `risk_control_configs` WRITE;
-/*!40000 ALTER TABLE `risk_control_configs` DISABLE KEYS */;
-INSERT INTO `risk_control_configs` VALUES ('alipay',1,11.20,60);
-/*!40000 ALTER TABLE `risk_control_configs` ENABLE KEYS */;
-UNLOCK TABLES;
+CREATE TABLE `merchant_configs` (
+  `ID` int(11) NOT NULL COMMENT 'paysvr商户配置项id，自增',
+  `NAME` char(48) NOT NULL COMMENT 'paysvr商户名称，用于标识区分paysvr商户，应由 后台管理系统生成',
+  `SIGN_TYPE` char(16) NOT NULL DEFAULT 'MD5' COMMENT 'paysvr商户请求验签算法，可用 md5，sha1，sha224，sha256，sha384，sha512',
+  `PUBKEY` varchar(4096) DEFAULT NULL COMMENT '当签名算法为对称加密时，为 商户验签加签密钥; 当为 非对称加密时，该字段为 公钥',
+  `PRIVKEY` varchar(4096) DEFAULT NULL COMMENT '当签名算法为对称加密时，该字段不使用; 当为 非对称加密时，该字段为 私钥',
+  `PARAM_TYPE` char(16) NOT NULL DEFAULT 'html' COMMENT 'paysvr商户请求/响应/回调通知 格式，可选 json 或 html',
+  `VERIFY_SIGN` int(11) NOT NULL DEFAULT 1 COMMENT '是否开启 商户 加签/验签 ，0 不开启，1 开启',
+  PRIMARY KEY (`ID`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
---
--- Dumping routines for database 'pay_db'
---
-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+CREATE TABLE `order_data` (
+  `ORDERID` varchar(32) NOT NULL COMMENT '唯一标识一个订单',
+  `MCH_NO` varchar(32) NOT NULL COMMENT '产生订单的 paysvr商户号',
+  `MCH_NOTIFY_URL` varchar(512) NOT NULL COMMENT '订单对应的paysvr商户异步通知url',
+  `MCH_ORDERID` varchar(32) NOT NULL COMMENT 'paysvr商户提交的 商户订单id',
+  `CHAN_NAME` varchar(32) NOT NULL COMMENT '订单对应的 支付宝通道 名称',
+  `CHAN_MCH_NO` varchar(32) NOT NULL COMMENT '订单对应的 支付宝通道id，即app_id',
+  `CHAN_MESSAGE` varchar(32) DEFAULT '' COMMENT '由支付宝平台 产生的 订单最终支付结果',
+  `AMOUNT` decimal(16,2) NOT NULL COMMENT '订单 下单金额，单位 元',
+  `STATUS` int(11) NOT NULL DEFAULT 0 COMMENT '订单状态，包括：0 未支付，1 正在支付，2 已支付，3 支付出错，4 超时',
+  `USER_NOTIFY_STATUS` int(11) NOT NULL DEFAULT 0 COMMENT 'paysvr 给商户发送通知的结果，包括：0 未通知，1 正在通知，2 通知成功（商户已接收处理并返回success），3 通知失败',
+  `CREATE_TIME` bigint(20) NOT NULL DEFAULT 0 COMMENT '订单创建时间，unix格式',
+  PRIMARY KEY (`ORDERID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
 
--- Dump completed on 2019-03-28 10:47:16
+
+CREATE TABLE `channel_alipay_configs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT '支付宝通道ID，自增',
+  `name` char(48) NOT NULL COMMENT '支付宝通道名称，可自定义',
+  `REQ_URL` varchar(512) NOT NULL COMMENT '支付宝通道支付请求发送URL，目前固定为 https://openapi.alipay.com/gateway.do ',
+  `PARAM_TYPE` char(16) NOT NULL DEFAULT 'html' COMMENT '用于浏览器直接跳转的支付宝下单请求的格式，可选 json 或 html。仅用于调试',
+  `PUBLIC_KEY_PATH` varchar(512) NOT NULL COMMENT '支付宝提供的验签公钥文件路径，pkcs1格式',
+  `PRIVATE_KEY_PATH` varchar(512) NOT NULL COMMENT '商户生成的支付宝加签私钥路径，同时需要上传对应公钥到支付宝商户后台。pkcs1格式',
+  `PRODUCT_CODE` char(64) NOT NULL COMMENT '支付宝支付请求参数，固定为 QUICK_WAP_PAY',
+  `TIMEOUT_EXPRESS` char(16) NOT NULL COMMENT '支付宝支付请求有效时长，单位分钟，建议30～60m',
+  `APP_ID` varchar(64) NOT NULL COMMENT '支付宝通道对应之app_id，唯一标识该支付宝通道，从支付宝商户后台获取',
+  `METHOD` varchar(64) NOT NULL COMMENT '支付宝支付请求参数，固定为 alipay.trade.wap.pay',
+  `FORMAT` varchar(32) NOT NULL COMMENT '支付宝支付请求参数，固定为 JSON',
+  `CHARSET` varchar(16) NOT NULL COMMENT '支付宝支付请求参数，固定为utf-8',
+  `SIGN_TYPE` varchar(16) NOT NULL COMMENT '支付宝支付请求参数，固定为RSA2',
+  `VERSION` varchar(8) NOT NULL COMMENT '支付宝支付请求参数，固定为1.0',
+  `NOTIFY_URL` varchar(512) NOT NULL COMMENT '用于接收支付宝发送的异步通知的url，默认为 paysvr 1366端口 对外url',
+  `RETURN_URL` varchar(512) NOT NULL COMMENT '用于支付成功后app跳转的页面地址。目前不使用',
+  `online` varchar(8) NOT NULL DEFAULT '1' COMMENT '标识当前支付宝通道的可用情况，1 可用，0 不可用',
+  `RCID` varchar(64) NOT NULL COMMENT '当前支付宝通道对应的 风控规则id，见 风控配置表 定义',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=latin1
+
+
