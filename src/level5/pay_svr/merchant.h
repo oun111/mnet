@@ -10,16 +10,24 @@
 #define MCH_ID_SIZE  32
 
 
+#if 0
 enum sign_type {
   t_md5 ,
   t_rsa,
 } ;
+#endif
 
 struct merchant_info_s {
 
   char id[MCH_ID_SIZE];
 
   tree_map_t mch_info ;
+
+  // frequently use params
+  dbuffer_t pubkey;
+  dbuffer_t privkey ;
+  bool verify_sign ;
+  int sign_type ;
 
   struct rb_node node ;
 } ;

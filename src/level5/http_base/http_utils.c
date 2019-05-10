@@ -128,12 +128,13 @@ dbuffer_t create_html_params(tree_map_t map)
     // construct 'key=value'
     append_dbuf_str(strParams,pos->key);
     append_dbuf_str(strParams,"=");
-    append_dbuf_str(strParams,pos->val);
+    append_dbuf_str(strParams,(pos->val[0]=='$'?pos->val+1:pos->val));
     append_dbuf_str(strParams,"&");
   }
 
   // eliminate the last  '&'
   strParams[dbuffer_data_size(strParams)-1] = '\0';
+  dbuffer_lseek(strParams,-1,SEEK_CUR,1);
 
   return strParams ;
 }

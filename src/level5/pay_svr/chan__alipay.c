@@ -22,6 +22,7 @@
 #include "L4.h"
 #include "url_coder.h"
 #include "timer.h"
+#include "md.h"
 
 //#include "myrbtree.h"
 
@@ -405,12 +406,50 @@ do_out_connect(Network_t net, connection_t peer_conn,
   return out_conn;
 }
 
+static 
+int add_merchant_sign(merchant_info_t pm, tree_map_t params)
+{
+  dbuffer_t signStr = 0, outb = 0;
+  int ret = -1;
+
+
+  // no need to sign
+  if (pm->verify_sign==false) {
+    return 0;
+  }
+
+  // create sign string excluding 'sign' value
+  drop_tree_map_item(params,SIGN,strlen(SIGN));
+  signStr = create_html_params(params);
+
+  // append 'key'
+  append_dbuf_str(signStr,pm->pubkey);
+  log_debug("sign str: %s\n",signStr);
+
+  outb = alloc_default_dbuffer();
+
+  // create sign
+  if (do_md_sign(signStr,strlen(signStr),pm->sign_type,&outb)) {
+    goto __done;
+  }
+
+  put_tree_map_string(params,SIGN,outb);
+
+  ret = 0;
+
+__done:
+  drop_dbuffer(signStr);
+  drop_dbuffer(outb);
+
+  return ret;
+}
+
 static
 int create_alipay_link(dbuffer_t *errbuf,connection_t out_conn, const char *url, 
                        merchant_info_t pm, tree_map_t pay_data)
 {
-  dbuffer_t wholeUrl = alloc_default_dbuffer();
-  dbuffer_t strParams = create_html_params(pay_data);
+  dbuffer_t wholeUrl = 0;
+  dbuffer_t strParams = 0;
   tree_map_t res_map = new_tree_map();
   order_entry_t pe = get_order_entry();
   char *odrid = aid_fetch(&g_alipayData.aid);
@@ -428,6 +467,9 @@ int create_alipay_link(dbuffer_t *errbuf,connection_t out_conn, const char *url,
   if (ptr) {
     param_type = !strcmp(ptr,"json")?pt_json:pt_html ;
   }
+
+  wholeUrl = alloc_default_dbuffer();
+  strParams= create_html_params(pay_data);
   
   write_dbuf_str(wholeUrl,url);
   append_dbuf_str(wholeUrl,"?");
@@ -443,6 +485,9 @@ int create_alipay_link(dbuffer_t *errbuf,connection_t out_conn, const char *url,
 
   snprintf(tmp,sizeof(tmp),"%s%.2f",param_type==pt_json?"$":"",po->amount);
   put_tree_map_string(res_map,AMT,tmp);
+
+  // the sign 
+  add_merchant_sign(pm,res_map);
 
   create_http_normal_res2(&out_conn->txb,param_type,res_map);
 
@@ -562,6 +607,54 @@ static int do_dynamic_update()
   return 0;
 }
 
+static
+bool verify_merchant_sign(merchant_info_t pm, tree_map_t user_params, 
+                          dbuffer_t *errbuf)
+{
+  char *signstr = 0, *sign = 0, *chkstr = 0;
+  int ret = false ;
+
+
+  if (!pm->verify_sign) {
+    log_debug("no need verify sign\n");
+    return true ;
+  }
+
+  signstr = get_tree_map_value(user_params,SIGN);
+  if (!signstr) {
+    FORMAT_ERR(errbuf,"no '%s' given\n",SIGN);
+    return false ;
+  }
+
+  if (!pm->pubkey || strlen(pm->pubkey)==0L) {
+    FORMAT_ERR(errbuf,"no key config\n");
+    return false ;
+  }
+
+  sign = alloc_default_dbuffer();
+  write_dbuf_str(sign,signstr);
+
+  // create sign string excluding 'sign' value
+  drop_tree_map_item(user_params,SIGN,strlen(SIGN));
+  chkstr = create_html_params(user_params);
+
+  // append 'key'
+  append_dbuf_str(chkstr,pm->pubkey);
+  
+  if (!do_md_verify(chkstr,strlen(chkstr),sign,strlen(sign),pm->sign_type)) {
+    FORMAT_ERR(errbuf,"bad sign\n");
+    goto __done ;
+  }
+
+  ret = true ;
+
+__done:
+  drop_dbuffer(sign);
+  drop_dbuffer(chkstr);
+
+  return ret;
+}
+
 static 
 int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
 {
@@ -585,15 +678,19 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   // if there're new configs, do updates
   do_dynamic_update();
 
-  // TODO: verify merchant signature!!
-
   mch_id = get_tree_map_value(user_params,MCHID);
   if (!mch_id || !(pm=get_merchant(pme,mch_id))) {
     FORMAT_ERR(errbuf,"no such merchant '%s'\n",mch_id);
     goto __done ;
   }
 
+  // verify merchant signature
+  if (!verify_merchant_sign(pm,user_params,errbuf)) {
+    goto __done ;
+  }
+
   reason = alloc_default_dbuffer();
+
   pd = get_pay_route(get_pay_channels_entry(),payChan,&reason);
   if (!pd) {
     FORMAT_ERR(errbuf,"no pay route for channel '%s', reason: %s\n",
@@ -859,6 +956,9 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   snprintf(tmp,sizeof(tmp),"%s%.2f",param_type==pt_json?"$":"",po->amount);
   put_tree_map_string(notify,AMT,tmp);
 
+  // the sign 
+  add_merchant_sign(pm,notify);
+
   create_http_post_req(&out_conn->txb,po->mch.notify_url,pt_json,notify);
 
   delete_tree_map(notify);
@@ -892,11 +992,17 @@ int do_alipay_query(Network_t net,connection_t pconn,tree_map_t user_params)
   bool bRel = false ;
 
 
-  // TODO: verify merchant signature!!
+  // if there're new configs, do updates
+  do_dynamic_update();
 
   ptr = get_tree_map_value(user_params,MCHID);
   if (!ptr || !(pm=get_merchant(pme,ptr))) {
     FORMAT_ERR(errbuf,"no such merchant '%s'\n",ptr);
+    goto __done ;
+  }
+
+  // verify merchant signature
+  if (!verify_merchant_sign(pm,user_params,errbuf)) {
     goto __done ;
   }
 
@@ -922,6 +1028,9 @@ int do_alipay_query(Network_t net,connection_t pconn,tree_map_t user_params)
   put_tree_map_string(qry_res,AMT,tmp);
   snprintf(tmp,sizeof(tmp),"%s%lld",param_type==pt_json?"$":"",po->create_time);
   put_tree_map_string(qry_res,"create_time",tmp);
+
+  // the sign 
+  add_merchant_sign(pm,qry_res);
 
   create_http_normal_res2(&pconn->txb,param_type,qry_res);
   delete_tree_map(qry_res);

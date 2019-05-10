@@ -8,6 +8,7 @@
 #include "log.h"
 #include "config.h"
 #include "http_utils.h"
+#include "md.h"
 
 
 
@@ -29,6 +30,7 @@ merchant_info_t get_merchant(merchant_entry_t entry, char *merchant_id)
 int 
 save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info)
 {
+  char *pv = 0;
   merchant_info_t p = 0;
 
   if (!MY_RB_TREE_FIND(&entry->u.root,merchant_id,p,id,node,compare)) {
@@ -45,6 +47,44 @@ save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info)
   strncpy(p->id,merchant_id,sizeof(p->id));
 
   p->mch_info = mch_info ;
+
+  p->pubkey  = alloc_default_dbuffer();
+  p->privkey = alloc_default_dbuffer();
+
+  // the public key
+  pv = get_tree_map_value(p->mch_info,"pubkey");
+  if (pv) {
+    write_dbuf_str(p->pubkey,pv);
+  }
+
+  // the private key
+  pv = get_tree_map_value(p->mch_info,"privkey");
+  if (pv) {
+    write_dbuf_str(p->privkey,pv);
+  }
+
+
+  p->verify_sign = false ;
+
+  // is verify sign
+  pv = get_tree_map_value(p->mch_info,"verify_sign");
+  if (pv) {
+    p->verify_sign = pv[0]=='1';
+  }
+
+
+  p->sign_type = MD_MD5;
+
+  // sign type
+  pv = get_tree_map_value(p->mch_info,"sign_type");
+  if (pv) {
+    if (!strcasecmp(pv,"md5")) p->sign_type = MD_MD5;
+    else if (!strcasecmp(pv,"sha1")) p->sign_type = MD_SHA1;
+    else if (!strcasecmp(pv,"sha224")) p->sign_type = MD_SHA224;
+    else if (!strcasecmp(pv,"sha256")) p->sign_type = MD_SHA256;
+    else if (!strcasecmp(pv,"sha384")) p->sign_type = MD_SHA384;
+    else if (!strcasecmp(pv,"sha512")) p->sign_type = MD_SHA512;
+  }
 
   if (MY_RB_TREE_INSERT(&entry->u.root,p,id,node,compare)) {
     log_error("insert merchant id %s fail\n",merchant_id);
@@ -64,6 +104,9 @@ static
 int drop_merchant_internal(merchant_entry_t entry, merchant_info_t p)
 {
   rb_erase(&p->node,&entry->u.root);
+
+  drop_dbuffer(p->pubkey);
+  drop_dbuffer(p->privkey);
 
   kfree(p);
 

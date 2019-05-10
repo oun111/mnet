@@ -134,21 +134,14 @@ get_rds_order(rds_order_entry_t entry, const char *table,
   tm_item_t pos,n,pos1,n1;
 
 
-  // test if 'orderid' already contains order data
-  if (!strstr(orderid,"{")) {
-
-    for (int i=0;/*i<10 &&*/ rc==1; i++) {
-      rc = myredis_read((myredis_t)entry->myrds_handle,table,orderid,&str);
-    }
-
-    // get nothing
-    if (rc<0 || rc==1) {
-      log_error("get nothing, rc=%d\n",rc);
-      goto __done;
-    }
+  for (int i=0;/*i<10 &&*/ rc==1; i++) {
+    rc = myredis_read((myredis_t)entry->myrds_handle,table,orderid,&str);
   }
-  else {
-    write_dbuf_str(str,orderid);
+
+  // get nothing
+  if (rc<0 || rc==1) {
+    log_error("get nothing, rc=%d\n",rc);
+    goto __done;
   }
 
   // allocate space
