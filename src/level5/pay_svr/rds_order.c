@@ -106,10 +106,13 @@ int get_rds_order_index(rds_order_entry_t entry, const char *table,
                         const char *out_trade_no, dbuffer_t *orderid)
 {
   int rc = 1;
+  char tbl[128] = "";
 
+
+  snprintf(tbl,128,"%s:i",table);
 
   for (int i=0;/*i<10 &&*/ rc==1; i++) {
-    rc = myredis_read((myredis_t)entry->myrds_handle,table,out_trade_no,orderid);
+    rc = myredis_read((myredis_t)entry->myrds_handle,tbl,out_trade_no,orderid);
   }
 
   // get nothing

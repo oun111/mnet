@@ -35,6 +35,8 @@ CREATE TABLE `order_data` (
   PRIMARY KEY (`ORDERID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 
+alter table `order_data` add index mch_orderid_index(`MCH_ORDERID`);
+
 
 CREATE TABLE `channel_alipay_configs` (
   `id` int(11) NOT NULL AUTO_INCREMENT COMMENT '支付宝通道ID，自增',

@@ -147,7 +147,8 @@ class syncd(object):
       'merchant_configs'       : ('name', self.sync_back_mch_cfg),
       'channel_alipay_configs' : ('app_id', self.sync_back_alipay_cfg),
       'order_data'             : ('orderid', self.sync_back_order_data),
-      'risk_control_configs'   : ('channel', self.sync_back_rc_cfg)
+      'risk_control_configs'   : ('channel', self.sync_back_rc_cfg),
+      'order_data:i'           : ('mch_orderid', self.sync_back_order_data_index)
     }
 
     self.sync_cb = {
@@ -309,6 +310,14 @@ class syncd(object):
     rds.write(rdsTbl,key,fj)
 
 
+  def sync_back_order_data_index(self,rows):
+
+    if (len(rows)>0):
+      return rows[0]['ORDERID'],1
+    else:
+      return '',0
+
+
   def sync_back_order_data(self,rows):
 
     top   = {}
@@ -369,6 +378,11 @@ class syncd(object):
 
     # callback method
     cb = self.sync_back_cb[table][1]
+
+    # test for 'table:i' form
+    tlst   = klst[0].split(':')
+    if (len(tlst)>0):
+      table = tlst[0]
 
     # query database for results
     rows = mysql.query(table," * ",cond)
