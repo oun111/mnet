@@ -42,7 +42,7 @@ int save_rds_order1(rds_order_entry_t entry, const char *table, char *id,
                     char *chan_message)
 {
   tree_map_t map = new_tree_map();
-  char tmp[64]="";
+  char tmp[256]="";
   dbuffer_t str = alloc_default_dbuffer();
   int ret = 0;
 
@@ -80,7 +80,8 @@ int save_rds_order1(rds_order_entry_t entry, const char *table, char *id,
   }
 
   // save index: key: merchant out-trade-no, value: orderid
-  if (myredis_write((myredis_t)entry->myrds_handle,table,mch_sid,id,mr__ok)) {
+  snprintf(tmp,sizeof(tmp),"%s:i",table);
+  if (myredis_write((myredis_t)entry->myrds_handle,tmp,mch_sid,id,mr__ok)) {
     log_error("write index failed\n");
     ret = -1;
   }
