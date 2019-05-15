@@ -6,6 +6,7 @@
 #include "proto.h"
 #include "socket.h"
 #include "mm_porting.h"
+#include <sys/prctl.h>
 #include "L4.h"
 #include "log.h"
 #include "module.h"
@@ -456,5 +457,18 @@ Network_t get_current_net()
 void add_external_timer(simple_timer_t t)
 {
   register_simple_timer(&g_inst.timers,t);
+}
+
+void set_proc_name(int argc, char *argv[], const char *newname)
+{
+  char *lastp = argv[argc-1] + strlen(argv[argc-1]);
+  size_t sz = lastp-argv[0];
+
+
+  bzero(argv[0],sz);
+
+  snprintf(argv[0],sz,"%s",newname);
+
+  prctl(PR_SET_NAME,argv[0]);
 }
 

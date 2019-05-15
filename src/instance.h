@@ -20,5 +20,6 @@ extern int instance_stop();
 
 extern Network_t get_current_net();
 
+extern void set_proc_name(int argc, char *argv[], const char *newname);
 
 #endif /* __INSTANCE_H__*/

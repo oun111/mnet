@@ -20,8 +20,7 @@ numSyncds = numWorkers
 
 
 if opt=="0" or opt=="1":
-  #os.system("rm -f /tmp/mnet_*.log")
-  os.system("killall mnet_test")
+  os.system("killall payd")
   os.system("killall syncd.py")
 
   if opt=="1":

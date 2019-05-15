@@ -207,6 +207,8 @@ void pay_svr_module_init(int argc, char *argv[])
 
   register_extra_modules();
 
+  set_proc_name(argc,argv,"payd");
+
   // FIXME: when I make test_crypto() call HERE,
   //  the app would crash, and if at the begining
   //  of this function it runs OK, I don't know why
