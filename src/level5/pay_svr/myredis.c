@@ -140,6 +140,7 @@ int myredis_read_cache(myredis_t mr, char *k, redisReply **rc)
   return 0;
 }
 
+#if 0
 static
 int myredis_read_cache_all(myredis_t mr, redisReply **rc)
 {
@@ -153,6 +154,7 @@ int myredis_read_cache_all(myredis_t mr, redisReply **rc)
 
   return 0;
 }
+#endif
 
 static
 int myredis_mq_tx(myredis_t mr, char *m)

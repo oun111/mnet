@@ -852,27 +852,75 @@ order_info_t get_order_by_otn(const char *tno, dbuffer_t *errbuf, bool *bRel)
   return po ;
 }
 
+static
+int send_merchant_notify(Network_t net, order_info_t po)
+{
+  char tmp[128]  = "";
+  int param_type = pt_json;
+  merchant_entry_t pme = get_merchant_entry();
+
+
+  // user notifying status
+  set_order_un_status(po,s_notifying);
+
+  merchant_info_t pm  = get_merchant(pme,po->mch.no);
+  if (unlikely(!pm)) {
+    log_error("no such merchant '%s'\n",pm->id);
+    return -1;
+  }
+
+  /* connect merchant server(treat as 'backend')  */
+  connection_t out_conn = do_out_connect(net,NULL,po->mch.notify_url,po);
+  if (!out_conn) {
+    log_error("connection to '%s' fail\n",po->mch.notify_url);
+    set_order_un_status(po,s_notify_fail);
+    return -1;
+  }
+
+  char *ptr = get_tree_map_value(pm->mch_info,PARAM_TYPE);
+  if (ptr) {
+    param_type = !strcmp(ptr,"json")?pt_json:pt_html ;
+  }
+
+  // construct the 'merchant notify'
+  tree_map_t notify = new_tree_map();
+  put_tree_map_string(notify,TNO,po->id);
+  put_tree_map_string(notify,OTNO,po->mch.out_trade_no);
+  put_tree_map_string(notify,STATUS,get_pay_status_str(po->status));
+  snprintf(tmp,sizeof(tmp),"%s%.2f",param_type==pt_json?"$":"",po->amount);
+  put_tree_map_string(notify,AMT,tmp);
+
+  // the sign 
+  add_merchant_sign(pm,notify);
+
+  create_http_post_req(&out_conn->txb,po->mch.notify_url,pt_json,notify);
+
+  if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
+    alipay_tx(net,out_conn);
+  }
+
+  delete_tree_map(notify);
+
+  return 0;
+}
+
 static 
 int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
 {
   const char *alipay_notify_res = "success";
-  char *tno = get_tree_map_value(user_params,OTNO);
-  //order_entry_t pe = get_order_entry();
   rds_order_entry_t pre = &g_alipayData.m_rOrders;
+  pay_channels_entry_t pce = get_pay_channels_entry() ;
   paySvr_config_t pc = get_running_configs();
   mysql_conf_t mcfg = get_mysql_configs(pc);
-  pay_channels_entry_t pce = get_pay_channels_entry() ;
   const char *appid = get_tree_map_value(user_params,APPID);
   const char *payChan = action__alipay_order.channel ;
+  char *tno = 0;
   pay_data_t pd = 0 ;
   order_info_t po = 0;
-  connection_t out_conn = 0;
-  tree_map_t notify = 0;
-  char tmp[64] = "", *ptr = 0;
-  int param_type = pt_json ;
+  char *ptr = 0;
   merchant_entry_t pme = get_merchant_entry();
   merchant_info_t pm = 0;
-  int ret = -1, st = 0;
+  int ret = -1, st = s_err;
   bool rel = false ;
 
 
@@ -899,16 +947,18 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
       log_error("send later by %d\n",pconn->fd);
   }
 
+  tno = get_tree_map_value(user_params,OTNO);
   if (!tno) {
     log_error("no 'out_trade_no' field found\n");
     return -1;
   }
 
   po = get_order_by_otn(tno,NULL,&rel);
-  if (!po)
+  if (!unlikely(po))
     goto __done ;
 
-  if (!(pm=get_merchant(pme,po->mch.no))) {
+  pm = get_merchant(pme,po->mch.no);
+  if (unlikely(!pm)) {
     log_error("no such merchant '%s'\n",po->mch.no);
     goto __done;
   }
@@ -916,60 +966,27 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   // update risk control arguments
   update_paydata_rc_arguments(pd,po->amount);
 
-  ptr = get_tree_map_value(pm->mch_info,PARAM_TYPE);
-  if (ptr) {
-    param_type = !strcmp(ptr,"json")?pt_json:pt_html ;
-  }
-
   // update order status by ALI status
   ptr = get_tree_map_value(user_params,"trade_status");
 
-  st = !strcmp(ptr,"TRADE_SUCCESS")?s_paid:s_err;
+  if (likely(ptr)) 
+    st = !strcmp(ptr,"TRADE_SUCCESS")?s_paid:s_err;
 
   set_order_message(po,ptr);
 
   // update order status
   set_order_status(po,st);
 
-  // user notifying status
-  set_order_un_status(po,s_notifying);
-
-  // update redis
-  if (save_rds_order(pre,mcfg->order_table,po)) {
-    log_error("update order '%s' to redis fail\n",po->id);
-  }
-
-  /* connect merchant server(treat as 'backend')  */
-  out_conn = do_out_connect(net,NULL,po->mch.notify_url,po);
-  if (!out_conn) {
-    log_error("connection to '%s' fail\n",po->mch.notify_url);
-    goto __done;
-  }
-
-  log_debug("connecting to '%s' ok!\n",po->mch.notify_url);
-
-  // construct the 'merchant notify'
-  notify = new_tree_map();
-  put_tree_map_string(notify,TNO,po->id);
-  put_tree_map_string(notify,OTNO,po->mch.out_trade_no);
-  put_tree_map_string(notify,STATUS,get_pay_status_str(po->status));
-  snprintf(tmp,sizeof(tmp),"%s%.2f",param_type==pt_json?"$":"",po->amount);
-  put_tree_map_string(notify,AMT,tmp);
-
-  // the sign 
-  add_merchant_sign(pm,notify);
-
-  create_http_post_req(&out_conn->txb,po->mch.notify_url,pt_json,notify);
-
-  delete_tree_map(notify);
-
-  if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
-    alipay_tx(net,out_conn);
-  }
-
   ret = 0;
 
+  if (send_merchant_notify(net,po)) {
+    ret = -1;
+  }
+
 __done:
+  // update redis
+  save_rds_order(pre,mcfg->order_table,po);
+
   if (rel)
     release_rds_order(pre,po);
 
@@ -1047,6 +1064,54 @@ __done:
   }
 
   if (bRel)
+    release_rds_order(pre,po);
+
+  return ret;
+}
+
+static 
+int do_alipay_manual_notify(Network_t net,connection_t pconn,tree_map_t user_params)
+{
+  const char *mnote_res = "success";
+  char *tno = 0;
+  rds_order_entry_t pre = &g_alipayData.m_rOrders;
+  paySvr_config_t pc = get_running_configs();
+  mysql_conf_t mcfg = get_mysql_configs(pc);
+  order_info_t po = 0;
+  int ret = 0;
+  bool rel = false ;
+
+
+  // send a feed back
+  create_http_normal_res(&pconn->txb,pt_html,mnote_res);
+
+  if (!pconn->ssl || pconn->ssl->state==s_ok) {
+    if (!alipay_tx(net,pconn))
+      close(pconn->fd);
+    else 
+      log_error("send later by %d\n",pconn->fd);
+  }
+
+  tno = get_tree_map_value(user_params,OTNO);
+  if (!tno) {
+    log_error("no 'out_trade_no' field found\n");
+    return -1;
+  }
+
+  log_debug("try to send manual notice by order '%s'\n",tno);
+
+  po = get_order_by_otn(tno,NULL,&rel);
+  if (!po)
+    return -1 ;
+
+  if (send_merchant_notify(net,po)) {
+    ret = -1 ;
+  }
+
+  // update redis
+  save_rds_order(pre,mcfg->order_table,po);
+
+  if (rel)
     release_rds_order(pre,po);
 
   return ret;
@@ -1160,6 +1225,15 @@ struct http_action_s action__alipay_query =
   .cb      = do_alipay_query,
 } ;
 
+static
+struct http_action_s action__alipay_manualNotify = 
+{
+  .key = "alipay/mnote2",
+  .channel = "alipay",
+  .action  = "mnote2",
+  .cb      = do_alipay_manual_notify,
+} ;
+
 
 static
 int alipay_init(Network_t net)
@@ -1193,6 +1267,7 @@ int alipay_init(Network_t net)
   add_http_action(pe,&action__alipay_order);
   add_http_action(pe,&action__alipay_notify);
   add_http_action(pe,&action__alipay_query);
+  add_http_action(pe,&action__alipay_manualNotify);
 
   // TODO: create the 'push messages rx' thread here, 
   //  use to update configs dynamically

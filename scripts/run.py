@@ -10,13 +10,27 @@ if len(argv)!=2:
   
 script,opt = argv
 
+##
+# pressure: 
+#
+#    0 debug usage, single process, console output
+#
+#    1 pressure test, multiple processes, using log files
+##
+pressure = 1
+
 
 logFlushInterval = 5
 connTimeout = 3600*24
-numWorkers = cpu_count()
-logToFile = "-L /home/user1/work/mnet/logs/"
-#logToFile = ""
-numSyncds = numWorkers 
+
+if pressure==1:
+  numWorkers = cpu_count()
+  logToFile = "-L /home/user1/work/mnet/logs/"
+  numSyncds = numWorkers 
+else:
+  numWorkers = 0
+  logToFile = ""
+  numSyncds = 1
 
 
 if opt=="0" or opt=="1":
