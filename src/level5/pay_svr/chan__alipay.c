@@ -1073,14 +1073,31 @@ static
 int do_alipay_manual_notify(Network_t net,connection_t pconn,tree_map_t user_params)
 {
   const char *mnote_res = "success";
-  char *tno = 0;
+  char *tno = 0, *ptr = 0;
   rds_order_entry_t pre = &g_alipayData.m_rOrders;
   paySvr_config_t pc = get_running_configs();
   mysql_conf_t mcfg = get_mysql_configs(pc);
+  dbuffer_t *errbuf = &pconn->txb;
+  merchant_entry_t pme = get_merchant_entry();
+  merchant_info_t pm = 0;
   order_info_t po = 0;
   int ret = 0;
   bool rel = false ;
 
+
+  // if there're new configs, do updates
+  do_dynamic_update();
+
+  ptr = get_tree_map_value(user_params,MCHID);
+  if (!ptr || !(pm=get_merchant(pme,ptr))) {
+    FORMAT_ERR(errbuf,"no such merchant '%s'\n",ptr);
+    return -1;
+  }
+
+  // verify merchant signature
+  if (!verify_merchant_sign(pm,user_params,errbuf)) {
+    return -1;
+  }
 
   // send a feed back
   create_http_normal_res(&pconn->txb,pt_html,mnote_res);
