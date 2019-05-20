@@ -19,7 +19,7 @@ conf= (basepath + "paysvr_conf.json")
 mod = basepath
 logFlushInterval = 5
 numWorkers = 0
-logToFile = "-L /tmp/"
+logToFile = "-L {0}/logs".format(basepath)
 #logToFile = ""
 numSyncds = cpu_count()
 
