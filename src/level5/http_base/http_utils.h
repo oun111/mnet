@@ -36,6 +36,8 @@ extern int create_http_post_req(dbuffer_t*, const char*, int, tree_map_t);
 
 extern int create_http_get_req(dbuffer_t*, const char*, int, tree_map_t);
 
+extern int create_http_get_req2(dbuffer_t *inb, const char *wholeurl);
+
 extern int create_browser_redirect_req(dbuffer_t*, const char*, int, tree_map_t);
 
 extern int create_http_normal_res(dbuffer_t*, int, const char*);

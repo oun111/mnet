@@ -66,21 +66,21 @@ enum log_type {
 
 #define log_info(fmt,arg...) do{\
   char buf[2048]="";\
-  snprintf(buf, 2048, "[I] %s: " fmt ,\
+  snprintf(buf, sizeof(buf), "[I] %s: " fmt ,\
     __func__, ## arg ); \
   write_log(&g_log,buf,sizeof(buf),l_inf);\
 } while(0)
 
 #define log_debug(fmt,arg...) do{\
   char buf[2048]="";\
-  snprintf(buf, 2048,"[D] %s: " fmt ,\
+  snprintf(buf, sizeof(buf),"[D] %s: " fmt ,\
     __func__, ## arg ); \
   write_log(&g_log,buf,sizeof(buf),l_dbg);\
 } while(0)
 
 #define log_error(fmt,arg...) do{\
   char buf[2048]="";\
-  snprintf(buf, 2048,"[E] %s: " fmt ,\
+  snprintf(buf, sizeof(buf),"[E] %s: " fmt ,\
     __func__, ## arg ); \
   write_log(&g_log,buf,sizeof(buf),l_err);\
 } while(0)

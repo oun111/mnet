@@ -227,8 +227,7 @@ int create_http_get_req(dbuffer_t *inb, const char *url,
   char host[128] = "", uri[256]="";
   const char hdrFmt[] = "GET %s?%s HTTP/1.1\r\n"
                         "Host: %s\r\n"
-                        "User-Agent: normal-svr/0.1\r\n"
-                        "Content-Type: %s\r\n\r\n";
+                        "User-Agent: normal-svr/0.1\r\n\r\n";
 
 
   if (param_type==pt_html) {
@@ -244,8 +243,7 @@ int create_http_get_req(dbuffer_t *inb, const char *url,
   sz_hdr = sizeof(hdrFmt)+strlen(strParams)+strlen(uri)+strlen(host);
   hdr = alloca(sz_hdr);
 
-  snprintf(hdr,sz_hdr,hdrFmt,uri,strParams,host,
-           param_type==pt_html?"text/html":"text/json");
+  snprintf(hdr,sz_hdr,hdrFmt,uri,strParams,host);
 
   // attach whole body
   write_dbuf_str(*inb,hdr);
@@ -253,6 +251,36 @@ int create_http_get_req(dbuffer_t *inb, const char *url,
   log_debug("GET req: %s\n",*inb);
 
   drop_dbuffer(strParams);
+
+  return 0;
+}
+
+int create_http_get_req2(dbuffer_t *inb, const char *wholeurl)
+{
+  char *hdr = 0;
+  size_t sz_hdr = 0L;
+  char host[128] = "", uri[256]="";
+  const char hdrFmt[] = "GET %s HTTP/1.1\r\n"
+                        "Host: %s\r\n"
+                        "User-Agent: normal-svr/0.1\r\n\r\n";
+
+
+  // http header
+  parse_http_url(wholeurl,host,128,NULL,uri,256,NULL);
+
+  char *pr = strchr(uri,'\\');
+  if (pr)
+    *pr = '/' ;
+
+  sz_hdr = sizeof(hdrFmt)+strlen(uri)+strlen(host);
+  hdr = alloca(sz_hdr);
+
+  snprintf(hdr,sz_hdr,hdrFmt,uri,host);
+
+  // attach whole body
+  write_dbuf_str(*inb,hdr);
+
+  log_debug("GET req2: %s\n",*inb);
 
   return 0;
 }
@@ -298,17 +326,30 @@ int parse_http_url(const char *url, char *host, size_t szhost,
 {
   char *phost = strstr(url,"://"), *hend = 0, *pe = 0;
   char *urlend = (char*)url + strlen(url);
-  size_t ln = 0L, lp=0L;
+  size_t ln = 0L, lp=0L, hoffs = 3L;
   char chport[10] = "";
 
+
+  if (!phost) {
+    phost = strstr(url,":\\/\\/");
+    hoffs = 5;
+  }
 
   if (is_ssl && phost) {
     *is_ssl = !strncmp(url,"https",5)?true:false ;
   }
 
-  phost = phost?(phost+3):(char*)url ;
+  phost = phost?(phost+hoffs):(char*)url ;
   pe = strchr(phost,':');
+#if 0
   hend = pe?pe:strchr(phost,'/');
+#else
+  if (!pe) {
+    hend = strstr(phost,"\\/");
+    if (!hend)
+      hend = strchr(phost,'/');
+  }
+#endif
 
   // host
   ln = hend?(hend-phost):(urlend-phost);
