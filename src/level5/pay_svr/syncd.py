@@ -11,6 +11,11 @@ import getopt
 import decimal
 import logging
 import logging.handlers
+import sys
+
+
+reload(sys)
+sys.setdefaultencoding('utf8')
 
 
 logger = logging.getLogger('syncd_log')

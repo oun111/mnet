@@ -81,6 +81,7 @@ pay_channel_t new_pay_channel(const char *chan)
   pv = (char*)chan ;
   pc->channel = alloc_default_dbuffer();
   write_dbuf_str(pc->channel,pv);
+  pc->pd_transFund = NULL;
   INIT_LIST_HEAD(&pc->pay_data_list);
 
   return pc ;
@@ -127,6 +128,7 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
   pay_channel_t pc = get_pay_channel(entry,chan);
   pay_data_t p = NULL;
   char *rcid = 0;
+  char *tf = 0;
 
 
   if (!pc) {
@@ -173,6 +175,14 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
     else {
       log_error("found no risk control configs for rcid: %s\n", rcid);
     }
+  }
+
+  // trans fund flags
+  tf = get_tree_map_value(p->pay_params,"istransfund");
+  if (likely(tf) && *tf=='1') {
+    pc->pd_transFund = p;
+    log_debug("trans fund channel appid: '%s'\n",
+              get_tree_map_value(p->pay_params,"app_id"));
   }
 
   pv = (char*)subname ;
@@ -240,6 +250,28 @@ void update_paydata_rc_arguments(pay_data_t pd, double amount)
   pd->rc.max_orders ++ ;
 }
 
+pay_data_t get_trans_fund_route(pay_channels_entry_t entry, const char *chan, 
+                                dbuffer_t *reason)
+{
+  pay_channel_t pc = get_pay_channel(entry,chan);
+  char msg[256] = "";
+
+
+  if (!pc) {
+    snprintf(msg,sizeof(msg),"no pay channel '%s'",chan);
+    log_error("%s\n",msg);
+    write_dbuf_str(*reason,msg);
+    return NULL ;
+  }
+
+  if (!pc->pd_transFund) {
+    write_dbuf_str(*reason,"trans fund channel NOT set!");
+  }
+
+  return pc->pd_transFund ;
+}
+
+
 pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t *reason)
 {
   pay_channel_t pc  = get_pay_channel(entry,chan);
@@ -264,6 +296,10 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
 
     //dump_tree_map(pos->pay_params);
     if (!ol || *ol=='0')
+      continue ;
+
+    // don't use trans fund channel
+    if (pos == pc->pd_transFund)
       continue ;
 
     if (pos->rc.time==0L || (ts.tv_sec-pos->rc.time)>pos->cfg_rc.period) {

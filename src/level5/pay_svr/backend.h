@@ -11,6 +11,7 @@
 enum backend_types {
   bt_none,
   bt_notify2user,
+  bt_transfund2user,
 };
 
 struct backend_s {

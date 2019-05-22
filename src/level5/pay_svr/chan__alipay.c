@@ -80,11 +80,114 @@ static void alipay_release();
 
 static struct http_action_s action__alipay_order;
 
+static order_info_t get_order_by_otn(const char *tno, dbuffer_t *errbuf, bool *bRel);
+
 
 static
 int alipay_tx(Network_t net, connection_t pconn)
 {
   return pconn->l4opt.tx(net,pconn);
+}
+
+static
+int process_transfund2user_resp(Network_t net, connection_t pconn, backend_t be, 
+                                dbuffer_t resp, size_t sz)
+{
+  char *body = get_http_body_ptr(resp,sz);
+  rds_order_entry_t pre = &g_alipayData.m_rOrders;
+  paySvr_config_t pc = get_running_configs();
+  mysql_conf_t mcfg = get_mysql_configs(pc);
+  order_info_t po = 0;
+  char *tno = be->data, *pmsg = "success" ;
+  connection_t peer = be->peer ;
+  int ret = -1, st = s_err;
+  bool rel = false;
+  tree_map_t res_map = 0;
+
+
+  if (!body) {
+    log_error("found no body!\n");
+    goto __done;
+  }
+
+  // error page, just go back
+  if (strstr(body,"<!DOCTYPE html")) {
+    goto __done;
+  }
+
+  po = get_order_by_otn(tno,&peer->txb,&rel);
+  if (unlikely(!po)) {
+    goto __done ;
+  }
+
+  jsonKV_t *pr = jsons_parse(body);
+  tree_map_t map = jsons_to_treemap(pr);
+
+  if (!map) {
+    log_debug("parse response map fail!\n");
+    goto __done;
+  }
+
+  tree_map_t submap = get_tree_map_nest(map,"root");
+  submap = get_tree_map_nest(submap,"alipay_fund_trans_toaccount_transfer_response");
+
+  if (submap && get_tree_map_value(submap,"pay_date")) {
+    log_debug("trans fund out biz no '%s' success!\n",tno);
+    st = s_paid;
+  }
+  else {
+    pmsg = get_tree_map_value(submap,"sub_msg");
+    if (!pmsg)
+      pmsg = get_tree_map_value(submap,"msg");
+  }
+
+  // update trans fund message
+  set_order_message(po,pmsg);
+
+  // update status
+  set_order_status(po,st);
+
+  // update redis
+  if (save_rds_order(pre,mcfg->order_table,po)) {
+    log_error("update order '%s' to redis fail\n",po->id);
+  }
+
+  // send a feed back
+  res_map = new_tree_map();
+  put_tree_map_string(res_map,STATUS,get_pay_status_str(po->status));
+  put_tree_map_string(res_map,OTNO,po->mch.out_trade_no);
+  put_tree_map_string(res_map,TNO,po->id);
+  put_tree_map_string(res_map,"message",pmsg);
+
+  create_http_normal_res2(&peer->txb,pt_json,res_map);
+
+  if (!peer->ssl || peer->ssl->state==s_ok) {
+    if (!alipay_tx(net,peer))
+      close(peer->fd);
+    else 
+      log_error("send later by %d\n",peer->fd);
+  }
+
+  ret = 0;
+
+__done:
+
+  if (tno)
+    free(tno);
+
+  if (pr)
+    jsons_release(pr);
+
+  if (map)
+    delete_tree_map(map);
+
+  if (rel)
+    release_rds_order(pre,po);
+
+  if (res_map)
+    delete_tree_map(res_map);
+
+  return ret;
 }
 
 static
@@ -119,8 +222,6 @@ int process_notify2user_resp(connection_t pconn, void *data, dbuffer_t resp,
   // TODO: if 'un status' is not s_notify_ok, then
   //  we should notify user for serial times later
 
-  close(pconn->fd);
-
   return 0;
 }
 
@@ -154,19 +255,18 @@ int alipay_rx(Network_t net, connection_t pconn)
 
     log_debug("rx resp: %s",b);
 
+    // pay notify 
     if (be->type==bt_notify2user) {
       process_notify2user_resp(pconn,be->data,b,sz_in);
+    }
+    // trans fund response
+    else if (be->type==bt_transfund2user) {
+      process_transfund2user_resp(net,pconn,be,b,sz_in);
     }
 
     dbuffer_lseek(pconn->rxb,sz_in,SEEK_CUR,0);
 
-#if 0
-    // reply to client
-    if (be->peer) {
-      do_ok(be->peer);
-      be->peer->l4opt.tx(net,be->peer);
-    }
-#endif
+    close(pconn->fd);
   }
 
   return 0;
@@ -356,7 +456,7 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
 //static 
 connection_t 
 do_out_connect(Network_t net, connection_t peer_conn, 
-               const char *url, void *data)
+               const char *url, void *data, int bt)
 {
   bool is_ssl = true ;
   int port = -1, fd = 0 ;
@@ -400,8 +500,7 @@ do_out_connect(Network_t net, connection_t peer_conn,
   out_conn = net->reg_outbound(net,fd,g_alipay_mod.id);
 
   // save backend info
-  create_backend(get_backend_entry(),fd,peer_conn,bt_notify2user,
-                 data);
+  create_backend(get_backend_entry(),fd,peer_conn,bt,data);
 
   return out_conn;
 }
@@ -522,8 +621,12 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
   }
 
   if (!nurl) {
+#if 0
     FORMAT_ERR(errbuf,"no notify url supplied!\n");
     return -1;
+#else
+    log_error("no notify url supplied!\n");
+#endif
   }
 
   if (!tno) {
@@ -870,7 +973,8 @@ int send_merchant_notify(Network_t net, order_info_t po)
   }
 
   /* connect merchant server(treat as 'backend')  */
-  connection_t out_conn = do_out_connect(net,NULL,po->mch.notify_url,po);
+  connection_t out_conn = do_out_connect(net,NULL,po->mch.notify_url,
+                                         po,bt_notify2user);
   if (!out_conn) {
     log_error("connection to '%s' fail\n",po->mch.notify_url);
     set_order_un_status(po,s_notify_fail);
@@ -1134,6 +1238,208 @@ int do_alipay_manual_notify(Network_t net,connection_t pconn,tree_map_t user_par
   return ret;
 }
 
+static 
+int update_alipay_transfund_biz(dbuffer_t *errbuf, tree_map_t user_params, 
+                                tree_map_t pay_params, tree_map_t pay_data)
+{
+  tree_map_t pay_biz = NULL;
+  time_t curr = time(NULL);
+  struct tm *tm = localtime(&curr);
+  char tmp[96] = "";
+  char *payee_account = 0, /**payer_name = 0,*/ *out_biz_no = 0, 
+       *amount=0, *orderid = 0, *payee_name = 0, *remark = "remark";
+
+
+  payee_account = get_tree_map_value(user_params,"payee_account");
+  if (!payee_account) {
+    FORMAT_ERR(errbuf,"no 'payee_account' found\n");
+    return -1;
+  }
+
+#if 0
+  payer_name = get_tree_map_value(user_params,"payer_show_name");
+  if (!payer_name) {
+    FORMAT_ERR(errbuf,"no 'payer_show_name' found\n");
+    return -1;
+  }
+#endif
+
+  payee_name = get_tree_map_value(user_params,"payee_real_name");
+  if (!payee_name) {
+    FORMAT_ERR(errbuf,"no 'payee_real_name' found\n");
+    return -1;
+  }
+
+  amount = get_tree_map_value(user_params,TAMT);
+  if (!amount) {
+    FORMAT_ERR(errbuf,"no '%s' found\n",TAMT);
+    return -1;
+  }
+
+  // user out_biz_no to be alipay request order id
+  out_biz_no = get_tree_map_value(user_params,OTNO);
+  if (!out_biz_no) {
+    FORMAT_ERR(errbuf,"no 'out_biz_no' found\n");
+    return -1;
+  }
+
+  remark = get_tree_map_value(user_params,"remark");
+  if (!remark) {
+    log_error("no 'remark' specified\n");
+    remark = "remark";
+  }
+
+  orderid = aid_add_and_fetch(&g_alipayData.aid,1L);
+  log_debug("create new trans-fund order id: %s\n",orderid);
+
+
+  pay_biz = new_tree_map();
+
+  snprintf(tmp,sizeof(tmp),"%04d-%02d-%02d %02d:%02d:%02d",tm->tm_year+1900,
+           tm->tm_mon+1,tm->tm_mday,tm->tm_hour,tm->tm_min,
+           tm->tm_sec);
+  put_tree_map_string(pay_data,"timestamp",tmp);
+
+  put_tree_map_string(pay_data,APPID,
+      get_tree_map_value(pay_params,APPID));
+
+  put_tree_map_string(pay_data,"method",
+      "alipay.fund.trans.toaccount.transfer");
+
+  put_tree_map_string(pay_data,"format",
+      get_tree_map_value(pay_params,"format"));
+
+  put_tree_map_string(pay_data,"charset",
+      get_tree_map_value(pay_params,"charset"));
+
+  put_tree_map_string(pay_data,SIGNTYPE,
+      get_tree_map_value(pay_params,SIGNTYPE));
+
+  put_tree_map_string(pay_data,"version",
+      get_tree_map_value(pay_params,"version"));
+
+  put_tree_map_string(pay_biz,"out_biz_no",out_biz_no);
+  put_tree_map_string(pay_biz,"payee_type","ALIPAY_LOGONID");
+  put_tree_map_string(pay_biz,"payee_account",payee_account);
+
+  // $ express an integer
+  snprintf(tmp,sizeof(tmp),"$%s",amount);
+  put_tree_map_string(pay_biz,"amount",tmp);
+
+  //put_tree_map_string(pay_biz,"payer_show_name","");
+  put_tree_map_string(pay_biz,"payee_real_name",payee_name);
+  put_tree_map_string(pay_biz,"remark",remark);
+
+
+  dbuffer_t strBiz = create_json_params(pay_biz);
+  put_tree_map_string(pay_data,"biz_content",strBiz);
+
+
+  drop_dbuffer(strBiz);
+  delete_tree_map(pay_biz);
+
+  return 0;
+}
+
+static 
+int do_alipay_trans_fund(Network_t net,connection_t pconn,tree_map_t user_params)
+{
+  char *url = 0;
+  const char *payChan = action__alipay_order.channel ;
+  dbuffer_t reason = 0;
+  pay_data_t pd = 0;
+  char *tno = get_tree_map_value(user_params,OTNO);
+  tree_map_t pay_params = NULL ;
+  dbuffer_t *errbuf = &pconn->txb;
+  merchant_entry_t pme = get_merchant_entry();
+  merchant_info_t pm = 0;
+  char *mch_id = NULL;
+  int ret = -1;
+  tree_map_t tf_data = 0;
+
+
+  log_debug("user out biz no: '%s'\n",tno);
+
+  // if there're new configs, do updates
+  do_dynamic_update();
+
+  mch_id = get_tree_map_value(user_params,MCHID);
+  if (!mch_id || !(pm=get_merchant(pme,mch_id))) {
+    FORMAT_ERR(errbuf,"no such merchant '%s'\n",mch_id);
+    return -1 ;
+  }
+
+  // verify merchant signature
+  if (!verify_merchant_sign(pm,user_params,errbuf)) {
+    return -1 ;
+  }
+
+  reason = alloc_default_dbuffer();
+
+  // get suitable trans-fund route
+  pd = get_trans_fund_route(get_pay_channels_entry(),payChan,&reason);
+  if (!pd) {
+    FORMAT_ERR(errbuf,"no trans fund route for channel '%s', reason: %s\n",
+               payChan,reason);
+    goto __done ;
+  }
+
+  log_debug("with app_id: %s\n",get_tree_map_value(pd->pay_params,APPID));
+
+  pay_params = pd->pay_params ;
+  url = get_tree_map_value(pay_params,REQ_URL);
+
+  if (unlikely(!url)) {
+    FORMAT_ERR(errbuf,"no 'url' configs\n");
+    goto __done ;
+  }
+
+  tf_data = new_tree_map();
+
+  if (update_alipay_transfund_biz(&pconn->txb,user_params,pay_params,tf_data)) {
+    goto __done ;
+  }
+
+  if (create_order(&pconn->txb,pay_params,user_params)) {
+    goto __done ;
+  }
+
+  // deals with cryptographic
+  if (do_signature(&pconn->txb,pay_params,tf_data)<0) {
+    goto __done ;
+  }
+
+  /* connect alipay server(treat as 'backend')  */
+  connection_t out_conn = do_out_connect(net,pconn,url,strdup(tno),bt_transfund2user);
+  if (unlikely(!out_conn)) {
+    log_error("connection to '%s' fail\n",url);
+    goto __done;
+  }
+
+  // send request
+  create_http_get_req(&out_conn->txb,url,pt_html,tf_data);
+
+  if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
+    if (!alipay_tx(net,out_conn))
+      close(out_conn->fd);
+    else 
+      log_error("send later by %d\n",out_conn->fd);
+  }
+
+  log_debug("user out biz no '%s' done!\n",tno);
+
+  ret = 0;
+
+__done:
+
+  if (tf_data)
+    delete_tree_map(tf_data);
+  if (reason)
+    drop_dbuffer(reason);
+
+  return ret;
+}
+
 static int fetch_du_notice(void *pnet, void *ptos)
 {
   myredis_t prds = &g_alipayData.du.rds ;
@@ -1251,6 +1557,15 @@ struct http_action_s action__alipay_manualNotify =
   .cb      = do_alipay_manual_notify,
 } ;
 
+static
+struct http_action_s action__alipay_transFund = 
+{
+  .key = "alipay/transfund",
+  .channel = "alipay",
+  .action  = "transfund",
+  .cb      = do_alipay_trans_fund,
+} ;
+
 
 static
 int alipay_init(Network_t net)
@@ -1285,6 +1600,7 @@ int alipay_init(Network_t net)
   add_http_action(pe,&action__alipay_notify);
   add_http_action(pe,&action__alipay_query);
   add_http_action(pe,&action__alipay_manualNotify);
+  add_http_action(pe,&action__alipay_transFund);
 
   // TODO: create the 'push messages rx' thread here, 
   //  use to update configs dynamically

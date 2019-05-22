@@ -97,6 +97,8 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
 
   if (!is_dbuffer_valid(p->mch.notify_url)) 
     p->mch.notify_url = alloc_default_dbuffer();
+  if (!notify_url)
+    notify_url = "" ;
   write_dbuf_str(p->mch.notify_url,notify_url);
 
   if (!is_dbuffer_valid(p->chan.name)) 

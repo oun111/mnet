@@ -57,6 +57,7 @@ CREATE TABLE `channel_alipay_configs` (
   `RETURN_URL` varchar(512) NOT NULL COMMENT '用于支付成功后app跳转的页面地址。目前不使用',
   `online` varchar(8) NOT NULL DEFAULT '1' COMMENT '标识当前支付宝通道的可用情况，1 可用，0 不可用',
   `RCID` varchar(64) NOT NULL COMMENT '当前支付宝通道对应的 风控规则id，见 风控配置表 定义',
+  `ISTRANSFUND` int(11) NOT NULL DEFAULT 0 COMMENT '是否用于提现，0 否，1 是',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=latin1
 

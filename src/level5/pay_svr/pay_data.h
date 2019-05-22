@@ -32,6 +32,8 @@ struct pay_channel_item_s {
 
   struct list_head pay_data_list ;
 
+  pay_data_t pd_transFund ; // channel use to trans fund to user
+
   struct rb_node node ;
 } ;
 typedef struct pay_channel_item_s* pay_channel_t ;
@@ -60,6 +62,9 @@ extern void delete_pay_channels_entry(pay_channels_entry_t entry);
 
 extern pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, 
                                 dbuffer_t *reason);
+
+extern pay_data_t get_trans_fund_route(pay_channels_entry_t entry, const char *chan,
+                                       dbuffer_t *reason); 
 
 extern int init_pay_data(pay_channels_entry_t *paych);
 
