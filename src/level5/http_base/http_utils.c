@@ -349,6 +349,7 @@ int parse_http_url(const char *url, char *host, size_t szhost,
     if (!hend)
       hend = strchr(phost,'/');
   }
+  else hend = pe ;
 #endif
 
   // host
