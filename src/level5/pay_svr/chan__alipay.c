@@ -46,6 +46,7 @@
 #define NURL         "notify_url"
 #define STATUS       "status"
 #define APPID        "app_id"
+#define UPT          "update_table"
 
 
 struct alipay_data_s {
@@ -1440,6 +1441,53 @@ __done:
   return ret;
 }
 
+static 
+int do_alipay_cfg_update(Network_t net,connection_t pconn,tree_map_t user_params)
+{
+  paySvr_config_t pc = get_running_configs();
+  mysql_conf_t mscfg = get_mysql_configs(pc);
+  char *t = get_tree_map_value(user_params,UPT);
+  dbuffer_t *errbuf = &pconn->txb;
+  const char *du_res = "success";
+  int ret = -1;
+
+
+  if (!t) {
+    FORMAT_ERR(errbuf,"no '%s' field supplied!\n",UPT);
+    goto __done ;
+  }
+
+  if (!strcasecmp(t,mscfg->rc_conf_table) || 
+      !strcasecmp(t,mscfg->alipay_conf_table)) {
+    g_alipayData.du.flags |= 0x1;
+    log_debug("updating '%s'...\n",t);
+  }
+  else if (!strcasecmp(t,mscfg->mch_conf_table)) {
+    g_alipayData.du.flags |= 0x2;
+    log_debug("updating '%s'...\n",t);
+  }
+  else {
+    FORMAT_ERR(errbuf,"%s '%s' NOT support!\n",UPT,t);
+    goto __done ;
+  }
+
+  // send a feed back
+  create_http_normal_res(&pconn->txb,pt_html,du_res);
+
+  ret = 0;
+
+__done:
+
+  if (!pconn->ssl || pconn->ssl->state==s_ok) {
+    if (!alipay_tx(net,pconn))
+      close(pconn->fd);
+    else 
+      log_error("send later by %d\n",pconn->fd);
+  }
+
+  return ret;
+}
+
 static int fetch_du_notice(void *pnet, void *ptos)
 {
   myredis_t prds = &g_alipayData.du.rds ;
@@ -1566,6 +1614,15 @@ struct http_action_s action__alipay_transFund =
   .cb      = do_alipay_trans_fund,
 } ;
 
+static
+struct http_action_s action__alipay_cfgUpdate = 
+{
+  .key = "alipay/cfgUpdate",
+  .channel = "alipay",
+  .action  = "cfgUpdate",
+  .cb      = do_alipay_cfg_update,
+} ;
+
 
 static
 int alipay_init(Network_t net)
@@ -1593,7 +1650,12 @@ int alipay_init(Network_t net)
   // auto id
   aid_init(&g_alipayData.aid,"alp",&g_alipayData.m_rds);
 
-  // for dynamic configs
+  // 
+  // for dynamic configs: we have 2 choice of dynamically updating
+  //  configs now, the 'redis subscribe' and 'http action', BUT
+  //  the 'http' way dose NOT guarantee notifying all paysvr instances
+  //  under multi-processes conditions
+  //
   init_dynamic_cfg_updater();
 
   add_http_action(pe,&action__alipay_order);
@@ -1601,6 +1663,7 @@ int alipay_init(Network_t net)
   add_http_action(pe,&action__alipay_query);
   add_http_action(pe,&action__alipay_manualNotify);
   add_http_action(pe,&action__alipay_transFund);
+  add_http_action(pe,&action__alipay_cfgUpdate);
 
   // TODO: create the 'push messages rx' thread here, 
   //  use to update configs dynamically
