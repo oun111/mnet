@@ -140,6 +140,26 @@ int myredis_read_cache(myredis_t mr, char *k, redisReply **rc)
   return 0;
 }
 
+int myredis_hdel_cache(myredis_t mr, const char *table, 
+                       const char *k)
+{
+  int ret = 0;
+  redisReply *rc = 0;
+
+
+  // reconnect and re-execute command if lost connections
+  MYREDIS_SAFE_EXECUTE(mr,rc,"hdel %s %s#%s",mr->cache,table,k?k:"");
+
+  if (rc->type==REDIS_REPLY_ERROR) {
+    log_error("hdel on cache '%s' fail: %s\n",mr->cache,rc->str) ;
+    ret = -1;
+  }
+
+  freeReplyObject(rc);
+
+  return ret;
+}
+
 #if 0
 static
 int myredis_read_cache_all(myredis_t mr, redisReply **rc)

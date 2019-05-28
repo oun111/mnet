@@ -292,11 +292,13 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
 
   // get best pay route
   list_for_each_entry(pos,&pc->pay_data_list,upper) {
+#if 0
     char *ol = get_tree_map_value(pos->pay_params,"online");
 
     //dump_tree_map(pos->pay_params);
     if (!ol || *ol=='0')
       continue ;
+#endif
 
     // don't use trans fund channel
     if (pos == pc->pd_transFund)
@@ -353,6 +355,11 @@ int init_pay_data(pay_channels_entry_t *paych)
       continue ;
 
     rbtree_postorder_for_each_entry_safe(pos1,n1,&chansub->u.root,node) {
+      char *ol = get_tree_map_value(pos1->nest_map,"online");
+
+      if (!ol || *ol!='1') 
+        continue ;
+
       add_pay_data(*paych,pos->key,pos1->key,pos1->nest_map);
       log_info("adding channel '%s - %s'\n",pos->key,pos1->key);
     }

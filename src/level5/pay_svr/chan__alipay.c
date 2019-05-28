@@ -1456,6 +1456,12 @@ int do_alipay_cfg_update(Network_t net,connection_t pconn,tree_map_t user_params
     goto __done ;
   }
 
+  // remove old configs 
+  if (myredis_hdel_cache(prds,t,NULL)) {
+    FORMAT_ERR(errbuf,"hdel on redis fail!\n");
+    goto __done ;
+  }
+
   // notify all worker processes
   if (myredis_publish_msg(prds,t)) {
     FORMAT_ERR(errbuf,"publish to redis fail!\n");

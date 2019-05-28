@@ -41,6 +41,8 @@ extern int myredis_read(myredis_t mr, const char *table, const char *key,
 extern int myredis_write(myredis_t mr, const char *table, char *key, char *value, 
                          int st);
 
+extern int myredis_hdel_cache(myredis_t mr, const char *table, const char *k);
+
 extern bool is_myredis_ok(myredis_t mr);
 
 extern int myredis_add_and_fetch(myredis_t mr, long long *val);
