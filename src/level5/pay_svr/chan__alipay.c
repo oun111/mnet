@@ -1444,8 +1444,7 @@ __done:
 static 
 int do_alipay_cfg_update(Network_t net,connection_t pconn,tree_map_t user_params)
 {
-  paySvr_config_t pc = get_running_configs();
-  mysql_conf_t mscfg = get_mysql_configs(pc);
+  myredis_t prds = &g_alipayData.m_cfg_rds ;
   char *t = get_tree_map_value(user_params,UPT);
   dbuffer_t *errbuf = &pconn->txb;
   const char *du_res = "success";
@@ -1457,17 +1456,9 @@ int do_alipay_cfg_update(Network_t net,connection_t pconn,tree_map_t user_params
     goto __done ;
   }
 
-  if (!strcasecmp(t,mscfg->rc_conf_table) || 
-      !strcasecmp(t,mscfg->alipay_conf_table)) {
-    g_alipayData.du.flags |= 0x1;
-    log_debug("updating '%s'...\n",t);
-  }
-  else if (!strcasecmp(t,mscfg->mch_conf_table)) {
-    g_alipayData.du.flags |= 0x2;
-    log_debug("updating '%s'...\n",t);
-  }
-  else {
-    FORMAT_ERR(errbuf,"%s '%s' NOT support!\n",UPT,t);
+  // notify all worker processes
+  if (myredis_publish_msg(prds,t)) {
+    FORMAT_ERR(errbuf,"publish to redis fail!\n");
     goto __done ;
   }
 
@@ -1510,16 +1501,16 @@ static int fetch_du_notice(void *pnet, void *ptos)
     }
   }
 
-  while (!myredis_get_push_msg(prds,pmsg) && 
+  while (!myredis_subscribe_msg(prds,pmsg) && 
          dbuffer_data_size(*pmsg)>0L) {
 
-    if (!strcmp(*pmsg,mscfg->rc_conf_table) || 
-        !strcmp(*pmsg,mscfg->alipay_conf_table)) {
+    if (!strcasecmp(*pmsg,mscfg->rc_conf_table) || 
+        !strcasecmp(*pmsg,mscfg->alipay_conf_table)) {
       g_alipayData.du.flags |= 0x1;
       log_debug("updating '%s'...\n",*pmsg);
     }
 
-    if (!strcmp(*pmsg,mscfg->mch_conf_table)) {
+    if (!strcasecmp(*pmsg,mscfg->mch_conf_table)) {
       g_alipayData.du.flags |= 0x2;
       log_debug("updating '%s'...\n",*pmsg);
     }

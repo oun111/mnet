@@ -191,7 +191,25 @@ int myredis_mq_rx(myredis_t mr, const char *qname, redisReply **rc)
   return 0;
 }
 
-int myredis_get_push_msg(myredis_t mr, dbuffer_t *res)
+int myredis_publish_msg(myredis_t mr, const char *v)
+{
+  redisReply *rc = 0;
+  int ret = 0;
+
+
+  MYREDIS_SAFE_EXECUTE(mr,rc,"publish %s %s",mr->push_msg,v);
+
+  if (!rc || rc->type==REDIS_REPLY_ERROR) {
+    log_error("read from redis fail: %s\n",rc?rc->str:"^_^") ;
+    ret = -1 ;
+  }
+
+  freeReplyObject(rc);
+
+  return ret;
+}
+
+int myredis_subscribe_msg(myredis_t mr, dbuffer_t *res)
 {
   redisReply *rc = 0;
   int r = 0, ret = -1;

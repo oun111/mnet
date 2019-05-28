@@ -45,7 +45,9 @@ extern bool is_myredis_ok(myredis_t mr);
 
 extern int myredis_add_and_fetch(myredis_t mr, long long *val);
 
-extern int myredis_get_push_msg(myredis_t mr, dbuffer_t *res);
+extern int myredis_subscribe_msg(myredis_t mr, dbuffer_t *res);
+
+extern int myredis_publish_msg(myredis_t mr, const char *v);
 
 extern int myredis_reset(myredis_t mr, int type) ;
 
