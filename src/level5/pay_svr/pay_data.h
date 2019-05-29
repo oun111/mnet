@@ -4,6 +4,7 @@
 #include "dbuffer.h"
 #include "tree_map.h"
 #include "list.h"
+#include "crypto.h"
 
 
 struct risk_control_s {
@@ -21,6 +22,8 @@ struct pay_data_item_s {
   struct risk_control_s cfg_rc ;
 
   tree_map_t pay_params ;
+
+  struct rsa_entry_s rsa_cache ;
 
   struct list_head upper ;
 } ;

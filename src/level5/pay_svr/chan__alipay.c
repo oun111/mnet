@@ -293,12 +293,13 @@ struct module_struct_s g_alipay_mod = {
 
 
 static
-int do_signature(dbuffer_t *errbuf,tree_map_t pay_params,tree_map_t pay_data)
+int do_signature(dbuffer_t *errbuf,pay_data_t pd,tree_map_t pay_data)
 {
-  char *privkeypath = 0;
+  //char *privkeypath = 0;
   dbuffer_t sign_params = 0; 
   unsigned char *sign = 0;
-  unsigned int sz_out = 0;
+  //unsigned int sz_out = 0;
+  size_t sz_out = 0;
   unsigned char *final_res = 0;
   int sz_res = 0;
   int ret = -1;
@@ -310,8 +311,12 @@ int do_signature(dbuffer_t *errbuf,tree_map_t pay_params,tree_map_t pay_data)
   sign_params = create_html_params(pay_data);
   //log_debug("sign string: %s, size: %zu\n",sign_params,strlen(sign_params));
 
+#if 0
   privkeypath = get_tree_map_value(pay_params,PRIVKEY);
   if (rsa_private_sign(privkeypath,sign_params,&sign,&sz_out)!=1) {
+#else
+  if (rsa_private_sign1(&pd->rsa_cache,sign_params,&sign,&sz_out)!=1) {
+#endif
     FORMAT_ERR(errbuf,"rsa sign error\n");
     goto __done;
   }
@@ -823,7 +828,7 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   }
 
   // deals with cryptographic
-  if (do_signature(&pconn->txb,pay_params,pay_data)<0) {
+  if (do_signature(&pconn->txb,pd,pay_data)<0) {
     goto __done ;
   }
 
@@ -868,13 +873,14 @@ __done:
 static
 int do_verify_sign(pay_data_t pd, tree_map_t user_params)
 {
-  tree_map_t pay_params = 0 ;
-  char *pubkeypath = 0, *tmp = 0;
+  //tree_map_t pay_params = 0 ;
+  char /**pubkeypath = 0,*/ *tmp = 0;
   dbuffer_t sign_params = 0;
   dbuffer_t sign = 0, sign_dec = 0, ud = 0;
   int ret = 0, dec_len = 0;
 
 
+#if 0
   pay_params = pd->pay_params ;
   pubkeypath = get_tree_map_value(pay_params,PUBKEY);
 
@@ -882,6 +888,7 @@ int do_verify_sign(pay_data_t pd, tree_map_t user_params)
     log_error("no public key path defined\n");
     return -1;
   }
+#endif
 
   tmp = get_tree_map_value(user_params,SIGN);
   if (unlikely(!tmp)) {
@@ -911,7 +918,8 @@ int do_verify_sign(pay_data_t pd, tree_map_t user_params)
   write_dbuf_str(ud,"");
   url_decode(sign_params,strlen(sign_params),&ud);
 
-  if (rsa_public_verify(pubkeypath,ud,(unsigned char*)sign_dec,dec_len)!=1) {
+  //if (rsa_public_verify(pubkeypath,ud,(unsigned char*)sign_dec,dec_len)!=1) {
+  if (rsa_public_verify1(&pd->rsa_cache,ud,(unsigned char*)sign_dec,dec_len)!=1) {
     log_error("verify sign fail\n");
     ret = -1;
   }
@@ -1406,7 +1414,7 @@ int do_alipay_trans_fund(Network_t net,connection_t pconn,tree_map_t user_params
   }
 
   // deals with cryptographic
-  if (do_signature(&pconn->txb,pay_params,tf_data)<0) {
+  if (do_signature(&pconn->txb,pd,tf_data)<0) {
     goto __done ;
   }
 

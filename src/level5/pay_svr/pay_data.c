@@ -129,6 +129,7 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
   pay_data_t p = NULL;
   char *rcid = 0;
   char *tf = 0;
+  char *ppriv = 0, *ppub = 0;
 
 
   if (!pc) {
@@ -185,6 +186,13 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
               get_tree_map_value(p->pay_params,"app_id"));
   }
 
+  // pre init the rsa entry
+  ppub  = get_tree_map_value(p->pay_params,"public_key_path");
+  ppriv = get_tree_map_value(p->pay_params,"private_key_path");
+  if (ppub && ppriv) {
+    init_rsa_entry(&p->rsa_cache,ppub,ppriv);
+  }
+
   pv = (char*)subname ;
   write_dbuf_str(p->subname,pv);
 
@@ -199,6 +207,7 @@ int drop_pay_data_internal(pay_channel_t pc)
 
   list_for_each_entry_safe(pos,n,&pc->pay_data_list,upper) {
     drop_dbuffer(pos->subname);
+    release_rsa_entry(&pos->rsa_cache);
     kfree(pos);
   }
 

@@ -8,6 +8,7 @@
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 #include "dbuffer.h"
+#include "crypto.h"
 
 #if 0
 //static
@@ -68,43 +69,7 @@ RSA* gen_rsa(const char *key_path, bool ispriv)
   return rsa ;
 }
 
-#if 0
-//static
-int do_rsa_sign(const char *key_path, const char *plain_text, 
-                unsigned char **res, unsigned int *sz_out, bool sign)
-{
-  RSA *rsa = gen_rsa(key_path,sign);
-  int ret = 0;
 
-
-  if (!rsa) {
-    ERR_print_errors_fp(stdout);
-    return -1;
-  }
-
-  if (sign==true) {
-    *sz_out = RSA_size(rsa);
-    *res = OPENSSL_malloc(*sz_out);
-
-    ret = RSA_sign(NID_sha256WithRSAEncryption,(unsigned char*)plain_text,
-                   strlen(plain_text),*res,sz_out,rsa);
-  }
-  else {
-    ret = RSA_verify(NID_sha256WithRSAEncryption,(unsigned char*)plain_text,
-                     strlen(plain_text),*res,*sz_out,rsa);
-  }
-
-  if (ret!=1) {
-    ERR_print_errors_fp(stdout);
-    RSA_free(rsa);
-    return -1;
-  }
-
-  RSA_free(rsa);
-
-  return ret;
-}
-#else
 /**
  * 
  * Another way to do RSA sign/verify, I refer to:
@@ -113,10 +78,9 @@ int do_rsa_sign(const char *key_path, const char *plain_text,
  *
  */
 static
-int do_rsa_sign(const char *key_path, const char *plain_text, 
-                 unsigned char **sig, size_t *sz_out, bool sign)
+int __rsa_sign(RSA *rsa, const char *plain_text, 
+               unsigned char **sig, size_t *sz_out, bool sign)
 {
-  RSA *rsa = gen_rsa(key_path,sign);
   int ret = -1;
   size_t slen = 0L;
   EVP_PKEY *pkey = 0;
@@ -242,14 +206,35 @@ int do_rsa_sign(const char *key_path, const char *plain_text,
 __done:
   if (pkey)
     EVP_PKEY_free(pkey);
-  if (rsa)
-    RSA_free(rsa);
   if (ctx)
     EVP_MD_CTX_destroy(ctx);
 
   return ret;
 }
-#endif
+
+static
+int do_rsa_sign(const char *key_path, const char *plain_text, 
+                 unsigned char **sig, size_t *sz_out, bool sign)
+{
+  RSA *rsa = gen_rsa(key_path,sign);
+  int ret  = __rsa_sign(rsa,plain_text,sig,sz_out,sign);
+
+
+  if (rsa)
+    RSA_free(rsa);
+
+  return ret;
+}
+
+static
+int do_rsa_sign_fast(rsa_entry_t entry, const char *plain_text, 
+                     unsigned char **sig, size_t *sz_out, bool sign)
+{
+  RSA *rsa = sign?entry->sign_item:entry->versign_item;
+
+
+  return __rsa_sign(rsa,plain_text,sig,sz_out,sign);
+}
 
 int rsa_private_sign(const char *priv_key_path, const char *plain_text, 
                      unsigned char **res, size_t *sz_out)
@@ -261,6 +246,39 @@ int rsa_public_verify(const char *pub_key_path, const char *plain_text,
                       unsigned char *res, size_t sz_out)
 {
   return do_rsa_sign(pub_key_path,plain_text,&res,(size_t*)&sz_out,false);
+}
+
+int rsa_private_sign1(rsa_entry_t entry, const char *plain_text, 
+                      unsigned char **res, size_t *sz_out)
+{
+  return do_rsa_sign_fast(entry,plain_text,res,(size_t*)sz_out,true);
+}
+
+int rsa_public_verify1(rsa_entry_t entry, const char *plain_text,
+                      unsigned char *res, size_t sz_out)
+{
+  return do_rsa_sign_fast(entry,plain_text,&res,(size_t*)&sz_out,false);
+}
+
+int init_rsa_entry(rsa_entry_t entry, const char *pub_key_path, 
+                   const char *priv_key_path)
+{
+  entry->sign_item    = gen_rsa(priv_key_path,true);
+
+  entry->versign_item = gen_rsa(pub_key_path,false);
+
+  return 0;
+}
+
+int release_rsa_entry(rsa_entry_t entry)
+{
+  if (entry->sign_item)
+    RSA_free(entry->sign_item);
+
+  if (entry->versign_item)
+    RSA_free(entry->versign_item);
+
+  return 0;
 }
 
 #if TEST_CASES==1
