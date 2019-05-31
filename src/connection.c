@@ -209,6 +209,8 @@ int free_conn(Network_t net, connection_t pconn)
 
   pconn->is_close = 1;
 
+  close(pconn->fd);
+
   obj_pool_free(net->pool,pconn);
 
   return 0;

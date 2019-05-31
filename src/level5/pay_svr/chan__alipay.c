@@ -164,7 +164,7 @@ int process_transfund2user_resp(Network_t net, connection_t pconn, backend_t be,
 
   if (!peer->ssl || peer->ssl->state==s_ok) {
     if (!alipay_tx(net,peer))
-      close(peer->fd);
+      sock_close(peer->fd);
     else 
       log_error("send later by %d\n",peer->fd);
   }
@@ -267,7 +267,7 @@ int alipay_rx(Network_t net, connection_t pconn)
 
     dbuffer_lseek(pconn->rxb,sz_in,SEEK_CUR,0);
 
-    close(pconn->fd);
+    sock_close(pconn->fd);
   }
 
   return 0;
@@ -857,7 +857,7 @@ __done:
 
   if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
     if (!alipay_tx(net,out_conn))
-      close(out_conn->fd);
+      sock_close(out_conn->fd);
     else 
       log_error("send later by %d\n",out_conn->fd);
   }
@@ -1055,7 +1055,7 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
 
   if (!pconn->ssl || pconn->ssl->state==s_ok) {
     if (!alipay_tx(net,pconn))
-      close(pconn->fd);
+      sock_close(pconn->fd);
     else 
       log_error("send later by %d\n",pconn->fd);
   }
@@ -1171,7 +1171,7 @@ __done:
 
   if (!pconn->ssl || pconn->ssl->state==s_ok) {
     if (!alipay_tx(net,pconn))
-      close(pconn->fd);
+      sock_close(pconn->fd);
     else 
       log_error("send later by %d\n",pconn->fd);
   }
@@ -1217,7 +1217,7 @@ int do_alipay_manual_notify(Network_t net,connection_t pconn,tree_map_t user_par
 
   if (!pconn->ssl || pconn->ssl->state==s_ok) {
     if (!alipay_tx(net,pconn))
-      close(pconn->fd);
+      sock_close(pconn->fd);
     else 
       log_error("send later by %d\n",pconn->fd);
   }
@@ -1430,7 +1430,7 @@ int do_alipay_trans_fund(Network_t net,connection_t pconn,tree_map_t user_params
 
   if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
     if (!alipay_tx(net,out_conn))
-      close(out_conn->fd);
+      sock_close(out_conn->fd);
     else 
       log_error("send later by %d\n",out_conn->fd);
   }
@@ -1485,7 +1485,7 @@ __done:
 
   if (!pconn->ssl || pconn->ssl->state==s_ok) {
     if (!alipay_tx(net,pconn))
-      close(pconn->fd);
+      sock_close(pconn->fd);
     else 
       log_error("send later by %d\n",pconn->fd);
   }

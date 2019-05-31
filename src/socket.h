@@ -72,5 +72,7 @@ extern int new_tcp_client2(int clientfd, unsigned long addr, int port);
 
 extern unsigned long hostname_to_uladdr(const char *host);
 
+extern int sock_close(int fd);
+
 #endif /* __SOCKET_H__ */
 

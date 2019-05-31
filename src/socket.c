@@ -220,3 +220,9 @@ unsigned long hostname_to_uladdr(const char *host)
   return 0L;
 }
 
+int sock_close(int fd)
+{
+  //return close(fd);
+  
+  return shutdown(fd,SHUT_RDWR);
+}
