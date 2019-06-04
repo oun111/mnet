@@ -36,8 +36,6 @@ struct __attribute__((__aligned__(64))) main_instance_s {
 
   struct Network_s g_nets ;
 
-  pthread_t idle_t ;
-
   int worker_stop:1 ;
 
   int use_log:1 ;
@@ -198,18 +196,6 @@ void* instance_event_loop()
   return 0;
 }
 
-void* idle_task(void *arg)
-{
-  while(!(g_inst.worker_stop&1)) {
-
-    scan_simple_timer_list(&g_inst.timers,&g_inst.g_nets);
-
-    sleep(1);
-  }
-
-  return NULL;
-}
-
 static
 void dump_instance_params()
 {
@@ -310,15 +296,10 @@ int instance_start(int argc, char *argv[])
 
   if (g_inst.is_master == 0) {
 
-    log_debug("starting idle task\n");
-
     // timers init
-    init_timer_entry(&g_inst.timers);
+    init_timer_entry(&g_inst.g_nets,&g_inst.timers);
     register_simple_timer(&g_inst.timers,&g_log_flusher);
     register_simple_timer(&g_inst.timers,&g_tos_conn_killer);
-
-    pthread_create(&g_inst.idle_t,NULL,idle_task,NULL);
-
 
     log_debug("worker %d start working\n",g_log.pid);
 
@@ -375,6 +356,8 @@ int instance_stop()
         pmod->opts[i].release();
     }
   }
+
+  release_timer_entry(&g_inst.timers);
 
   release_conn_pool(&g_inst.g_nets);
 

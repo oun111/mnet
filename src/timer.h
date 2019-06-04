@@ -28,15 +28,21 @@ struct simple_timer_entry_s {
   struct list_head list ;
 
   int num_timers;
+
+  pthread_t idle_t ;
+
+  void *net ;
+
+  int stop ;
 } ;
 typedef struct simple_timer_entry_s* simple_timer_entry_t ;
 
 
-extern int init_timer_entry(simple_timer_entry_t entry);
+extern int init_timer_entry(void *net, simple_timer_entry_t entry);
+
+extern void release_timer_entry(simple_timer_entry_t entry);
 
 extern int register_simple_timer(simple_timer_entry_t entry, simple_timer_t tm);
-
-extern int scan_simple_timer_list(simple_timer_entry_t entry, void *net);
 
 
 #endif /* __TIMER_H__*/
