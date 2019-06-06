@@ -1042,11 +1042,13 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   pd = get_paydata_by_ali_appid(pce,payChan,appid);
   if (!pd) {
     log_error("found no pay route by '%s'\n",payChan);
+    sock_close(pconn->fd);
     return -1;
   }
 
   // verify signature of alipay notifications
   if (do_verify_sign(pd,user_params)) {
+    sock_close(pconn->fd);
     return -1;
   }
 
@@ -1233,6 +1235,9 @@ int do_alipay_manual_notify(Network_t net,connection_t pconn,tree_map_t user_par
   po = get_order_by_otn(tno,NULL,&rel);
   if (!po)
     return -1 ;
+
+  // force order status to 'SUCCESS' here
+  po->status = s_paid;
 
   if (send_merchant_notify(net,po)) {
     ret = -1 ;
