@@ -1069,7 +1069,7 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   }
 
   po = get_order_by_otn(tno,NULL,&rel);
-  if (!unlikely(po))
+  if (!po)
     goto __done ;
 
   pm = get_merchant(pme,po->mch.no);
