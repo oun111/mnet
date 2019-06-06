@@ -1063,14 +1063,16 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   }
 
   tno = get_tree_map_value(user_params,OTNO);
-  if (!tno) {
+  if (unlikely(!tno)) {
     log_error("no 'out_trade_no' field found\n");
     return -1;
   }
 
   po = get_order_by_otn(tno,NULL,&rel);
-  if (!po)
-    goto __done ;
+  if (!po) {
+    sock_close(pconn->fd);
+    return -1;
+  }
 
   pm = get_merchant(pme,po->mch.no);
   if (unlikely(!pm)) {
