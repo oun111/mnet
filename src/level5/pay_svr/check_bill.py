@@ -1,14 +1,12 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-
-import web  
 import json
 import pymysql
+import web  
 import re
 import os
 import time
 import datetime
-import sys
 import getopt
 import decimal
 import sys
@@ -17,7 +15,11 @@ from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA256
 from base64 import b64encode,b64decode
 #from base64 import decodebytes,encodebytes
-import urllib2
+import urllib
+import zipfile
+import chardet
+import csv
+import codecs
 
 
 
@@ -46,6 +48,7 @@ class Mysql(object):
 
   def query(self,table,selist=" * ",cond=""):
     strsql = ("select " + selist + " from " + table + " " + cond)
+    #print("sql: " + strsql)
 
     self.m_conn.commit()
 
@@ -93,51 +96,160 @@ class check_bill_biz:
     self.m_mysql = Mysql(mscfg.address,mscfg.port,mscfg.db,
                          mscfg.usr,mscfg.pwd)
 
+  def get_download_link(self,r,bill_date):
+
+    pay_params  = {}
+    biz_content = {}
+    app_id = r['APP_ID']
+    pay_params['app_id'] = app_id
+    pay_params['method'] = 'alipay.data.dataservice.bill.downloadurl.query'
+    pay_params['format'] = 'JSON'
+    pay_params['charset']= 'utf-8'
+    pay_params['sign_type']= 'RSA2'
+    pay_params['timestamp']= datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    pay_params['version']= '1.0'
+
+    biz_content['bill_type']= 'trade'
+    biz_content['bill_date']= bill_date
+
+    pay_params['biz_content'] = json.dumps(biz_content)
+
+    # building pre sign string
+    sort_list = sorted(pay_params.items())
+    sort_str  = "&".join("{0}={1}".format(k, v) for k, v in sort_list)
+
+    privkey = ""
+    with open(r['PRIVATE_KEY_PATH']) as fp:
+      privkey = RSA.importKey(fp.read())
+
+    pay_params['sign'] = self.sign(privkey,sort_str)
+    sort_list = sorted(pay_params.items())
+
+    # final request string
+    sort_str  = "&".join("{0}={1}".format(k, urllib.parse.quote_plus(v)) for k, v in sort_list)
+    reqstr = (r['REQ_URL'] + "?" + sort_str)
+
+    #print("final request string: {0}".format(reqstr))
+
+    req = urllib.request.Request(reqstr)
+    res = urllib.request.urlopen(req)
+    res = res.read()
+
+    pr = json.loads(res)
+    lnk= pr['alipay_data_dataservice_bill_downloadurl_query_response'].get('bill_download_url')
+
+    if lnk==None:
+      reason = pr['alipay_data_dataservice_bill_downloadurl_query_response']['sub_msg']
+      print("get download link by app_id '{0}' bill-date '{1}' fail: {2}"
+            .format(app_id,bill_date,reason))
+
+    return lnk 
+
+
+
+  def download_check_file(self,appid,basepath,bd,lnk):
+    #print("trying link: " + lnk)
+
+    if not os.path.exists(basepath):
+      os.makedirs(basepath)
+
+    req = urllib.request.Request(lnk)
+    res = urllib.request.urlopen(req)
+    res = res.read()
+
+    zfpath = (basepath+"/"+appid+"_"+bd+".zip")
+
+    with open(zfpath, "wb") as f: 
+      f.write(res)
+
+    zf = zipfile.ZipFile(zfpath)
+
+    for xf in zf.namelist():
+      # zip 文件默认先转为 cp437 编码
+      #print("xf: " + xf.encode(encoding=u'cp437',errors='ignore').decode(u'gb2312'))
+      xf_info = zf.getinfo(xf)
+      xf_path = (basepath+"/"+appid+"_"+(xf.encode(encoding=u'cp437',errors='ignore').decode(u'gb2312')))
+
+      with open(xf_path,"wb") as f:
+        xff = zf.open(xf_info)
+        f.write(xff.read())
+
+    os.remove(zfpath)
+
+    
+  def do_summerize_db(self,appid,bd):
+    tstruct = time.strptime(bd,"%Y-%m-%d")
+    if tstruct==None:
+      print("invalid bill date: "+bd)
+      return 
+
+    prev_date = (time.mktime(tstruct)+2208988800)*1000000
+    next_date = prev_date + 86400*1000000
+
+    result = self.m_mysql.query(self.mysql_cfg.odrTbl," sum(ifnull(amount,0)) amt ",
+                                " where chan_mch_no='{0}' and create_time>={1} and " \
+                                " create_time<={2} and status=2 "
+                                .format(appid,prev_date,next_date))
+
+    rs = result[0].get('amt')
+
+    if rs!=None:
+      return float(rs)
+
+    return None
+
+
+    
+  def do_summerize_check_file(self,basepath,appid,bd):
+
+    for __path,__subPaths,__files in os.walk(basepath):
+
+      #scanning file under __path
+      for f in __files:
+
+        if bool(re.match((appid+"_.*\(汇总\).csv"),f))!=True :
+          continue
+
+        #print("parsing csv " + f)
+
+        with codecs.open(basepath+"/"+f,'r','gb2312') as fcsv:
+          fc = csv.reader(fcsv)
+          for r in fc:
+            if r[0]=='合计\t':
+              return float(r[5])
+
+    return None
+
+
 
   def do_biz(self,bill_date):
-    rows = self.m_mysql.query(self.mysql_cfg.chanTbl," * "," where online='1' ")
+    rows = self.m_mysql.query(self.mysql_cfg.chanTbl," * "," where /*online*/1=1 ")
+
+    basepath = "/tmp/" + "alipay_bills/" + bill_date + "/"
 
     for r in rows:
-      pay_params  = {}
-      biz_content = {}
-      pay_params['app_id'] = r['APP_ID']
-      pay_params['method'] = 'alipay.data.dataservice.bill.downloadurl.query'
-      pay_params['format'] = 'JSON'
-      pay_params['charset']= 'utf-8'
-      pay_params['sign_type']= 'RSA2'
-      pay_params['timestamp']= datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-      pay_params['version']= '1.0'
+      lnk  = self.get_download_link(r,bill_date)
+      appid= r['APP_ID']
 
-      biz_content['bill_type']= 'trade'
-      biz_content['bill_date']= bill_date
+      if lnk==None:
+        continue
 
-      pay_params['biz_content'] = json.dumps(biz_content)
+      self.download_check_file(appid,basepath,bill_date,lnk)
 
-      # building pre sign string
-      sort_list = sorted(pay_params.items())
-      sort_str  = "&".join("{0}={1}".format(k, v) for k, v in sort_list)
+      db_sum = self.do_summerize_db(appid,bill_date)
 
-      privkey = ""
-      with open(r['PRIVATE_KEY_PATH']) as fp:
-        privkey = RSA.importKey(fp.read())
+      bill_sum = self.do_summerize_check_file(basepath,appid,bill_date)
 
-      pay_params['sign'] = self.sign(privkey,sort_str)
-      sort_list = sorted(pay_params.items())
+      print("appid '{0}' db sum {1} bill sum {2}".format(appid,db_sum,bill_sum))
 
-      # final request string
-      sort_str  = "&".join("{0}={1}".format(k, urllib2.quote(v)) for k, v in sort_list)
-      reqstr = (r['REQ_URL'] + "?" + sort_str)
+      if bill_sum!=None and db_sum!=None and bill_sum==db_sum:
+        print("appid '{0}' sum {1} in db and bill are equal!".format(appid,bill_sum))
 
-      #print("final request string: {0}".format(reqstr))
-
-      res = urllib2.urlopen(reqstr)
-
-      print(res)
 
 
   def sign(self, privkey, signtmp):
     signer = PKCS1_v1_5.new(privkey)
-    signature = signer.sign(SHA256.new(signtmp))
+    signature = signer.sign(SHA256.new(signtmp.encode('utf-8')))
     #sign = encodebytes(signature).decode("utf8").replace("\n", "")
     sign = b64encode(signature).decode("utf8").replace("\n", "")
     return sign
