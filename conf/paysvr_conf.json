@@ -21,6 +21,10 @@
       "db"      : "pay_db",
       "usr"     : "athena",
       "pwd"     : "hmc5TFSoFth6gbh3"
+    },
+    "CheckBill" : {
+      "listenPort" : 12471,
+      "billFilePath" : "/tmp/"
     }
   },
 
