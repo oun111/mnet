@@ -17,7 +17,7 @@ CREATE TABLE `merchant_configs` (
   `PARAM_TYPE` char(16) NOT NULL DEFAULT 'html' COMMENT 'paysvr商户请求/响应/回调通知 格式，可选 json 或 html',
   `VERIFY_SIGN` int(11) NOT NULL DEFAULT 1 COMMENT '是否开启 商户 加签/验签 ，0 不开启，1 开启',
   PRIMARY KEY (`ID`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
 
 
 CREATE TABLE `order_data` (
@@ -59,6 +59,18 @@ CREATE TABLE `channel_alipay_configs` (
   `RCID` varchar(64) NOT NULL COMMENT '当前支付宝通道对应的 风控规则id，见 风控配置表 定义',
   `ISTRANSFUND` int(11) NOT NULL DEFAULT 0 COMMENT '是否用于提现，0 否，1 是',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8
+
+
+CREATE TABLE `check_bill_details` (
+  `ID` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '单边账明细ID，自增',
+  `MCH_ORDERID` varchar(32) NOT NULL default '' COMMENT 'paysvr商户提交的 商户订单id',
+  `ERROR_TYPE` int(11) NOT NULL DEFAULT 0 COMMENT '单边类型，1 金额不等，2 账单缺流水，3 数据库缺流水',
+  `ERROR_DESC` varchar(512) NOT NULL default '' COMMENT '错误详细描述',
+  `MCH_DESC` varchar(96) NOT NULL default '' COMMENT '交易所名称，id，描述',
+  `CHECK_DATE` date NOT NULL default now() COMMENT '订单生成日期',
+  PRIMARY KEY (`ID`)
+) ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8
+
 
 
