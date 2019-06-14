@@ -20,8 +20,11 @@ import zipfile
 import chardet
 import csv
 import codecs
+import logging
+import logging.handlers
 
 
+logger = logging.getLogger('cbd_log')
 
 
 class mysql_configs(object):
@@ -31,7 +34,9 @@ class mysql_configs(object):
   usr     = ""
   pwd     = ""
   odrTbl  = ""
+  mchTbl  = ""
   chanTbl = ""
+  cbTbl   = ""
 
 
 class Mysql(object):
@@ -48,7 +53,7 @@ class Mysql(object):
 
   def query(self,table,selist=" * ",cond=""):
     strsql = ("select " + selist + " from " + table + " " + cond)
-    #print("sql: " + strsql)
+    #logger.debug("sql: " + strsql)
 
     self.m_conn.commit()
 
@@ -89,12 +94,25 @@ class check_bill_biz:
       mscfg.usr     = cfg['usr']
       mscfg.pwd     = cfg['pwd']
       mscfg.odrTbl  = cfg['orderTableName']
+      mscfg.cbTbl   = cfg['cbTableName']
+      mscfg.mchTbl  = cfg['merchantConfigTableName']
       mscfg.chanTbl = cfg['alipayConfigTableName']
-      print("mysql configs: host: {0}:{1}".
+      logger.debug("mysql configs: host: {0}:{1}".
             format(mscfg.address,mscfg.port))
 
     self.m_mysql = Mysql(mscfg.address,mscfg.port,mscfg.db,
                          mscfg.usr,mscfg.pwd)
+
+
+    cbcfg = gcfg['Globals']['CheckBill']
+    if (len(cbcfg)>0):
+      self.cb_path = cbcfg['billFilePath']
+      self.cb_port = cbcfg['listenPort']
+
+
+  def get_listen_port(self):
+    return self.cb_port
+
 
   def get_download_link(self,r,bill_date):
 
@@ -129,7 +147,7 @@ class check_bill_biz:
     sort_str  = "&".join("{0}={1}".format(k, urllib.parse.quote_plus(v)) for k, v in sort_list)
     reqstr = (r['REQ_URL'] + "?" + sort_str)
 
-    #print("final request string: {0}".format(reqstr))
+    #logger.debug("final request string: {0}".format(reqstr))
 
     req = urllib.request.Request(reqstr)
     res = urllib.request.urlopen(req)
@@ -140,7 +158,7 @@ class check_bill_biz:
 
     if lnk==None:
       reason = pr['alipay_data_dataservice_bill_downloadurl_query_response']['sub_msg']
-      print("get download link by app_id '{0}' bill-date '{1}' fail: {2}"
+      logger.debug("get download link by app_id '{0}' bill-date '{1}' fail: {2}"
             .format(app_id,bill_date,reason))
 
     return lnk 
@@ -148,7 +166,7 @@ class check_bill_biz:
 
 
   def download_check_file(self,appid,basepath,bd,lnk):
-    #print("trying link: " + lnk)
+    #logger.debug("trying link: " + lnk)
 
     if not os.path.exists(basepath):
       os.makedirs(basepath)
@@ -166,7 +184,7 @@ class check_bill_biz:
 
     for xf in zf.namelist():
       # zip 文件默认先转为 cp437 编码
-      #print("xf: " + xf.encode(encoding=u'cp437',errors='ignore').decode(u'gb2312'))
+      #logger.debug("xf: " + xf.encode(encoding=u'cp437',errors='ignore').decode(u'gb2312'))
       xf_info = zf.getinfo(xf)
       xf_path = (basepath+"/"+appid+"_"+(xf.encode(encoding=u'cp437',errors='ignore').decode(u'gb2312')))
 
@@ -176,15 +194,25 @@ class check_bill_biz:
 
     os.remove(zfpath)
 
+
+  def dateStr_to_microSecs(self,date):
+
+    tstruct = time.strptime(date,"%Y-%m-%d")
+    if tstruct==None:
+      logger.debug("invalid date: "+date)
+      return -1
+
+    return (time.mktime(tstruct)+2208988800)*1000000
+
+
+  def get_nextDate_microSecs(self,ds):
+    return (ds + 86400*1000000)
+
     
   def do_summerize_db(self,appid,bd):
-    tstruct = time.strptime(bd,"%Y-%m-%d")
-    if tstruct==None:
-      print("invalid bill date: "+bd)
-      return 
 
-    prev_date = (time.mktime(tstruct)+2208988800)*1000000
-    next_date = prev_date + 86400*1000000
+    prev_date = self.dateStr_to_microSecs(bd)
+    next_date = self.get_nextDate_microSecs(prev_date)
 
     result = self.m_mysql.query(self.mysql_cfg.odrTbl," sum(ifnull(amount,0)) amt ",
                                 " where chan_mch_no='{0}' and create_time>={1} and " \
@@ -210,9 +238,9 @@ class check_bill_biz:
         if bool(re.match((appid+"_.*\(汇总\).csv"),f))!=True :
           continue
 
-        #print("parsing csv " + f)
+        #logger.debug("parsing csv " + f)
 
-        with codecs.open(basepath+"/"+f,'r','gb2312') as fcsv:
+        with codecs.open(basepath+"/"+f,'r','gb18030') as fcsv:
           fc = csv.reader(fcsv)
           for r in fc:
             if r[0]=='合计\t':
@@ -221,12 +249,145 @@ class check_bill_biz:
     return None
 
 
+  def check_summerize(self,basepath,appid,bill_date):
+
+    logger.debug("checking appid '{0}' summerize...".format(appid))
+
+    db_sum = self.do_summerize_db(appid,bill_date)
+
+    bill_sum = self.do_summerize_check_file(basepath,appid,bill_date)
+
+    #logger.debug("appid '{0}' db sum {1} bill sum {2}".format(appid,db_sum,bill_sum))
+
+    if bill_sum==None or db_sum==None or bill_sum!=db_sum:
+      logger.debug("appid '{0}' db sum {1} NOT equal with bill sum {2}!!".format(appid,bill_sum,db_sum))
+
+
+
+  def get_db_order_details(self,bill_date):
+
+    db_dict = {}
+    chanlist= ""
+
+    rows = self.m_mysql.query(self.mysql_cfg.chanTbl," * "," where istransfund=0 ")
+
+    for i in range(len(rows)):
+      if i>0:
+        chanlist = chanlist + ','
+      chanlist = chanlist + '\'' + rows[i]['APP_ID'] + '\''
+
+
+    prev_date = self.dateStr_to_microSecs(bill_date)
+    next_date = self.get_nextDate_microSecs(prev_date)
+
+    # check db details by mch names
+    odr_rows = self.m_mysql.query(self.mysql_cfg.odrTbl," * ",
+                              " where create_time>={0} and create_time<={1} and "\
+                              " status=2 and chan_mch_no in({2})".format(prev_date,next_date,chanlist))
+
+    for odr in odr_rows:
+      db_dict[odr['MCH_ORDERID']] = (float(odr['AMOUNT']),odr['MCH_NO'],odr['CHAN_MCH_NO'])
+
+
+    return db_dict
+
+      
+
+  def get_check_file_details(self,basepath):
+
+    cf_dict = {}
+
+    for __path,__subPaths,__files in os.walk(basepath):
+
+      for f in __files:
+
+        if bool(re.match((".*明细.csv"),f))!=True :
+          continue
+
+        #logger.debug("parsing csv " + f)
+
+        with codecs.open(basepath+"/"+f,'r','gb18030') as fcsv:
+          fc = csv.reader(fcsv)
+
+          for r in fc:
+
+            if len(r[0])==0 or r[0][0]=='#' or r[0][0:6].isdigit()==False:
+              continue
+
+            # skip '\t' at last position
+            cf_dict[r[1][:-1]] = (float(r[12]),r[3])
+
+    return cf_dict
+
+
+  def errStr(self,err):
+    if err==1:
+      return '金额不等'
+    elif err==2:
+      return '账单缺流水'
+    elif err==3:
+      return '数据库缺流水'
+    return '未知错误类型: {0}'.format(err)
+
+
+  def save_unpair_record(self,k,v,e):
+    self.m_mysql.update(" insert into {0} (MCH_ORDERID,ERROR_TYPE,ERROR_DESC,MCH_DESC) values({1},{2},{3},{4},{5})".format('tbl','ab-11',1,'aa','bb')
+#.format(self.mysql_cfg.cbTbl,k,e,self.errStr(e),v[1])
+                       )
+
+
+  def check_details(self,bill_date,basepath):
+
+    db_dict = self.get_db_order_details(bill_date)
+    #logger.debug("orders: {0}".format(db_dict))
+
+    cf_dict = self.get_check_file_details(basepath)
+    #logger.debug("orders: {0}".format(cf_dict))
+
+    db_dict_copy = db_dict.copy()
+
+    for ckey in cf_dict.keys():
+      db_ret = db_dict.get(ckey)
+
+      if db_ret==None:
+        continue
+
+      amt = db_ret[0]
+
+      if amt!=cf_dict[ckey][0]:
+        self.save_unpair_record(ckey,cf_dict[ckey],1)
+        logger.debug("error1: amount no equal: {0}".format(ckey))
+        continue
+
+      db_dict.pop(ckey)
+
+
+    for dkey in db_dict_copy.keys():
+      if cf_dict.get(dkey)!=None:
+        cf_dict.pop(dkey)
+
+
+    for k in db_dict.keys():
+      self.save_unpair_record(k,db_dict[k],2)
+      logger.debug("error2: check none, db has: {0}".format(k))
+
+
+    for k in cf_dict.keys():
+      print("cfd: {0}".format(cf_dict[k]))
+      self.save_unpair_record(k,cf_dict[k],3)
+      logger.debug("error3: check has, db none: {0}".format(k))
+
+    logger.debug("details checking done!")
+
+
 
   def do_biz(self,bill_date):
     rows = self.m_mysql.query(self.mysql_cfg.chanTbl," * "," where /*online*/1=1 ")
 
-    basepath = "/tmp/" + "alipay_bills/" + bill_date + "/"
+    basepath = self.cb_path + "alipay_bills/" + bill_date + "/"
 
+
+    """
     for r in rows:
       lnk  = self.get_download_link(r,bill_date)
       appid= r['APP_ID']
@@ -236,15 +397,12 @@ class check_bill_biz:
 
       self.download_check_file(appid,basepath,bill_date,lnk)
 
-      db_sum = self.do_summerize_db(appid,bill_date)
+      # check summerize by appid one by one
+      self.check_summerize(basepath,appid,bill_date)
+    """
 
-      bill_sum = self.do_summerize_check_file(basepath,appid,bill_date)
-
-      print("appid '{0}' db sum {1} bill sum {2}".format(appid,db_sum,bill_sum))
-
-      if bill_sum!=None and db_sum!=None and bill_sum==db_sum:
-        print("appid '{0}' sum {1} in db and bill are equal!".format(appid,bill_sum))
-
+    # check order details
+    self.check_details(bill_date,basepath)
 
 
   def sign(self, privkey, signtmp):
@@ -261,23 +419,50 @@ class cb_web_req:
     return 'check bill on date {0} success!'.format(bill_date)  
   
 
+
+def init_log(logpath):
+    logger.setLevel(logging.DEBUG)
+
+    #fh = logging.FileHandler("/tmp/cbd.log")
+
+    formatter = logging.Formatter('%(asctime)s - %(module)s(%(process)d)%(funcName)s.%(lineno)d - %(levelname)s - %(message)s')
+
+    if (len(logpath)>0):
+      fh = logging.handlers.TimedRotatingFileHandler((logpath+"/"+"cbd.log"),when='D')
+      fh.suffix = "%Y-%m-%d.log"
+      fh.setLevel(logging.DEBUG)
+      fh.setFormatter(formatter)
+      logger.addHandler(fh)
+    else:
+      ch = logging.StreamHandler()
+      ch.setLevel(logging.DEBUG)
+      ch.setFormatter(formatter)
+      logger.addHandler(ch)
+
+    return logger
+
+
 if __name__ == "__main__":  
 
+  logpath = "/tmp/"
   host = "0.0.0.0"
   port = "12470"
   cont = ""
-  opts, args = getopt.getopt(sys.argv[1:], "c:p:h:")
+  opts, args = getopt.getopt(sys.argv[1:], "c:h:L:")
   cfg = os.path.dirname(os.path.realpath(__file__)) + "/paysvr_conf.json"
 
   for a,opt in opts:
     if (a=='-c'):
       cfg = opt
-    elif (a=='-p'):
-      port= opt
     elif (a=='-h'):
       host= opt
+    elif (a=='-L'):
+      logpath= opt
 
-  print("config file: '{0}'".format(cfg))
+  logger.debug("config file: '{0}'".format(cfg))
+
+  # initialize log
+  logger = init_log(logpath)
 
   # read configs
   with open(cfg,"r") as m_fd:
@@ -285,12 +470,13 @@ if __name__ == "__main__":
 
   # init biz module
   cbbiz = check_bill_biz(cont)
+  port = str(cbbiz.get_listen_port())
 
-  # modify port manually
+  # modify web port manually
   sys.argv[1] = (host+":"+port)
 
   # run application
-  ptn = ('/(.*)', 'cb_web_req')  
+  ptn = ('/date=(.*)', 'cb_web_req')  
   app = web.application(ptn, globals())  
   app.run()  
 
