@@ -37,6 +37,7 @@ class mysql_configs(object):
   mchTbl  = ""
   chanTbl = ""
   cbTbl   = ""
+  cbmTbl  = ""
 
 
 class Mysql(object):
@@ -69,6 +70,7 @@ class Mysql(object):
 
   def update(self,strSql):
 
+    #print("update sql: " + strSql)
     with self.m_conn.cursor() as cs:
 
       cs.execute(strSql)
@@ -95,6 +97,7 @@ class check_bill_biz:
       mscfg.pwd     = cfg['pwd']
       mscfg.odrTbl  = cfg['orderTableName']
       mscfg.cbTbl   = cfg['cbTableName']
+      mscfg.cbmTbl  = cfg['cbmTableName']
       mscfg.mchTbl  = cfg['merchantConfigTableName']
       mscfg.chanTbl = cfg['alipayConfigTableName']
       logger.debug("mysql configs: host: {0}:{1}".
@@ -127,7 +130,7 @@ class check_bill_biz:
     pay_params['timestamp']= datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     pay_params['version']= '1.0'
 
-    biz_content['bill_type']= 'trade'
+    biz_content['bill_type']= 'signcustomer'  #'trade'
     biz_content['bill_date']= bill_date
 
     pay_params['biz_content'] = json.dumps(biz_content)
@@ -209,7 +212,8 @@ class check_bill_biz:
     return (ds + 86400*1000000)
 
     
-  def do_summerize_db(self,appid,bd):
+  """
+  def summerize_db_by_appid(self,appid,bd):
 
     prev_date = self.dateStr_to_microSecs(bd)
     next_date = self.get_nextDate_microSecs(prev_date)
@@ -228,14 +232,14 @@ class check_bill_biz:
 
 
     
-  def do_summerize_check_file(self,basepath,appid,bd):
+  def summerize_check_file_by_appid(self,basepath,appid,bd):
 
     for __path,__subPaths,__files in os.walk(basepath):
 
       #scanning file under __path
       for f in __files:
 
-        if bool(re.match((appid+"_.*\(汇总\).csv"),f))!=True :
+        if bool(re.match((appid+"_.*业务明细\(汇总\).csv"),f))!=True :
           continue
 
         #logger.debug("parsing csv " + f)
@@ -253,28 +257,36 @@ class check_bill_biz:
 
     logger.debug("checking appid '{0}' summerize...".format(appid))
 
-    db_sum = self.do_summerize_db(appid,bill_date)
+    db_sum = self.summerize_db_by_appid(appid,bill_date)
 
-    bill_sum = self.do_summerize_check_file(basepath,appid,bill_date)
+    bill_sum = self.summerize_check_file_by_appid(basepath,appid,bill_date)
 
     #logger.debug("appid '{0}' db sum {1} bill sum {2}".format(appid,db_sum,bill_sum))
 
     if bill_sum==None or db_sum==None or bill_sum!=db_sum:
       logger.debug("appid '{0}' db sum {1} NOT equal with bill sum {2}!!".format(appid,bill_sum,db_sum))
+      return -1
+
+    return 0
+  """
 
 
-
-  def get_db_order_details(self,bill_date):
-
-    db_dict = {}
+  def get_appid_list_str(self,appid_list):
     chanlist= ""
+    print(appid_list)
 
-    rows = self.m_mysql.query(self.mysql_cfg.chanTbl," * "," where istransfund=0 ")
-
-    for i in range(len(rows)):
+    for i in range(len(appid_list)):
       if i>0:
         chanlist = chanlist + ','
-      chanlist = chanlist + '\'' + rows[i]['APP_ID'] + '\''
+      chanlist = chanlist + '\'' + appid_list[i] + '\''
+
+    return chanlist
+
+
+  def get_db_order_details(self,bill_date,appid_list):
+
+    db_dict = {}
+    chanlist= self.get_appid_list_str(appid_list)
 
 
     prev_date = self.dateStr_to_microSecs(bill_date)
@@ -293,7 +305,7 @@ class check_bill_biz:
 
       
 
-  def get_check_file_details(self,basepath):
+  def get_check_file_details(self,basepath,transfund,appid_group):
 
     cf_dict = {}
 
@@ -301,10 +313,17 @@ class check_bill_biz:
 
       for f in __files:
 
-        if bool(re.match((".*明细.csv"),f))!=True :
+        ptn = ".*业务明细.csv"
+        if transfund==1:
+          ptn = ".*账务明细.csv"
+
+        if bool(re.match(ptn,f))!=True :
           continue
 
-        #logger.debug("parsing csv " + f)
+        if appid_group.get(f.split('_')[0])==None:
+          continue
+
+        #print("parsing csv " + f)
 
         with codecs.open(basepath+"/"+f,'r','gb18030') as fcsv:
           fc = csv.reader(fcsv)
@@ -314,8 +333,17 @@ class check_bill_biz:
             if len(r[0])==0 or r[0][0]=='#' or r[0][0:6].isdigit()==False:
               continue
 
+            amount = 0.0
+            sid = ''
+            if transfund==0:
+              sid = r[1][:-1]
+              amount = float(r[12])
+            else:
+              sid = r[2][:-1]
+              amount = abs(float(r[7]))
+
             # skip '\t' at last position
-            cf_dict[r[1][:-1]] = (float(r[12]),r[3])
+            cf_dict[sid] = (amount,r[3])
 
     return cf_dict
 
@@ -330,18 +358,26 @@ class check_bill_biz:
     return '未知错误类型: {0}'.format(err)
 
 
-  def save_unpair_record(self,k,v,e):
-    self.m_mysql.update(" insert into {0} (MCH_ORDERID,ERROR_TYPE,ERROR_DESC,MCH_DESC) values({1},{2},{3},{4},{5})".format('tbl','ab-11',1,'aa','bb')
-#.format(self.mysql_cfg.cbTbl,k,e,self.errStr(e),v[1])
+  def save_check_bill_details(self,k,v,e,bd):
+    self.m_mysql.update(" insert into {v0} (MCH_ORDERID,ERROR_TYPE,ERROR_DESC,MCH_DESC,BILL_DATE) "\
+                        " values('{v1}',{v2},'{v3}','{v4}','{v5}')"
+                        .format(v0=self.mysql_cfg.cbTbl,v1=k,v2=e,v3=self.errStr(e),v4=v[1],v5=bd)
+                       )
+
+  def save_check_bill_summary(self,mch,amt,transfund,res,bd):
+    self.m_mysql.update(" insert into {v0} (MCH_DESC,TOTAL_AMOUNT,ISTRANSFUND,SUCCESS,BILL_DATE) "\
+                        " values('{v1}',{v2},{v3},'{v4}','{v5}')"
+                        .format(v0=self.mysql_cfg.cbmTbl,v1=mch,v2=amt,v3=transfund,v4=res,v5=bd)
                        )
 
 
-  def check_details(self,bill_date,basepath):
+  def check_details(self,bill_date,basepath,transfund,appid_group):
 
-    db_dict = self.get_db_order_details(bill_date)
+    err = 0
+    db_dict = self.get_db_order_details(bill_date,list(appid_group.keys()))
     #logger.debug("orders: {0}".format(db_dict))
 
-    cf_dict = self.get_check_file_details(basepath)
+    cf_dict = self.get_check_file_details(basepath,transfund,appid_group)
     #logger.debug("orders: {0}".format(cf_dict))
 
     db_dict_copy = db_dict.copy()
@@ -355,8 +391,9 @@ class check_bill_biz:
       amt = db_ret[0]
 
       if amt!=cf_dict[ckey][0]:
-        self.save_unpair_record(ckey,cf_dict[ckey],1)
+        self.save_check_bill_details(ckey,cf_dict[ckey],1,bill_date)
         logger.debug("error1: amount no equal: {0}".format(ckey))
+        err = 1
         continue
 
       db_dict.pop(ckey)
@@ -368,29 +405,60 @@ class check_bill_biz:
 
 
     for k in db_dict.keys():
-      self.save_unpair_record(k,db_dict[k],2)
+      self.save_check_bill_details(k,db_dict[k],2,bill_date)
       logger.debug("error2: check none, db has: {0}".format(k))
+      err = 1
 
 
     for k in cf_dict.keys():
-      print("cfd: {0}".format(cf_dict[k]))
-      self.save_unpair_record(k,cf_dict[k],3)
+      self.save_check_bill_details(k,cf_dict[k],3,bill_date)
       logger.debug("error3: check has, db none: {0}".format(k))
+      err = 1
 
     logger.debug("details checking done!")
 
+    return err 
 
 
-  def do_biz(self,bill_date):
-    rows = self.m_mysql.query(self.mysql_cfg.chanTbl," * "," where /*online*/1=1 ")
+
+  def check_main(self,bill_date,err,transfund,appid_group):
+
+    if (err==1):
+      self.save_check_bill_summary('all merchants',0.0,transfund,-1,bill_date)
+      return
+
+    prev_date = self.dateStr_to_microSecs(bill_date)
+    next_date = self.get_nextDate_microSecs(prev_date)
+
+    chanlist  = self.get_appid_list_str(list(appid_group.keys()))
+
+    rows = self.m_mysql.query(self.mysql_cfg.mchTbl," * "," where 1=1 ")
+    for r in rows:
+      mch = r['NAME']
+      amt_res = self.m_mysql.query(self.mysql_cfg.odrTbl," sum(ifnull(amount,0)) amt ",
+                              " where create_time>={0} and create_time<={1} and "\
+                              " status=2 and mch_no = '{2}' and chan_mch_no in ({3})"
+                              .format(prev_date,next_date,mch,chanlist))
+
+      amt = amt_res[0].get('amt')
+      if amt!=None:
+        self.save_check_bill_summary(mch,amt,transfund,1,bill_date)
+
+
+
+  def do_biz(self,bill_date,transfund):
+    rows = self.m_mysql.query(self.mysql_cfg.chanTbl," * "," where istransfund={0} ".format(transfund))
 
     basepath = self.cb_path + "alipay_bills/" + bill_date + "/"
 
+    appid_group = {}
 
-    """
     for r in rows:
       lnk  = self.get_download_link(r,bill_date)
+      #lnk = None
       appid= r['APP_ID']
+
+      appid_group[appid] = 1
 
       if lnk==None:
         continue
@@ -398,11 +466,14 @@ class check_bill_biz:
       self.download_check_file(appid,basepath,bill_date,lnk)
 
       # check summerize by appid one by one
-      self.check_summerize(basepath,appid,bill_date)
-    """
+      #self.check_summerize(basepath,appid,bill_date)
 
     # check order details
-    self.check_details(bill_date,basepath)
+    err = self.check_details(bill_date,basepath,transfund,appid_group)
+
+    # check main
+    self.check_main(bill_date,err,transfund,appid_group)
+
 
 
   def sign(self, privkey, signtmp):
@@ -412,12 +483,15 @@ class check_bill_biz:
     sign = b64encode(signature).decode("utf8").replace("\n", "")
     return sign
 
+
   
 class cb_web_req:  
   def GET(self, bill_date):  
-    cbbiz.do_biz(bill_date)
+    # in money
+    cbbiz.do_biz(bill_date,0)
+    # out money
+    cbbiz.do_biz(bill_date,1)
     return 'check bill on date {0} success!'.format(bill_date)  
-  
 
 
 def init_log(logpath):

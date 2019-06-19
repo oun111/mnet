@@ -67,8 +67,21 @@ CREATE TABLE `check_bill_details` (
   `MCH_ORDERID` varchar(32) NOT NULL default '' COMMENT 'paysvr商户提交的 商户订单id',
   `ERROR_TYPE` int(11) NOT NULL DEFAULT 0 COMMENT '单边类型，1 金额不等，2 账单缺流水，3 数据库缺流水',
   `ERROR_DESC` varchar(512) NOT NULL default '' COMMENT '错误详细描述',
-  `MCH_DESC` varchar(96) NOT NULL default '' COMMENT '交易所名称，id，描述',
-  `CHECK_DATE` date NOT NULL default now() COMMENT '订单生成日期',
+  `MCH_DESC` varchar(96) NOT NULL default '' COMMENT '交易所名称，id，描述 等',
+  `BILL_DATE` datetime NOT NULL default 0 COMMENT '订单生成日期',
+  `CHECK_DATE` datetime NOT NULL default now() COMMENT '对账日期',
+  PRIMARY KEY (`ID`)
+) ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8
+
+
+CREATE TABLE `check_bill_main` (
+  `ID` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '对账记录ID，自增',
+  `MCH_DESC` varchar(96) NOT NULL default '' COMMENT '交易所名称，id，描述 等',
+  `TOTAL_AMOUNT` decimal(24,2) NOT NULL default 0.0 COMMENT '交易所当天总额',
+  `ISTRANSFUND` int(11) NOT NULL DEFAULT 0 COMMENT '是否提现，0 否，1 是',
+  `SUCCESS` int(11) NOT NULL default 1 COMMENT '1 成功，其它 失败 ',
+  `BILL_DATE` date NOT NULL default 0 COMMENT '对账日',
+  `CHECK_END_DATE` datetime NOT NULL default now() COMMENT '对账结束日期',
   PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8
 
