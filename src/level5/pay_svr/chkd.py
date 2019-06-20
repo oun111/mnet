@@ -417,11 +417,11 @@ class check_bill_biz:
 
     logger.debug("details checking done!")
 
-    return err 
+    return err,db_dict_copy
 
 
 
-  def check_main(self,bill_date,err,transfund,appid_group):
+  def check_main(self,bill_date,err,db_dict,transfund,appid_group):
 
     if (err==1):
       self.save_check_bill_summary('all merchants',0.0,transfund,-1,bill_date)
@@ -435,14 +435,13 @@ class check_bill_biz:
     rows = self.m_mysql.query(self.mysql_cfg.mchTbl," * "," where 1=1 ")
     for r in rows:
       mch = r['NAME']
-      amt_res = self.m_mysql.query(self.mysql_cfg.odrTbl," sum(ifnull(amount,0)) amt ",
-                              " where create_time>={0} and create_time<={1} and "\
-                              " status=2 and mch_no = '{2}' and chan_mch_no in ({3})"
-                              .format(prev_date,next_date,mch,chanlist))
+      amt = 0.0
 
-      amt = amt_res[0].get('amt')
-      if amt!=None:
-        self.save_check_bill_summary(mch,amt,transfund,1,bill_date)
+      for v in db_dict.values():
+        if v[1]==mch:
+          amt = amt + v[0]
+
+      self.save_check_bill_summary(mch,amt,transfund,1,bill_date)
 
 
 
@@ -469,10 +468,10 @@ class check_bill_biz:
       #self.check_summerize(basepath,appid,bill_date)
 
     # check order details
-    err = self.check_details(bill_date,basepath,transfund,appid_group)
+    err,db_dict = self.check_details(bill_date,basepath,transfund,appid_group)
 
     # check main
-    self.check_main(bill_date,err,transfund,appid_group)
+    self.check_main(bill_date,err,db_dict,transfund,appid_group)
 
 
 
