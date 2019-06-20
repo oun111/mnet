@@ -172,7 +172,6 @@ ssize_t http_svr_rx_raw(Network_t net, connection_t pconn)
   if (szhdr==0L) {
     log_error("no header size(sz_in: %zu)\n",sz_in);
     log_error("rx: %s\n",b);
-    dbuffer_lseek(pconn->rxb,sz_in,SEEK_CUR,0);
     return -1;
   }
 
@@ -186,7 +185,6 @@ ssize_t http_svr_rx_raw(Network_t net, connection_t pconn)
 
   if ((szReq+szhdr)>sz_in) {
     log_debug("incomplete req\n");
-    dbuffer_lseek(pconn->rxb,sz_in,SEEK_CUR,0);
     return -1;
   }
 
