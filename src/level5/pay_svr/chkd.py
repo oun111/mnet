@@ -24,7 +24,8 @@ import logging
 import logging.handlers
 
 
-logger = logging.getLogger('cbd_log')
+appname = "chkd"
+logger = logging.getLogger((appname + '_log'))
 
 
 class mysql_configs(object):
@@ -42,40 +43,87 @@ class mysql_configs(object):
 
 class Mysql(object):
   def __init__(self,host,port,db,usr,pwd):
-    self.do_connect(host,port,db,usr,pwd)
+    self.host = host
+    self.port = port
+    self.db   = db
+    self.usr  = usr
+    self.pwd  = pwd
+
+    self.do_connect()
 
 
-  def do_connect(self,host,port,db,usr,pwd):
-    self.m_conn = pymysql.connect(host=host,port=port,
-                  user=usr,password=pwd,database=db,
-                  autocommit=False,
-                  cursorclass=pymysql.cursors.DictCursor)
+  def do_connect(self):
+    self.m_conn = pymysql.connect(host=self.host,port=self.port,user=self.usr,
+                                  password=self.pwd,database=self.db,autocommit=False,
+                                  cursorclass=pymysql.cursors.DictCursor)
+
+
+  def do_exec(self,sql):
+
+    #logger.debug("sql: " + strsql)
+
+    while True:
+      try:
+        self.m_conn.commit()
+
+        with self.m_conn.cursor() as cs:
+          cs.execute(sql)
+          res = cs.fetchall()
+
+        self.m_conn.commit()
+
+        return res
+
+      except pymysql.OperationalError as e:
+        self.do_connect()
 
 
   def query(self,table,selist=" * ",cond=""):
     strsql = ("select " + selist + " from " + table + " " + cond)
-    #logger.debug("sql: " + strsql)
 
-    self.m_conn.commit()
-
-    with self.m_conn.cursor() as cs:
-      cs.execute(strsql)
-
-      res = cs.fetchall()
-
-    self.m_conn.commit()
-
-    return res
+    return self.do_exec(strsql)
 
 
   def update(self,strSql):
 
-    #print("update sql: " + strSql)
-    with self.m_conn.cursor() as cs:
-
-      cs.execute(strSql)
-      self.m_conn.commit()
+    self.do_exec(strSql)
     
+
+class simple_tools:
+  @staticmethod
+  def dateStr_to_microSecs(date):
+
+    tstruct = time.strptime(date,"%Y-%m-%d")
+    if tstruct==None:
+      logger.debug("invalid date: "+date)
+      return -1
+
+    return (time.mktime(tstruct)+2208988800)*1000000
+
+  @staticmethod
+  def get_nextDate_microSecs(ds):
+    return (ds + 86400*1000000)
+
+  @staticmethod
+  def to_mysql_in_list(lst):
+    chanlist= ""
+    logger.debug(lst)
+
+    for i in range(len(lst)):
+      if i>0:
+        chanlist = chanlist + ','
+      chanlist = chanlist + '\'' + lst[i] + '\''
+
+    return chanlist
+
+  @staticmethod
+  def RSAwithSHA256_sign(privkey, signtmp):
+    signer = PKCS1_v1_5.new(privkey)
+    signature = signer.sign(SHA256.new(signtmp.encode('utf-8')))
+    #sign = encodebytes(signature).decode("utf8").replace("\n", "")
+    sign = b64encode(signature).decode("utf8").replace("\n", "")
+    return sign
+
 
 class check_bill_biz:
   def __init__(self,cfg_contents):
@@ -143,7 +191,7 @@ class check_bill_biz:
     with open(r['PRIVATE_KEY_PATH']) as fp:
       privkey = RSA.importKey(fp.read())
 
-    pay_params['sign'] = self.sign(privkey,sort_str)
+    pay_params['sign'] = simple_tools.RSAwithSHA256_sign(privkey,sort_str)
     sort_list = sorted(pay_params.items())
 
     # final request string
@@ -198,99 +246,14 @@ class check_bill_biz:
     os.remove(zfpath)
 
 
-  def dateStr_to_microSecs(self,date):
-
-    tstruct = time.strptime(date,"%Y-%m-%d")
-    if tstruct==None:
-      logger.debug("invalid date: "+date)
-      return -1
-
-    return (time.mktime(tstruct)+2208988800)*1000000
-
-
-  def get_nextDate_microSecs(self,ds):
-    return (ds + 86400*1000000)
-
-    
-  """
-  def summerize_db_by_appid(self,appid,bd):
-
-    prev_date = self.dateStr_to_microSecs(bd)
-    next_date = self.get_nextDate_microSecs(prev_date)
-
-    result = self.m_mysql.query(self.mysql_cfg.odrTbl," sum(ifnull(amount,0)) amt ",
-                                " where chan_mch_no='{0}' and create_time>={1} and " \
-                                " create_time<={2} and status=2 "
-                                .format(appid,prev_date,next_date))
-
-    rs = result[0].get('amt')
-
-    if rs!=None:
-      return float(rs)
-
-    return None
-
-
-    
-  def summerize_check_file_by_appid(self,basepath,appid,bd):
-
-    for __path,__subPaths,__files in os.walk(basepath):
-
-      #scanning file under __path
-      for f in __files:
-
-        if bool(re.match((appid+"_.*业务明细\(汇总\).csv"),f))!=True :
-          continue
-
-        #logger.debug("parsing csv " + f)
-
-        with codecs.open(basepath+"/"+f,'r','gb18030') as fcsv:
-          fc = csv.reader(fcsv)
-          for r in fc:
-            if r[0]=='合计\t':
-              return float(r[5])
-
-    return None
-
-
-  def check_summerize(self,basepath,appid,bill_date):
-
-    logger.debug("checking appid '{0}' summerize...".format(appid))
-
-    db_sum = self.summerize_db_by_appid(appid,bill_date)
-
-    bill_sum = self.summerize_check_file_by_appid(basepath,appid,bill_date)
-
-    #logger.debug("appid '{0}' db sum {1} bill sum {2}".format(appid,db_sum,bill_sum))
-
-    if bill_sum==None or db_sum==None or bill_sum!=db_sum:
-      logger.debug("appid '{0}' db sum {1} NOT equal with bill sum {2}!!".format(appid,bill_sum,db_sum))
-      return -1
-
-    return 0
-  """
-
-
-  def get_appid_list_str(self,appid_list):
-    chanlist= ""
-    print(appid_list)
-
-    for i in range(len(appid_list)):
-      if i>0:
-        chanlist = chanlist + ','
-      chanlist = chanlist + '\'' + appid_list[i] + '\''
-
-    return chanlist
-
-
   def get_db_order_details(self,bill_date,appid_list):
 
     db_dict = {}
-    chanlist= self.get_appid_list_str(appid_list)
+    chanlist= simple_tools.to_mysql_in_list(appid_list)
 
 
-    prev_date = self.dateStr_to_microSecs(bill_date)
-    next_date = self.get_nextDate_microSecs(prev_date)
+    prev_date = simple_tools.dateStr_to_microSecs(bill_date)
+    next_date = simple_tools.get_nextDate_microSecs(prev_date)
 
     # check db details by mch names
     odr_rows = self.m_mysql.query(self.mysql_cfg.odrTbl," * ",
@@ -300,10 +263,8 @@ class check_bill_biz:
     for odr in odr_rows:
       db_dict[odr['MCH_ORDERID']] = (float(odr['AMOUNT']),odr['MCH_NO'],odr['CHAN_MCH_NO'])
 
-
     return db_dict
 
-      
 
   def get_check_file_details(self,basepath,transfund,appid_group):
 
@@ -427,10 +388,10 @@ class check_bill_biz:
       self.save_check_bill_summary('all merchants',0.0,transfund,-1,bill_date)
       return
 
-    prev_date = self.dateStr_to_microSecs(bill_date)
-    next_date = self.get_nextDate_microSecs(prev_date)
+    prev_date = simple_tools.dateStr_to_microSecs(bill_date)
+    next_date = simple_tools.get_nextDate_microSecs(prev_date)
 
-    chanlist  = self.get_appid_list_str(list(appid_group.keys()))
+    chanlist  = simple_tools.to_mysql_in_list(list(appid_group.keys()))
 
     rows = self.m_mysql.query(self.mysql_cfg.mchTbl," * "," where 1=1 ")
     for r in rows:
@@ -464,8 +425,6 @@ class check_bill_biz:
 
       self.download_check_file(appid,basepath,bill_date,lnk)
 
-      # check summerize by appid one by one
-      #self.check_summerize(basepath,appid,bill_date)
 
     # check order details
     err,db_dict = self.check_details(bill_date,basepath,transfund,appid_group)
@@ -473,14 +432,6 @@ class check_bill_biz:
     # check main
     self.check_main(bill_date,err,db_dict,transfund,appid_group)
 
-
-
-  def sign(self, privkey, signtmp):
-    signer = PKCS1_v1_5.new(privkey)
-    signature = signer.sign(SHA256.new(signtmp.encode('utf-8')))
-    #sign = encodebytes(signature).decode("utf8").replace("\n", "")
-    sign = b64encode(signature).decode("utf8").replace("\n", "")
-    return sign
 
 
   
@@ -496,12 +447,12 @@ class cb_web_req:
 def init_log(logpath):
     logger.setLevel(logging.DEBUG)
 
-    #fh = logging.FileHandler("/tmp/cbd.log")
+    #fh = logging.FileHandler("/tmp/{cn}.log".format(appname))
 
     formatter = logging.Formatter('%(asctime)s - %(module)s(%(process)d)%(funcName)s.%(lineno)d - %(levelname)s - %(message)s')
 
     if (len(logpath)>0):
-      fh = logging.handlers.TimedRotatingFileHandler((logpath+"/"+"cbd.log"),when='D')
+      fh = logging.handlers.TimedRotatingFileHandler((logpath+"/"+appname+".log"),when='D')
       fh.suffix = "%Y-%m-%d.log"
       fh.setLevel(logging.DEBUG)
       fh.setFormatter(formatter)
