@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import pymysql
 import redis
@@ -13,9 +13,6 @@ import logging
 import logging.handlers
 import sys
 
-
-reload(sys)
-sys.setdefaultencoding('utf8')
 
 
 logger = logging.getLogger('syncd_log')
@@ -61,90 +58,127 @@ class myredis_status(object):
 
 
 class Mysql(object):
-
   def __init__(self,host,port,db,usr,pwd):
-    self.do_connect(host,port,db,usr,pwd)
+    self.host = host
+    self.port = port
+    self.db   = db
+    self.usr  = usr
+    self.pwd  = pwd
+
+    self.do_connect()
 
 
-  def do_connect(self,host,port,db,usr,pwd):
-    self.m_conn = pymysql.connect(host=host,port=port,
-                  user=usr,password=pwd,database=db,
-                  autocommit=False,
-                  cursorclass=pymysql.cursors.DictCursor)
+  def do_connect(self):
+    self.m_conn = pymysql.connect(host=self.host,port=self.port,user=self.usr,
+                                  password=self.pwd,database=self.db,autocommit=False,
+                                  cursorclass=pymysql.cursors.DictCursor)
+
+
+  def do_exec(self,sql):
+
+    logger.debug("sql: " + sql)
+
+    while True:
+      try:
+        self.m_conn.commit()
+
+        with self.m_conn.cursor() as cs:
+          cs.execute(sql)
+          res = cs.fetchall()
+
+        self.m_conn.commit()
+
+        return res
+
+      except pymysql.OperationalError as e:
+        self.do_connect()
 
 
   def query(self,table,selist=" * ",cond=""):
     strsql = ("select " + selist + " from " + table + " " + cond)
 
-    self.m_conn.commit()
-
-    with self.m_conn.cursor() as cs:
-      cs.execute(strsql)
-
-      res = cs.fetchall()
-
-    self.m_conn.commit()
-
-    return res
+    return self.do_exec(strsql)
 
 
   def update(self,strSql):
 
-    with self.m_conn.cursor() as cs:
-
-      cs.execute(strSql)
-      self.m_conn.commit()
+    self.do_exec(strSql)
     
 
 
 class myredis(object):
 
   def __init__(self,host,port):
-    self.do_connect(host,port)
+    self.host = host
+    self.port = port
+    self.do_connect()
 
     if (self.m_rds==None):
       logger.debug("connect to redis {0}:{1} fail!".format(host,port))
     else:
       logger.debug("connect to redis {0}:{1} ok!".format(host,port))
 
-
-  def do_connect(self,host,port):
-    pool = redis.ConnectionPool(host=host,port=port,password='')
+  def do_connect(self):
+    pool = redis.ConnectionPool(host=self.host,port=self.port,password='')
     self.m_rds = redis.Redis(connection_pool=pool)
 
-
   def read(self,dict1,key):
-    if (self.m_rds.hexists(dict1,key)==False):
-      return None
-
-    return self.m_rds.hget(dict1,key)
-      
+    while True:
+      try:
+        if (self.m_rds.hexists(dict1,key)==False):
+          return None
+        return self.m_rds.hget(dict1,key)
+      except redis.ConnectionError as e:
+        self.do_connect()
 
   def write(self,dict1,key,val):
-    self.m_rds.hset(dict1,key,val)
-
+    while True:
+      try:
+        self.m_rds.hset(dict1,key,val)
+        break
+      except redis.ConnectionError as e:
+        self.do_connect()
 
   def delete(self,dict1,key=None):
-    self.m_rds.delete(dict1)
-
+    while True:
+      try:
+        self.m_rds.delete(dict1)
+        break
+      except redis.ConnectionError as e:
+        self.do_connect()
 
   def pushq(self,mq,v):
-    self.m_rds.rpush(mq,v)
-
+    while True:
+      try:
+        self.m_rds.rpush(mq,v)
+        break
+      except redis.ConnectionError as e:
+        self.do_connect()
 
   def publish(self,mq,v):
-    self.m_rds.publish(mq,v)
+    while True:
+      try:
+        self.m_rds.publish(mq,v)
+        break
+      except redis.ConnectionError as e:
+        self.do_connect()
 
   def popq(self,mq):
-    return self.m_rds.lpop(mq)
+    while True:
+      try:
+        return self.m_rds.lpop(mq)
+      except redis.ConnectionError as e:
+        self.do_connect()
 
   def topq(self,mq):
-    return self.m_rds.lindex(mq,0)
-
+    while True:
+      try:
+        return self.m_rds.lindex(mq,0)
+      except redis.ConnectionError as e:
+        self.do_connect()
 
 
 class syncd(object):
-
 
   def __init__(self,cfg_contents):
 
@@ -377,13 +411,12 @@ class syncd(object):
     # construct sql query condition list
     if (len(db_key)>0):
       k = self.sync_back_cb[table][0]
-      cond = " where " + k + " = '" + db_key + "'"
+      cond = (" where " + k + " = '" + db_key + "'")
     else:
       cond = ""
 
     # callback method
     cb = self.sync_back_cb[table][1]
-
     # test for 'table:i' form
     tlst   = klst[0].split(':')
     if (len(tlst)>0):
@@ -496,59 +529,30 @@ class syncd(object):
       tbl  = jres['table']
       v    = jres['value']
 
+      # FIXME: 'k' from redis list is in the form like: b'abcdddd'
+      k = str(k).replace('b\'','').replace('\'','')
       # sync:  mysql -> redis
       if (stat==rst.mr__need_sync_back):
-        self.do_sync_back(rdsTbl,str(k),tbl)
+        self.do_sync_back(rdsTbl,k,tbl)
       # sync: redis -> mysql
       elif (stat==rst.mr__need_sync):
-        self.do_sync(rdsTbl,str(k),tbl,v)
+        self.do_sync(rdsTbl,k,tbl,v)
 
       #rds.popq(rdsMq)
 
 
-  def do_reconnect_redis(self):
-    rcfg  = self.rds_cfg
-
-    logger.error("reconnect redis({0}:{1})...".format(rcfg.address,rcfg.port))
-    self.m_rds.do_connect(rcfg.address,rcfg.port)
-
-
-  def do_reconnect_mysql(self):
-    mscfg = self.mysql_cfg
-
-    logger.error("reconnect mysql({0}:{1})...".format(mscfg.address,mscfg.port))
-    self.m_mysql.do_connect(mscfg.address,mscfg.port,mscfg.db,mscfg.usr,mscfg.pwd)
-
-
   def run(self):
     cfg = self.rds_cfg;
-    reconn_mysql = 0
 
     try:
 
       while (True):
 
-        try:
+        self.do_synchronize(cfg.cfgTbl,cfg.cfgMq)
 
-          if (reconn_mysql==1):
-            reconn_mysql = 0
-            self.do_reconnect_mysql()
+        self.do_synchronize(cfg.odrTbl,cfg.odrMq)
 
-          self.do_synchronize(cfg.cfgTbl,cfg.cfgMq)
-
-          self.do_synchronize(cfg.odrTbl,cfg.odrMq)
-
-          time.sleep(0.08);
-
-        except redis.ConnectionError, e:
-          self.do_reconnect_redis()
-
-          time.sleep(2)
-
-        except pymysql.OperationalError,e:
-          reconn_mysql = 1
-
-          time.sleep(2)
+        time.sleep(0.08);
 
     except:
       logger.exception("logging exception")
