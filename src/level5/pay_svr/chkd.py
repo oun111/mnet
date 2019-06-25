@@ -407,7 +407,7 @@ class check_bill_biz:
 
 
   def do_biz(self,bill_date,transfund):
-    rows = self.m_mysql.query(self.mysql_cfg.chanTbl," * "," where istransfund={0} ".format(transfund))
+    rows = self.m_mysql.query(self.mysql_cfg.chanTbl," * "," where online=1 and istransfund={0} ".format(transfund))
 
     basepath = self.cb_path + "alipay_bills/" + bill_date + "/"
 
