@@ -9,6 +9,7 @@
 #include "config.h"
 #include "http_utils.h"
 #include "md.h"
+#include "pay_data.h"
 
 
 
@@ -32,6 +33,9 @@ save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info)
 {
   char *pv = 0;
   merchant_info_t p = 0;
+  extern pay_channels_entry_t get_pay_channels_entry() ;
+  pay_channels_entry_t pe = get_pay_channels_entry() ;
+
 
   if (!MY_RB_TREE_FIND(&entry->u.root,merchant_id,p,id,node,compare)) {
     log_debug("merchant id %s already exists\n",merchant_id);
@@ -86,6 +90,30 @@ save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info)
     else if (!strcasecmp(pv,"sha512")) p->sign_type = MD_SHA512;
   }
 
+  INIT_LIST_HEAD(&p->alipay_pay_route);
+  INIT_LIST_HEAD(&p->alipay_transfund_route);
+
+  // merchant-based pay route
+  pv = get_tree_map_value(p->mch_info,"pay_chan_ids");
+  if (pv && strlen(pv)>0) {
+    init_pay_route_references(pe,&p->alipay_pay_route,pv,false);
+    log_info("adding pay channels '%s' for mch '%s'\n",pv,p->id);
+  }
+  else {
+    log_error("no pay route is configure for merchant '%s'\n",p->id);
+  }
+
+  // merchant-based transfund route
+  pv = get_tree_map_value(p->mch_info,"transfund_chan_ids");
+  if (pv && strlen(pv)>0) {
+    init_pay_route_references(pe,&p->alipay_transfund_route,pv,true);
+    log_info("adding transfund channels '%s' for mch '%s'\n",pv,p->id);
+  }
+  else {
+    log_error("no transfund route is configure for merchant '%s'\n",p->id);
+  }
+
+
   if (MY_RB_TREE_INSERT(&entry->u.root,p,id,node,compare)) {
     log_error("insert merchant id %s fail\n",merchant_id);
     kfree(p);
@@ -107,6 +135,9 @@ int drop_merchant_internal(merchant_entry_t entry, merchant_info_t p)
 
   drop_dbuffer(p->pubkey);
   drop_dbuffer(p->privkey);
+
+  release_all_pay_route_references(&p->alipay_pay_route);
+  release_all_pay_route_references(&p->alipay_transfund_route);
 
   kfree(p);
 

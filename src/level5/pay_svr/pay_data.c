@@ -7,6 +7,7 @@
 #include "mm_porting.h"
 #include "myrbtree.h"
 #include "config.h"
+#include "bitmap.h"
 
 
 static int compare(const char *s0, const char *s1)
@@ -61,6 +62,28 @@ get_paydata_by_ali_appid(pay_channels_entry_t entry, const char *chan,
   return NULL ;
 }
 
+pay_data_t 
+get_paydata_by_id(pay_channels_entry_t entry, const char *chan, int id)
+{
+  pay_data_t pd = 0;
+  pay_channel_t pc = get_pay_channel(entry,chan);
+
+
+  if (!pc) {
+    log_error("found no pay channel '%s'\n",chan);
+    return NULL;
+  }
+
+  list_for_each_entry(pd,&pc->pay_data_list,upper) {
+    const char *p_id = get_tree_map_value(pd->pay_params,"id");
+
+    if (p_id && atoi(p_id)==id)
+      return pd;
+  }
+
+  return NULL ;
+}
+
 
 pay_channels_entry_t new_pay_channels_entry()
 {
@@ -81,7 +104,6 @@ pay_channel_t new_pay_channel(const char *chan)
   pv = (char*)chan ;
   pc->channel = alloc_default_dbuffer();
   write_dbuf_str(pc->channel,pv);
-  pc->pd_transFund = NULL;
   INIT_LIST_HEAD(&pc->pay_data_list);
 
   return pc ;
@@ -128,7 +150,6 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
   pay_channel_t pc = get_pay_channel(entry,chan);
   pay_data_t p = NULL;
   char *rcid = 0;
-  char *tf = 0;
   char *ppriv = 0, *ppub = 0;
 
 
@@ -176,14 +197,6 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
     else {
       log_error("found no risk control configs for rcid: %s\n", rcid);
     }
-  }
-
-  // trans fund flags
-  tf = get_tree_map_value(p->pay_params,"istransfund");
-  if (likely(tf) && *tf=='1') {
-    pc->pd_transFund = p;
-    log_debug("trans fund channel appid: '%s'\n",
-              get_tree_map_value(p->pay_params,"app_id"));
   }
 
   // pre init the rsa entry
@@ -259,28 +272,55 @@ void update_paydata_rc_arguments(pay_data_t pd, double amount)
   pd->rc.max_orders ++ ;
 }
 
-pay_data_t get_trans_fund_route(pay_channels_entry_t entry, const char *chan, 
-                                dbuffer_t *reason)
+pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason) 
 {
-  pay_channel_t pc = get_pay_channel(entry,chan);
+  pay_route_item_t pr ;
   char msg[256] = "";
 
 
-  if (!pc) {
-    snprintf(msg,sizeof(msg),"no pay channel '%s'",chan);
-    log_error("%s\n",msg);
-    write_dbuf_str(*reason,msg);
-    return NULL ;
+  // risk control timestamp
+  struct timespec ts ;
+  clock_gettime(CLOCK_REALTIME,&ts);
+
+  // get best pay route
+  list_for_each_entry(pr,pr_list,upper) {
+
+    pay_data_t pos = pr->pdr ;
+
+    if (pos->rc.time==0L || (ts.tv_sec-pos->rc.time)>pos->cfg_rc.period) {
+      pos->rc.time = ts.tv_sec;
+      pos->rc.max_orders = 0;
+      pos->rc.max_amount = 0.0;
+    }
+    log_debug("config rc: %lld, %d, %f\n",pos->cfg_rc.period,pos->cfg_rc.max_orders,pos->cfg_rc.max_amount);
+    log_debug("current rc: %ld, %d, %f\n",pos->rc.time,pos->rc.max_orders,pos->rc.max_amount);
+
+    if ((ts.tv_sec-pos->rc.time)<pos->cfg_rc.period) {
+      // 
+      if (pos->rc.max_orders>=pos->cfg_rc.max_orders)
+        continue ;
+
+      if (pos->rc.max_amount>=pos->cfg_rc.max_amount)
+        continue ;
+    }
+
+    // move pay data item to list tail
+    {
+      list_del(&pr->upper);
+      list_add_tail(&pr->upper,pr_list);
+    }
+
+    return pos ;
   }
 
-  if (!pc->pd_transFund) {
-    write_dbuf_str(*reason,"trans fund channel NOT set!");
-  }
+  snprintf(msg,sizeof(msg),"no suitable pay route");
+  log_error("%s\n",msg);
+  write_dbuf_str(*reason,msg);
 
-  return pc->pd_transFund ;
+  return NULL ;
 }
 
-
+#if 0
 pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t *reason)
 {
   pay_channel_t pc  = get_pay_channel(entry,chan);
@@ -309,9 +349,11 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
       continue ;
 #endif
 
+#if 0
     // don't use trans fund channel
     if (pos == pc->pd_transFund)
       continue ;
+#endif
 
     if (pos->rc.time==0L || (ts.tv_sec-pos->rc.time)>pos->cfg_rc.period) {
       pos->rc.time = ts.tv_sec;
@@ -345,6 +387,7 @@ pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t
 
   return NULL ;
 }
+#endif
 
 int init_pay_data(pay_channels_entry_t *paych)
 {
@@ -372,6 +415,76 @@ int init_pay_data(pay_channels_entry_t *paych)
       add_pay_data(*paych,pos->key,pos1->key,pos1->nest_map);
       log_info("adding channel '%s - %s'\n",pos->key,pos1->key);
     }
+  }
+
+  return 0;
+}
+
+static
+int idStr_to_bits(const char *s, unsigned long idbits[], size_t szb)
+{
+  for (char *p=(char*)s,*pch = NULL;p && *p!='\0';) {
+    int v0 = 0;
+
+    pch = strchr(p,',');
+    if (pch) {
+        *pch= '\0';
+        v0  = atoi(p);
+        *pch= ',';
+        p   = pch + 1;
+    }
+    else {
+        v0 = atoi(p);
+        p++;
+    }
+
+    if (v0>=0 && v0<szb*sizeof(unsigned long)*8)
+        __set_bit(v0,idbits);
+
+    if (!pch) break ;
+  }
+
+  return 0;
+}
+
+int init_pay_route_references(pay_channels_entry_t pe, struct list_head *pr_list,
+                              const char *ch_ids, bool istransfund)
+{
+  unsigned long idbits[128];
+  const size_t szb = sizeof(idbits);
+  pay_route_item_t pr = NULL;
+  pay_data_t pd = NULL;
+  const char *chan = "alipay";
+
+
+  bzero(idbits,szb);
+  idStr_to_bits(ch_ids,idbits,szb);
+
+  for (int id=0;id<szb;id++) {
+    if (test_bit(id,idbits)==1 && (pd=get_paydata_by_id(pe,chan,id))) {
+
+      char *tf = get_tree_map_value(pd->pay_params,"istransfund");
+
+      // test for alipay transfund channel
+      if ((istransfund && (!tf || *tf!='1')) || (!istransfund && (tf && *tf=='1')))
+        continue;
+
+      pr = kmalloc(sizeof(struct pay_route_item_s),0L);
+      pr->pdr = pd ;
+      list_add(&pr->upper,pr_list);
+    }
+  }
+
+  return 0;
+}
+
+int release_all_pay_route_references(struct list_head *pr_list)
+{
+  pay_route_item_t pos, n;
+
+
+  list_for_each_entry_safe(pos,n,pr_list,upper) {
+    kfree(pos);
   }
 
   return 0;

@@ -16,6 +16,8 @@ CREATE TABLE `merchant_configs` (
   `PRIVKEY` varchar(4096) DEFAULT NULL COMMENT '当签名算法为对称加密时，该字段不使用; 当为 非对称加密时，该字段为 私钥',
   `PARAM_TYPE` char(16) NOT NULL DEFAULT 'html' COMMENT 'paysvr商户请求/响应/回调通知 格式，可选 json 或 html',
   `VERIFY_SIGN` int(11) NOT NULL DEFAULT 1 COMMENT '是否开启 商户 加签/验签 ，0 不开启，1 开启',
+  `PAY_CHAN_IDS` varchar(256) NOT NULL DEFAULT '' COMMENT '个性化支付通道配置，对应通道表的id',
+  `TRANSFUND_CHAN_IDS` varchar(256) NOT NULL DEFAULT '' COMMENT '个性化转帐通道配置，对应通道表的id',
   PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 

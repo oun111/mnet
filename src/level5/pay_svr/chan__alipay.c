@@ -800,7 +800,8 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
 
   reason = alloc_default_dbuffer();
 
-  pd = get_pay_route(get_pay_channels_entry(),payChan,&reason);
+  //pd = get_pay_route(get_pay_channels_entry(),payChan,&reason);
+  pd = get_pay_route2(&pm->alipay_pay_route,&reason);
   if (!pd) {
     FORMAT_ERR(errbuf,"no pay route for channel '%s', reason: %s\n",
                payChan,reason);
@@ -1393,7 +1394,8 @@ int do_alipay_trans_fund(Network_t net,connection_t pconn,tree_map_t user_params
   reason = alloc_default_dbuffer();
 
   // get suitable trans-fund route
-  pd = get_trans_fund_route(get_pay_channels_entry(),payChan,&reason);
+  //pd = get_trans_fund_route(get_pay_channels_entry(),payChan,&reason);
+  pd = get_pay_route2(&pm->alipay_transfund_route,&reason);
   if (!pd) {
     FORMAT_ERR(errbuf,"no trans fund route for channel '%s', reason: %s\n",
                payChan,reason);

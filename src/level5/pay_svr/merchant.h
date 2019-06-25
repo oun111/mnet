@@ -10,12 +10,6 @@
 #define MCH_ID_SIZE  32
 
 
-#if 0
-enum sign_type {
-  t_md5 ,
-  t_rsa,
-} ;
-#endif
 
 struct merchant_info_s {
 
@@ -30,6 +24,12 @@ struct merchant_info_s {
   int sign_type ;
 
   struct rb_node node ;
+
+  // the merchant-based pay route list
+  struct list_head alipay_pay_route ;
+
+  // the merchant-based transfund route list
+  struct list_head alipay_transfund_route ;
 } ;
 typedef struct merchant_info_s* merchant_info_t ;
 
