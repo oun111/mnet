@@ -7,7 +7,7 @@
 #include "mm_porting.h"
 #include "myrbtree.h"
 #include "config.h"
-#include "bitmap.h"
+//#include "bitmap.h"
 
 
 static int compare(const char *s0, const char *s1)
@@ -421,25 +421,27 @@ int init_pay_data(pay_channels_entry_t *paych)
 }
 
 static
-int idStr_to_bits(const char *s, unsigned long idbits[], size_t szb)
+int idStr_to_bits(const char *s, unsigned long long idbits[], size_t szb)
 {
   for (char *p=(char*)s,*pch = NULL;p && *p!='\0';) {
     int v0 = 0;
 
     pch = strchr(p,',');
     if (pch) {
-        *pch= '\0';
-        v0  = atoi(p);
-        *pch= ',';
-        p   = pch + 1;
+      *pch= '\0';
+      v0  = atoi(p);
+      *pch= ',';
+      p   = pch + 1;
     }
     else {
-        v0 = atoi(p);
-        p++;
+      v0 = atoi(p);
+      p++;
     }
 
-    if (v0>=0 && v0<szb*sizeof(unsigned long)*8)
-        __set_bit(v0,idbits);
+    if (v0>=0 && v0<szb) {
+      //__set_bit(v0,idbits);
+      idbits[v0>>6] |= (1<<(v0&63));
+    }
 
     if (!pch) break ;
   }
@@ -450,18 +452,25 @@ int idStr_to_bits(const char *s, unsigned long idbits[], size_t szb)
 int init_pay_route_references(pay_channels_entry_t pe, struct list_head *pr_list,
                               const char *ch_ids, bool istransfund)
 {
-  unsigned long idbits[128];
+  unsigned long long idbits[64];
   const size_t szb = sizeof(idbits);
+  const size_t numbits = szb<<3;
   pay_route_item_t pr = NULL;
   pay_data_t pd = NULL;
   const char *chan = "alipay";
 
 
   bzero(idbits,szb);
-  idStr_to_bits(ch_ids,idbits,szb);
+  idStr_to_bits(ch_ids,idbits,numbits);
 
-  for (int id=0;id<szb;id++) {
-    if (test_bit(id,idbits)==1 && (pd=get_paydata_by_id(pe,chan,id))) {
+  for (int id=0;id<numbits;id++) {
+    if ((idbits[id>>6] & 0xffffffffffffffff)==0) {
+      id += 63;
+      continue ;
+    }
+
+    //if (test_bit(id,idbits)==1 && (pd=get_paydata_by_id(pe,chan,id))) {
+    if ((idbits[id>>6]&(1ULL<<(id&63)))!=0 && (pd=get_paydata_by_id(pe,chan,id))) {
 
       char *tf = get_tree_map_value(pd->pay_params,"istransfund");
 
