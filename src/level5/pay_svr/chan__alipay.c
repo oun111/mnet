@@ -1462,6 +1462,7 @@ static
 int do_alipay_cfg_update(Network_t net,connection_t pconn,tree_map_t user_params)
 {
   myredis_t prds = &g_alipayData.m_cfg_rds ;
+  //myredis_t prds = &g_alipayData.du.rds ;
   char *t = get_tree_map_value(user_params,UPT);
   dbuffer_t *errbuf = &pconn->txb;
   const char *du_res = "success";
@@ -1473,11 +1474,13 @@ int do_alipay_cfg_update(Network_t net,connection_t pconn,tree_map_t user_params
     goto __done ;
   }
 
+#if 0
   // remove old configs 
   if (myredis_hdel_cache(prds,t,NULL)) {
     FORMAT_ERR(errbuf,"hdel on redis fail!\n");
     goto __done ;
   }
+#endif
 
   // notify all worker processes
   if (myredis_publish_msg(prds,t)) {

@@ -330,6 +330,12 @@ myredis_write(myredis_t mr, const char *table, char *key,
   return ret;
 }
 
+int myredis_force_read(myredis_t mr, const char *table, const char *key)
+{
+  myredis_write(mr,table,(char*)key,"",mr__need_sync_back);
+  return 0;
+}
+
 int myredis_read(myredis_t mr, const char *table, const char *key, 
                  dbuffer_t *value)
 {

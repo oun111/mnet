@@ -100,7 +100,8 @@ get_remote_configs(myredis_t rds, char *tbl, char *key, dbuffer_t *res)
 
   *res = alloc_default_dbuffer();
 
-  // FIXME:
+  // force read latest configs
+  myredis_force_read(rds,tbl,key);
   for (int i=0; rc==1/*&&i<5*/;i++) {
     rc = myredis_read(rds,tbl,key,res);
   }
