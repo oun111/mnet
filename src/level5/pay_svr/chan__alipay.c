@@ -192,24 +192,33 @@ __done:
 }
 
 static
-int process_notify2user_resp(connection_t pconn, void *data, dbuffer_t resp, 
+int process_notify2user_resp(connection_t pconn, backend_t be, dbuffer_t resp, 
                              size_t sz)
 {
   char *body = get_http_body_ptr(resp,sz);
   rds_order_entry_t pre = &g_alipayData.m_rOrders;
   paySvr_config_t pc = get_running_configs();
   mysql_conf_t mcfg = get_mysql_configs(pc);
-  order_info_t po = data;
+  order_info_t po = NULL;
+  dbuffer_t tno = be->data ;
   int st=s_notify_fail;
+  int ret = -1;
+  bool rel = false;
+
 
   if (!body) {
     log_error("found no body!\n");
-    return -1;
+    goto __done;
   }
 
   if (!strcasecmp(body,"success")) {
     log_debug("user receive notify ok!\n");
     st = s_notify_ok ;
+  }
+
+  po = get_order_by_otn(tno,NULL,&rel);
+  if (unlikely(!po)) {
+    goto __done ;
   }
 
   // update order user notify status
@@ -220,10 +229,16 @@ int process_notify2user_resp(connection_t pconn, void *data, dbuffer_t resp,
     log_error("update order '%s' to redis fail\n",po->id);
   }
 
-  // TODO: if 'un status' is not s_notify_ok, then
-  //  we should notify user for serial times later
+  ret = 0;
 
-  return 0;
+__done:
+  if (tno)
+    free(tno);
+
+  if (rel)
+    release_rds_order(pre,po);
+
+  return ret;
 }
 
 static
@@ -258,7 +273,7 @@ int alipay_rx(Network_t net, connection_t pconn)
 
     // pay notify 
     if (be->type==bt_notify2user) {
-      process_notify2user_resp(pconn,be->data,b,sz_in);
+      process_notify2user_resp(pconn,be,b,sz_in);
     }
     // trans fund response
     else if (be->type==bt_transfund2user) {
@@ -268,6 +283,8 @@ int alipay_rx(Network_t net, connection_t pconn)
     dbuffer_lseek(pconn->rxb,sz_in,SEEK_CUR,0);
 
     sock_close(pconn->fd);
+
+    be->data = NULL;
   }
 
   return 0;
@@ -984,7 +1001,7 @@ int send_merchant_notify(Network_t net, order_info_t po)
 
   /* connect merchant server(treat as 'backend')  */
   connection_t out_conn = do_out_connect(net,NULL,po->mch.notify_url,
-                                         po,bt_notify2user);
+                                         strdup(po->mch.out_trade_no),bt_notify2user);
   if (!out_conn) {
     log_error("connection to '%s' fail\n",po->mch.notify_url);
     set_order_un_status(po,s_notify_fail);
@@ -1533,6 +1550,8 @@ static int fetch_du_notice(void *pnet, void *ptos)
     if (!strcasecmp(*pmsg,mscfg->rc_conf_table) || 
         !strcasecmp(*pmsg,mscfg->alipay_conf_table)) {
       g_alipayData.du.flags |= 0x1;
+      // also update merchant configs
+      g_alipayData.du.flags |= 0x2;
       log_debug("updating '%s'...\n",*pmsg);
     }
 

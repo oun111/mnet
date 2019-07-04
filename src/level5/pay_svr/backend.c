@@ -70,6 +70,8 @@ create_backend(backend_entry_t entry, int fd, connection_t peer,
 
   p->fd  = fd ;
   p->peer= peer ;
+  if (p->data)
+    free(p->data);
   p->data= d ;
   p->type= t ;
   log_info("new backend fd %d\n",fd);
@@ -83,7 +85,9 @@ int drop_backend_internal(backend_entry_t entry, backend_t p)
 {
   rb_erase(&p->node,&entry->u.root);
 
-  //kfree(p);
+  if (p->data)
+    free(p->data);
+
   obj_pool_free(entry->pool,p);
 
   entry->num_backends --;
