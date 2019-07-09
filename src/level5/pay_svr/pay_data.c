@@ -320,75 +320,6 @@ pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason)
   return NULL ;
 }
 
-#if 0
-pay_data_t get_pay_route(pay_channels_entry_t entry, const char *chan, dbuffer_t *reason)
-{
-  pay_channel_t pc  = get_pay_channel(entry,chan);
-  pay_data_t pos ;
-  char msg[256] = "";
-
-
-  if (!pc) {
-    snprintf(msg,sizeof(msg),"no pay channel '%s'",chan);
-    log_error("%s\n",msg);
-    write_dbuf_str(*reason,msg);
-    return NULL ;
-  }
-
-  // risk control timestamp
-  struct timespec ts ;
-  clock_gettime(CLOCK_REALTIME,&ts);
-
-  // get best pay route
-  list_for_each_entry(pos,&pc->pay_data_list,upper) {
-#if 0
-    char *ol = get_tree_map_value(pos->pay_params,"online");
-
-    //dump_tree_map(pos->pay_params);
-    if (!ol || *ol=='0')
-      continue ;
-#endif
-
-#if 0
-    // don't use trans fund channel
-    if (pos == pc->pd_transFund)
-      continue ;
-#endif
-
-    if (pos->rc.time==0L || (ts.tv_sec-pos->rc.time)>pos->cfg_rc.period) {
-      pos->rc.time = ts.tv_sec;
-      pos->rc.max_orders = 0;
-      pos->rc.max_amount = 0.0;
-    }
-    log_debug("config rc: %lld, %d, %f\n",pos->cfg_rc.period,pos->cfg_rc.max_orders,pos->cfg_rc.max_amount);
-    log_debug("current rc: %ld, %d, %f\n",pos->rc.time,pos->rc.max_orders,pos->rc.max_amount);
-
-    if ((ts.tv_sec-pos->rc.time)<pos->cfg_rc.period) {
-      // 
-      if (pos->rc.max_orders>=pos->cfg_rc.max_orders)
-        continue ;
-
-      if (pos->rc.max_amount>=pos->cfg_rc.max_amount)
-        continue ;
-    }
-
-    // move pay data item to list tail
-    {
-      list_del(&pos->upper);
-      list_add_tail(&pos->upper,&pc->pay_data_list);
-    }
-
-    return pos ;
-  }
-
-  snprintf(msg,sizeof(msg),"no suitable pay route for channel '%s'",chan);
-  log_error("%s\n",msg);
-  write_dbuf_str(*reason,msg);
-
-  return NULL ;
-}
-#endif
-
 int init_pay_data(pay_channels_entry_t *paych)
 {
   tm_item_t pos,n;
@@ -407,11 +338,6 @@ int init_pay_data(pay_channels_entry_t *paych)
       continue ;
 
     rbtree_postorder_for_each_entry_safe(pos1,n1,&chansub->u.root,node) {
-      char *ol = get_tree_map_value(pos1->nest_map,"online");
-
-      if (!ol || *ol!='1') 
-        continue ;
-
       add_pay_data(*paych,pos->key,pos1->key,pos1->nest_map);
       log_info("adding channel '%s - %s'\n",pos->key,pos1->key);
     }
