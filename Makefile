@@ -19,7 +19,7 @@ clean:
 distclean:
 	$(MAKE) -C src distclean
 	rm -rf cscope.* 
-	rm -rf tags $(PAYSVR_DIST_PATH)
+	rm -rf tags #$(PAYSVR_DIST_PATH)
 
 dist:
 	mkdir -p  $(PAYSVR_DIST_PATH)
