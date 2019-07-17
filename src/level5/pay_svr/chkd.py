@@ -60,7 +60,7 @@ class Mysql(object):
 
   def do_exec(self,sql):
 
-    #logger.debug("sql: " + strsql)
+    logger.debug("sql: " + sql)
 
     while True:
       try:
@@ -105,16 +105,11 @@ class simple_tools:
     return (ds + 86400*1000000)
 
   @staticmethod
-  def to_mysql_in_list(lst):
-    chanlist= ""
-    logger.debug(lst)
-
-    for i in range(len(lst)):
-      if i>0:
-        chanlist = chanlist + ','
-      chanlist = chanlist + '\'' + lst[i] + '\''
-
-    return chanlist
+  def pyList_to_myList(lst):
+    res = ",".join(lst)
+    if len(res)==0:
+      res = "''"
+    return res 
 
   @staticmethod
   def RSAwithSHA256_sign(privkey, signtmp):
@@ -249,7 +244,7 @@ class check_bill_biz:
   def get_db_order_details(self,bill_date,appid_list):
 
     db_dict = {}
-    chanlist= simple_tools.to_mysql_in_list(appid_list)
+    chanlist= simple_tools.pyList_to_myList(appid_list)
 
 
     prev_date = simple_tools.dateStr_to_microSecs(bill_date)
@@ -382,7 +377,7 @@ class check_bill_biz:
 
 
 
-  def check_main(self,bill_date,err,db_dict,transfund,appid_group):
+  def check_main(self,bill_date,err,db_dict,transfund):
 
     if (err==1):
       self.save_check_bill_summary('all merchants',0.0,transfund,-1,bill_date)
@@ -390,8 +385,6 @@ class check_bill_biz:
 
     prev_date = simple_tools.dateStr_to_microSecs(bill_date)
     next_date = simple_tools.get_nextDate_microSecs(prev_date)
-
-    chanlist  = simple_tools.to_mysql_in_list(list(appid_group.keys()))
 
     rows = self.m_mysql.query(self.mysql_cfg.mchTbl," * "," where 1=1 ")
     for r in rows:
@@ -405,9 +398,32 @@ class check_bill_biz:
       self.save_check_bill_summary(mch,amt,transfund,1,bill_date)
 
 
+  def get_online_chan_ids(self,transfund):
+    ids_group = []
+
+    if transfund==0:
+      idStr = 'pay_chan_ids'
+    else:
+      idStr = 'transfund_chan_ids'
+
+    rows = self.m_mysql.query(self.mysql_cfg.mchTbl,idStr," where 1=1 ")
+    for r in rows:
+      l = r[idStr].split(',')
+      while '' in l:
+        l.remove('')
+      ids_group = ids_group + l 
+
+    return simple_tools.pyList_to_myList(ids_group)
+
+
 
   def do_biz(self,bill_date,transfund):
-    rows = self.m_mysql.query(self.mysql_cfg.chanTbl," * "," where istransfund={0} ".format(transfund))
+
+    db_dict= {}
+    idlist = self.get_online_chan_ids(transfund)
+
+    rows = self.m_mysql.query(self.mysql_cfg.chanTbl," * "," where istransfund={tf} and id in ({ids})"
+                              .format(tf=transfund,ids=idlist))
 
     basepath = self.cb_path + "alipay_bills/" + bill_date + "/"
 
@@ -430,13 +446,14 @@ class check_bill_biz:
     err,db_dict = self.check_details(bill_date,basepath,transfund,appid_group)
 
     # check main
-    self.check_main(bill_date,err,db_dict,transfund,appid_group)
+    self.check_main(bill_date,err,db_dict,transfund)
 
 
 
   
 class cb_web_req:  
   def GET(self, bill_date):  
+    logger.debug("begin serve request...")
     # in money
     cbbiz.do_biz(bill_date,0)
     # out money
