@@ -25,6 +25,12 @@ enum user_notify_status {
   s_notify_fail,
 } ;
 
+enum order_types {
+  t_default,
+  t_transfund,
+  t_pay,
+} ;
+
 struct order_info_s {
 
   char id[ODR_ID_SIZE];
@@ -52,6 +58,8 @@ struct order_info_s {
   int un_status; // user notify status
 
   long long create_time;
+
+  int order_type ;
 
   struct rb_node node ;
 
@@ -85,7 +93,7 @@ extern order_info_t get_order_by_outTradeNo(order_entry_t entry, char *out_trade
 
 extern order_info_t save_order(order_entry_t entry, char *order_id, char *mch_no, 
                       char *notify_url, char *out_trade_no, char *chan, 
-                      char *chan_mch_no, double amount) ;
+                      char *chan_mch_no, double amount, int type) ;
 
 extern order_info_t save_order1(order_entry_t entry, order_info_t po);
 

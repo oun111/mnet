@@ -622,7 +622,8 @@ int create_alipay_link(dbuffer_t *errbuf,connection_t out_conn, const char *url,
 }
 
 static 
-int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params)
+int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params,
+                 int type)
 {
   order_entry_t pe = get_order_entry();
   rds_order_entry_t pre = &g_alipayData.m_rOrders;
@@ -681,7 +682,7 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
   }
 
   // save order locally and on redis
-  po = save_order(pe,pOdrId,mch_no,nurl,tno,chan,chan_mch_no,atof(amt));
+  po = save_order(pe,pOdrId,mch_no,nurl,tno,chan,chan_mch_no,atof(amt),type);
   if (!po || save_rds_order(pre,mcfg->order_table,po)) {
     FORMAT_ERR(errbuf,"save order '%s' fail!\n",pOdrId);
     return -1;
@@ -841,7 +842,7 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
     goto __done ;
   }
 
-  if (create_order(&pconn->txb,pay_params,user_params)) {
+  if (create_order(&pconn->txb,pay_params,user_params,t_pay)) {
     goto __done ;
   }
 
@@ -1435,7 +1436,7 @@ int do_alipay_trans_fund(Network_t net,connection_t pconn,tree_map_t user_params
     goto __done ;
   }
 
-  if (create_order(&pconn->txb,pay_params,user_params)) {
+  if (create_order(&pconn->txb,pay_params,user_params,t_transfund)) {
     goto __done ;
   }
 

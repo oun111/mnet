@@ -34,6 +34,7 @@ CREATE TABLE `order_data` (
   `STATUS` int(11) NOT NULL DEFAULT 0 COMMENT '订单状态，包括：0 未支付，1 正在支付，2 已支付，3 支付出错，4 超时',
   `USER_NOTIFY_STATUS` int(11) NOT NULL DEFAULT 0 COMMENT 'paysvr 给商户发送通知的结果，包括：0 未通知，1 正在通知，2 通知成功（商户已接收处理并返回success），3 通知失败',
   `CREATE_TIME` bigint(20) NOT NULL DEFAULT 0 COMMENT '订单创建时间，unix格式',
+  `ORDER_TYPE` int(11) NOT NULL default 0 COMMENT '订单类型，0 默认，1 转帐/提现，2 支付',
   PRIMARY KEY (`ORDERID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 

@@ -55,7 +55,8 @@ order_info_t get_order_by_outTradeNo(order_entry_t entry, char *out_trade_no)
 
 order_info_t 
 save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
-           char *out_trade_no, char *chan, char *chan_mch_no, double amount)
+           char *out_trade_no, char *chan, char *chan_mch_no, double amount, 
+           int type)
 {
   order_info_t p = 0;
 
@@ -125,6 +126,8 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
     p->create_time = (tv.tv_sec+2208988800)*1000000 + tv.tv_usec ;
   }
 
+  p->order_type = type ;
+
   if (MY_RB_TREE_INSERT(&entry->u.root,p,id,node,compare)) {
     log_error("insert order id %s fail\n",order_id);
     obj_pool_free(entry->pool,p);
@@ -152,7 +155,7 @@ order_info_t save_order1(order_entry_t entry, order_info_t po)
 {
   return save_order(entry,po->id,po->mch.no,po->mch.notify_url,
                     po->mch.out_trade_no,po->chan.name,po->chan.mch_no,
-                    po->amount);
+                    po->amount,po->order_type);
 }
 
 

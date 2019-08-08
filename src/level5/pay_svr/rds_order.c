@@ -39,7 +39,7 @@ int save_rds_order1(rds_order_entry_t entry, const char *table, char *id,
                     char *mch_no, char *mch_notify_url, char *mch_sid,   
                     char *chan_name, char *chan_mch_no, double amount, 
                     int status, int un_status, long long create_time,
-                    char *chan_message)
+                    char *chan_message, int type)
 {
   tree_map_t map = new_tree_map();
   char tmp[256]="";
@@ -67,6 +67,9 @@ int save_rds_order1(rds_order_entry_t entry, const char *table, char *id,
 
   snprintf(tmp,sizeof(tmp),"$%lld",create_time);
   put_tree_map_string(map,"create_time",tmp);
+
+  snprintf(tmp,sizeof(tmp),"$%d",type);
+  put_tree_map_string(map,"order_type",tmp);
 
   jsonKV_t *pr = jsons_parse_tree_map(map);
   pr = jsons_add_to_array(NULL,pr);
@@ -100,7 +103,7 @@ int save_rds_order(rds_order_entry_t entry, const char *table, rds_order_t po)
   return save_rds_order1(entry,table,po->id,po->mch.no,po->mch.notify_url,
                          po->mch.out_trade_no,po->chan.name,po->chan.mch_no,
                          po->amount,po->status,po->un_status,po->create_time,
-                         po->chan.message);
+                         po->chan.message,po->order_type);
 }
 
 int get_rds_order_index(rds_order_entry_t entry, const char *table, 
