@@ -22,11 +22,15 @@
       "port"    : 3306,
       "db"      : "pay_db",
       "usr"     : "athena",
-      "pwd"     : "hmc5TFSoFth6gbh3"
+      "pwd"     : "hmc5TFSoFth6gbh3" /* 大同 */
+      "pwd"     : "JT6wdLBPIiohG5j5" /* 中润 */
     },
     "CheckBill" : {
       "listenPort" : 12471,
       "billFilePath" : "/tmp/"
+    },
+    "CheckMerchants" : {
+      "interval" : 1801
     }
   },
 
