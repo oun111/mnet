@@ -59,7 +59,7 @@ CREATE TABLE `channel_alipay_configs` (
   `NOTIFY_URL` varchar(512) NOT NULL COMMENT '用于接收支付宝发送的异步通知的url，默认为 paysvr 1366端口 对外url',
   `RCID` varchar(64) NOT NULL COMMENT '当前支付宝通道对应的 风控规则id，见 风控配置表 定义',
   `ISTRANSFUND` int(11) NOT NULL DEFAULT 0 COMMENT '是否用于提现，0 否，1 是',
-  `STATUS` int(11) NOT NULL DEFAULT 0 COMMENT '通道状态，0 未使用，1 正常，2 被封',
+  `STATUS` int(11) NOT NULL DEFAULT 0 COMMENT '通道状态，0 未使用，1 正常/没有下单，2 被封',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8
 
