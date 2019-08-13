@@ -118,7 +118,6 @@ class check_mch_biz:
   def __init__(self,cfg_contents):
 
 
-    self.chk_interval= 30*60
     self.mysql_cfg  = mysql_configs()
     mscfg = self.mysql_cfg
 
@@ -138,15 +137,17 @@ class check_mch_biz:
       logger.debug("mysql configs: host: {0}:{1}".
             format(mscfg.address,mscfg.port))
 
-    cmSec = gcfg['Globals']['CheckMerchants']
-    if (len(cmSec)>0):
-      self.chk_interval = cmSec['interval']
-
     self.m_mysql = Mysql(mscfg.address,mscfg.port,mscfg.db,
                          mscfg.usr,mscfg.pwd)
 
 
   def do_biz(self,period):
+
+    if period==-1:
+      updateSql = "update {chanTbl} set status=0 ".format(chanTbl=self.mysql_cfg.chanTbl)
+      self.m_mysql.update(updateSql)
+      return
+
 
     rows = self.m_mysql.query(self.mysql_cfg.chanTbl," * "," where 1=1")
 
@@ -177,17 +178,38 @@ class check_mch_biz:
       #print("id: {0}, appid: {1}, stat: {2}".format(r['id'],appid,stat))
 
 
+  def getPeriodByDatetime(self):
+
+    t = time.time()
+    tstruct = time.localtime(t)
+
+    # 周六、日 不探测
+    if tstruct.tm_wday==0 or tstruct.tm_wday==6:
+      return -1
+
+    # 3 ~6 不探测
+    if tstruct.tm_hour>=3 and tstruct.tm_hour<=6:
+      return -1
+
+    # 8~12，14~24, 0~1 周期为5分钟
+    if tstruct.tm_hour<=1 or tstruct.tm_hour>=14 or (tstruct.tm_hour>=8 and tstruct.tm_hour<=12):
+      return 5*60
+
+    # 其余周期为 15 分钟
+    return 15*60
+
+
   def run(self):
 
     try:
 
-      period = self.chk_interval
-
       while (True):
+
+        period = self.getPeriodByDatetime()
 
         self.do_biz(period)
 
-        time.sleep(period);
+        time.sleep(5);
 
     except:
       logger.exception("logging exception")
@@ -218,17 +240,13 @@ def init_log(logpath):
 if __name__ == "__main__":  
 
   logpath = "/tmp/"
-  host = "0.0.0.0"
-  port = "7771"
   cont = ""
-  opts, args = getopt.getopt(sys.argv[1:], "c:h:L:")
+  opts, args = getopt.getopt(sys.argv[1:], "c:L:")
   cfg = os.path.dirname(os.path.realpath(__file__)) + "/paysvr_conf.json"
 
   for a,opt in opts:
     if (a=='-c'):
       cfg = opt
-    elif (a=='-h'):
-      host= opt
     elif (a=='-L'):
       logpath= opt
 

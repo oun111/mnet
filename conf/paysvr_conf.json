@@ -28,9 +28,6 @@
     "CheckBill" : {
       "listenPort" : 12471,
       "billFilePath" : "/tmp/"
-    },
-    "CheckMerchants" : {
-      "interval" : 1801
     }
   },
 
