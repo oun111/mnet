@@ -209,7 +209,7 @@ class check_mch_biz:
 
         self.do_biz(period)
 
-        time.sleep(5);
+        time.sleep(period);
 
     except:
       logger.exception("logging exception")
