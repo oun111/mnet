@@ -193,10 +193,10 @@ class check_mch_biz:
 
     # 8~12，14~24, 0~1 周期为5分钟
     if tstruct.tm_hour<=1 or tstruct.tm_hour>=14 or (tstruct.tm_hour>=8 and tstruct.tm_hour<=12):
-      return 5*60
+      return 20*60
 
     # 其余周期为 15 分钟
-    return 15*60
+    return 25*60
 
 
   def run(self):
