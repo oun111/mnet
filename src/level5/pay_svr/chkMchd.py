@@ -191,12 +191,12 @@ class check_mch_biz:
     if tstruct.tm_hour>=3 and tstruct.tm_hour<=6:
       return -1
 
-    # 8~12，14~24, 0~1 周期为5分钟
+    # 8~12，14~24, 0~1 周期为20分钟
     if tstruct.tm_hour<=1 or tstruct.tm_hour>=14 or (tstruct.tm_hour>=8 and tstruct.tm_hour<=12):
       return 20*60
 
-    # 其余周期为 15 分钟
-    return 25*60
+    # 其余周期为 30 分钟
+    return 30*60
 
 
   def run(self):
@@ -208,6 +208,9 @@ class check_mch_biz:
         period = self.getPeriodByDatetime()
 
         self.do_biz(period)
+        
+        if period<0:
+          period = 60
 
         time.sleep(period);
 
