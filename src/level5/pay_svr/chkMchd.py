@@ -184,7 +184,7 @@ class check_mch_biz:
     tstruct = time.localtime(t)
 
     # 周六、日 不探测
-    if tstruct.tm_wday==0 or tstruct.tm_wday==6:
+    if tstruct.tm_wday==5 or tstruct.tm_wday==6:
       return -1
 
     # 3 ~6 不探测
