@@ -53,7 +53,7 @@
   snprintf(tmp,sizeof(tmp),fmt,##arg);\
   snprintf(pmsg,sizeof(msg),"{\"errCode\":\"%d\",\"errMsg\":\"%s\"}",\
     __ec__,ptmp); \
-  if (__errbuf__) create_http_normal_res((__errbuf__),500,pt_html,msg); \
+  if (__errbuf__) create_http_normal_res((__errbuf__),400,pt_html,msg); \
   log_error("%s\n",tmp);  \
 } while(0)
 
