@@ -139,7 +139,7 @@ dbuffer_t create_html_params(tree_map_t map)
   return strParams ;
 }
 
-int create_http_normal_res(dbuffer_t *inb, int type, const char *strParams)
+int create_http_normal_res(dbuffer_t *inb, int code, int type, const char *strParams)
 {
   char *hdr = 0;
   size_t sz_hdr = 0L;
@@ -151,7 +151,7 @@ int create_http_normal_res(dbuffer_t *inb, int type, const char *strParams)
   sz_hdr = sizeof(hdrFmt)+strlen(strParams)+10;
   hdr = alloca(sz_hdr);
 
-  snprintf(hdr,sz_hdr,hdrFmt,200,type==pt_html?"text/html":"text/json",
+  snprintf(hdr,sz_hdr,hdrFmt,code>0?code:200,type==pt_html?"text/html":"text/json",
            strlen(strParams));
 
   // attach whole body
@@ -176,7 +176,7 @@ create_http_normal_res2(dbuffer_t *inb, int param_type, tree_map_t map)
     strParams = create_json_params(map);
   }
 
-  create_http_normal_res(inb,param_type,strParams);
+  create_http_normal_res(inb,-1,param_type,strParams);
   drop_dbuffer(strParams);
 
   return 0;

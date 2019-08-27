@@ -11,14 +11,6 @@ enum http_param_types{
 } ;
 
 
-#define FORMAT_ERR(__errbuf__,fmt,arg...) do{\
-  char tmp[96],msg[128]; \
-  snprintf(tmp,sizeof(tmp),fmt,## arg); \
-  snprintf(msg,sizeof(msg),"{\"status\":%d,\"message\":\"%s\"}",-1,tmp); \
-  if (__errbuf__) create_http_normal_res((__errbuf__),pt_html,msg); \
-  log_error("%s",tmp);  \
-} while(0)
-
 
 extern size_t get_http_hdr_size(char *inb, size_t sz_in);
 
@@ -40,7 +32,7 @@ extern int create_http_get_req2(dbuffer_t *inb, const char *wholeurl);
 
 extern int create_browser_redirect_req(dbuffer_t*, const char*, int, tree_map_t);
 
-extern int create_http_normal_res(dbuffer_t*, int, const char*);
+extern int create_http_normal_res(dbuffer_t*, int, int, const char*);
 
 extern int create_http_normal_res2(dbuffer_t *, int, tree_map_t);
 

@@ -8,7 +8,6 @@
 
 struct http_action_s {
   dbuffer_t key ;
-  dbuffer_t channel;
   dbuffer_t action;
   int (*cb)(Network_t,connection_t,tree_map_t);
   struct rb_node node ;
@@ -32,7 +31,7 @@ extern http_action_entry_t new_http_action_entry();
 
 extern http_action_t get_http_action(http_action_entry_t entry, const char *k);
 
-extern int add_http_action(http_action_entry_t entry, http_action_t pact);
+extern int add_http_action(http_action_entry_t entry, const char *chan, http_action_t pact);
 
 extern int drop_http_action(http_action_entry_t entry, http_action_t pact);
 

@@ -24,6 +24,15 @@
 
 
 
+#define INTERNAL_ERR(__errbuf__,fmt,arg...) do{\
+  char msg[64],tmp[96]; \
+  snprintf(msg,sizeof(msg),"%s","request packet error!"); \
+  if (__errbuf__) create_http_normal_res((__errbuf__),500,pt_html,msg); \
+  snprintf(tmp,sizeof(tmp),fmt,##arg);\
+  log_error("%s\n",tmp);  \
+} while(0)
+
+
 struct http_svr_conf {
   char host[32];
 
@@ -79,7 +88,7 @@ int process_param_list(Network_t net, connection_t pconn,
     ret = pos->cb(net,pconn,map);
   }
   else {
-    FORMAT_ERR(&pconn->txb,"no such action: %s\n",action);
+    INTERNAL_ERR(&pconn->txb,"found no action '%s'",key);
   }
 
   delete_tree_map(map);
@@ -103,7 +112,7 @@ int http_svr_do_get(Network_t net, connection_t pconn,
   if (get_http_hdr_field_str(req,sz_in,"/","?",action,&ln)==-1) {
 
     if (get_http_hdr_field_str(req,sz_in,"/"," ",action,&ln)==-1) {
-      FORMAT_ERR(&pconn->txb,"found no action\n");
+      INTERNAL_ERR(&pconn->txb,"action '%s' format error",action);
       return -1;
     }
   }
@@ -137,7 +146,7 @@ int http_svr_do_post(Network_t net, connection_t pconn,
    * parse action 
    */
   if (get_http_hdr_field_str(req,sz_in,"/"," ",action,&ln)==-1) {
-    FORMAT_ERR(&pconn->txb,"get action fail!");
+    INTERNAL_ERR(&pconn->txb,"action '%s' format error",action);
     return -1;
   }
 
@@ -147,7 +156,7 @@ int http_svr_do_post(Network_t net, connection_t pconn,
    * parse param list
    */
   if (sz_in == szhdr) {
-    FORMAT_ERR(&pconn->txb,"no param list\n");
+    INTERNAL_ERR(&pconn->txb,"no param list");
     return 0;
   }
 
@@ -220,7 +229,7 @@ int http_svr_rx(Network_t net, connection_t pconn)
     inb[sz_in] = ch;
 
     if (rc==-1 && dbuffer_data_size(pconn->txb)==0L) 
-      FORMAT_ERR(&pconn->txb,"internal error!\n");
+      INTERNAL_ERR(&pconn->txb,"internal error");
 
     pconn->l5opt.tx(net,pconn);
 

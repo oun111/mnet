@@ -37,12 +37,16 @@ http_action_entry_t new_http_action_entry()
 }
 
 int 
-add_http_action(http_action_entry_t entry, http_action_t pact)
+add_http_action(http_action_entry_t entry, const char *chan, http_action_t pact)
 {
-  http_action_t p = get_http_action(entry,pact->key);
+  char kb[128] = "";
+  http_action_t p = 0;
   char *pv = 0;
 
 
+  snprintf(kb,sizeof(kb),"%s/%s",chan,pact->action);
+
+  p = get_http_action(entry,kb);
   if (!p) {
     p = kmalloc(sizeof(struct http_action_s),0L);
     if (!p) {
@@ -52,10 +56,8 @@ add_http_action(http_action_entry_t entry, http_action_t pact)
 
     p->key = alloc_default_dbuffer();
     p->action  = alloc_default_dbuffer();
-    p->channel = alloc_default_dbuffer();
 
-    pv = pact->key ;
-    write_dbuf_str(p->key,pv);
+    write_dbuf_str(p->key,kb);
 
     if (MY_RB_TREE_INSERT(&entry->u.root,p,key,node,compare)) {
       log_error("insert tree map item fail\n");
@@ -69,12 +71,9 @@ add_http_action(http_action_entry_t entry, http_action_t pact)
   pv = pact->action ;
   write_dbuf_str(p->action,pv);
 
-  pv = pact->channel ;
-  write_dbuf_str(p->channel,pv);
-
   p->cb = pact->cb;
 
-  log_info("registering action '%s: %s'...\n",pact->channel,pact->action);
+  log_info("registering action '%s'...\n",p->key);
 
   return 0;
 }
@@ -86,7 +85,6 @@ int drop_http_action_internal(http_action_entry_t entry, http_action_t p)
 
   drop_dbuffer(p->key);
   drop_dbuffer(p->action);
-  drop_dbuffer(p->channel);
 
   kfree(p);
 
