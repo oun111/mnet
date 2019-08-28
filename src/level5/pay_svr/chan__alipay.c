@@ -181,9 +181,6 @@ int process_transfund2user_resp(Network_t net, connection_t pconn, backend_t be,
 
 __done:
 
-  if (tno)
-    free(tno);
-
   if (pr)
     jsons_release(pr);
 
@@ -208,7 +205,7 @@ int process_notify2user_resp(connection_t pconn, backend_t be, dbuffer_t resp,
   paySvr_config_t pc = get_running_configs();
   mysql_conf_t mcfg = get_mysql_configs(pc);
   order_info_t po = NULL;
-  dbuffer_t tno = be->data ;
+  char *tno = be->data ;
   int st=s_notify_fail;
   int ret = -1;
   bool rel = false;
@@ -240,9 +237,6 @@ int process_notify2user_resp(connection_t pconn, backend_t be, dbuffer_t resp,
   ret = 0;
 
 __done:
-  if (tno)
-    free(tno);
-
   if (rel)
     release_rds_order(pre,po);
 
@@ -292,7 +286,10 @@ int alipay_rx(Network_t net, connection_t pconn)
 
     sock_close(pconn->fd);
 
+#if 0
+    if (be->data) free(be->data);
     be->data = NULL;
+#endif
   }
 
   return 0;
@@ -881,7 +878,7 @@ __done:
     if (!alipay_tx(net,out_conn))
       sock_close(out_conn->fd);
     else 
-      log_error("send later by %d\n",out_conn->fd);
+      log_debug("send later by %d\n",out_conn->fd);
   }
 
   if (pay_data)
@@ -1005,7 +1002,7 @@ int send_merchant_notify(Network_t net, order_info_t po)
 
   /* connect merchant server(treat as 'backend')  */
   connection_t out_conn = do_out_connect(net,NULL,po->mch.notify_url,
-                                         strdup(po->mch.out_trade_no),bt_notify2user);
+                                         po->mch.out_trade_no,bt_notify2user);
   if (!out_conn) {
     log_error("connection to '%s' fail\n",po->mch.notify_url);
     set_order_un_status(po,s_notify_fail);
@@ -1448,7 +1445,7 @@ int do_alipay_trans_fund(Network_t net,connection_t pconn,tree_map_t user_params
   }
 
   /* connect alipay server(treat as 'backend')  */
-  connection_t out_conn = do_out_connect(net,pconn,url,strdup(tno),bt_transfund2user);
+  connection_t out_conn = do_out_connect(net,pconn,url,tno,bt_transfund2user);
   if (unlikely(!out_conn)) {
     log_error("connection to '%s' fail\n",url);
     goto __done;

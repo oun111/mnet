@@ -42,7 +42,7 @@ backend_t create_empty_backend(backend_entry_t entry, int fd)
 
   p->fd  = fd; 
   p->peer= NULL ;
-  p->data= NULL ;
+  p->data= alloc_default_dbuffer() ;
   p->type= 0;
 
   if (MY_RB_TREE_INSERT(&entry->u.root,p,fd,node,compare)) {
@@ -70,9 +70,8 @@ create_backend(backend_entry_t entry, int fd, connection_t peer,
 
   p->fd  = fd ;
   p->peer= peer ;
-  if (p->data)
-    free(p->data);
-  p->data= d ;
+  //strncpy(p->data,(char*)d,sizeof(p->data)) ;
+  write_dbuf_str(p->data,d);
   p->type= t ;
   log_info("new backend fd %d\n",fd);
 
@@ -85,8 +84,9 @@ int drop_backend_internal(backend_entry_t entry, backend_t p)
 {
   rb_erase(&p->node,&entry->u.root);
 
-  if (p->data)
-    free(p->data);
+  if (is_dbuffer_valid(p->data)) {
+    drop_dbuffer(p->data);
+  }
 
   obj_pool_free(entry->pool,p);
 

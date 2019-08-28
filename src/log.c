@@ -31,29 +31,20 @@
 
 
 static 
-int do_close_log(log_t log, char *type, bool bRename)
+int do_close_log(log_t log, bool bRename)
 {
-  if (!strcmp(type,"info") && log->fd_info) {
-    fflush(log->fd_info);
-    fclose(log->fd_info);
+  if (log->fd) {
+    fflush(log->fd);
+    fclose(log->fd);
   }
-  else if (!strcmp(type,"error") && log->fd_error) {
-    fflush(log->fd_error);
-    fclose(log->fd_error);
-  }
-  else if (!strcmp(type,"debug") && log->fd_debug) {
-    fflush(log->fd_debug);
-    fclose(log->fd_debug);
-  }
-  else   return -1;
 
   if (bRename==true) {
     char logpath[PATH_MAX] = "", tmp[PATH_MAX] = "";
-    char fmt[] = "%s/%s_%s.log.%d-%d-%d",
-         oldfmt[] = "%s/%s_%s.log";
+    char fmt[] = "%s/%s.log.%d-%d-%d",
+         oldfmt[] = "%s/%s.log";
 
-    sprintf(tmp,oldfmt,log->path,log->name,type);
-    sprintf(logpath,fmt,log->path,log->name,type,
+    sprintf(tmp,oldfmt,log->path,log->name);
+    sprintf(logpath,fmt,log->path,log->name,
         log->curr.year+1900,log->curr.month+1,log->curr.day);
     rename(tmp,logpath);
   }
@@ -62,24 +53,14 @@ int do_close_log(log_t log, char *type, bool bRename)
 }
 
 static
-int do_open_log(log_t log, char *type)
+int do_open_log(log_t log)
 {
   char logpath[PATH_MAX] = "";
-  char fmt[] = "%s/%s_%s.log";
+  char fmt[] = "%s/%s.log";
 
-  sprintf(logpath,fmt,log->path,log->name,type);
+  sprintf(logpath,fmt,log->path,log->name);
 
-  if (!strcmp(type,"info")) {
-    log->fd_info = fopen(logpath,"a");
-  }
-  else if (!strcmp(type,"error")) {
-    log->fd_error = fopen(logpath,"a");
-  }
-  else if (!strcmp(type,"debug")) {
-    log->fd_debug = fopen(logpath,"a");
-  }
-  else   
-    return -1;
+  log->fd = fopen(logpath,"a");
 
   return 0;
 }
@@ -89,13 +70,9 @@ int new_log(log_t log, bool renameOld)
   struct tm tm1 ;
   time_t t = time(0);
 
-  do_close_log(log,"info", renameOld);
-  do_close_log(log,"debug",renameOld);
-  do_close_log(log,"error",renameOld);
+  do_close_log(log, renameOld);
 
-  do_open_log(log,"info");
-  do_open_log(log,"debug");
-  do_open_log(log,"error");
+  do_open_log(log);
 
   localtime_r(&t,&tm1);
 
@@ -110,9 +87,7 @@ int init_log(log_t log, char *path, char *name)
 {
   strcpy(log->path,path);
   strcpy(log->name,name);
-  log->fd_info  = NULL;
-  log->fd_error = NULL;
-  log->fd_debug = NULL;
+  log->fd = NULL;
 
   printf("%s: logger name '%s', logging to %s\n",__func__,name,path);
 
@@ -121,9 +96,7 @@ int init_log(log_t log, char *path, char *name)
 
 int close_log(log_t log)
 {
-  do_close_log(log,"info",false);
-  do_close_log(log,"debug",false);
-  do_close_log(log,"error",false);
+  do_close_log(log,false);
 
   if (is_dbuffer_valid(log->msg_buf))
     drop_dbuffer(log->msg_buf);
@@ -140,7 +113,7 @@ write_log(log_t log, char *msg,const size_t sz_buf, const int log_type)
   char *mb = 0;
   struct timespec ts ;
   char *color_end = "", *color = "" ;
-  FILE *fd = 0;
+  FILE *fd = log->fd;
 
 
   localtime_r(&t,&tm1);
@@ -150,10 +123,6 @@ write_log(log_t log, char *msg,const size_t sz_buf, const int log_type)
       tm1.tm_mday==log->curr.day)) {
     new_log(log,true);
   }
-
-  fd = log_type==l_inf?log->fd_info:
-       log_type==l_dbg?log->fd_debug:
-       log->fd_error;
 
   if (!fd) {
     fd    = stdout;

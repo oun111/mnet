@@ -9,9 +9,7 @@
 
 
 struct log_s {
-  FILE *fd_info ;
-  FILE *fd_debug ;
-  FILE *fd_error ;
+  FILE *fd;
   char name[32];
   char path[PATH_MAX];
   dbuffer_t msg_buf ;
@@ -29,9 +27,7 @@ typedef struct log_s* log_t ;
 
 #define DECLARE_LOG \
   struct log_s g_log = { \
-    .fd_info  = 0, \
-    .fd_debug = 0, \
-    .fd_error = 0, \
+    .fd = 0, \
   };
 
 extern struct log_s g_log ;
@@ -90,9 +86,7 @@ enum log_type {
 } while(0)
 
 #define flush_logs() do{\
-  do_flush_log(g_log.fd_info);  \
-  do_flush_log(g_log.fd_error);  \
-  do_flush_log(g_log.fd_debug);  \
+  do_flush_log(g_log.fd);  \
 } while(0)
 
 #define save_log_pid() update_log_pid(&g_log)
