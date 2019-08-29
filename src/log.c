@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
+#include <sys/time.h>
 #include <alloca.h>
 #include "log.h"
 
@@ -107,16 +108,16 @@ int close_log(log_t log)
 ssize_t 
 write_log(log_t log, char *msg,const size_t sz_buf, const int log_type)
 {
+  struct timeval tv ;
   struct tm tm1 ;
-  time_t t = time(0);
   int ret = 0;
   char *mb = 0;
-  struct timespec ts ;
   char *color_end = "", *color = "" ;
   FILE *fd = log->fd;
 
 
-  localtime_r(&t,&tm1);
+  gettimeofday(&tv,NULL);
+  localtime_r(&tv.tv_sec,&tm1);
 
   // check if date changes
   if (!(tm1.tm_year==log->curr.year && tm1.tm_mon==log->curr.month && 
@@ -142,11 +143,10 @@ write_log(log_t log, char *msg,const size_t sz_buf, const int log_type)
   mb = log->msg_buf ;
 
 
-  clock_gettime(CLOCK_PROCESS_CPUTIME_ID,&ts);
   snprintf(mb,sz_buf+100,"%s %d-%02d-%02d %02d:%02d:%02d %ld (%d) %s %s",
            color,
            tm1.tm_year+1900,tm1.tm_mon+1,tm1.tm_mday,tm1.tm_hour,tm1.tm_min,
-           tm1.tm_sec,ts.tv_nsec,
+           tm1.tm_sec,tv.tv_usec,
            log->pid,
            msg,
            color_end);
