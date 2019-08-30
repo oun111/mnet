@@ -228,15 +228,23 @@ __done:
 bool is_rds_order_exist(rds_order_entry_t entry, const char *table, 
                         const char *orderid)
 {
-  rds_order_t p = get_rds_order(entry,table,orderid,true);
+  dbuffer_t str = alloc_default_dbuffer();
+  int rc = 1;
 
 
-  if (p) {
-    release_rds_order(entry,p);
-    return true ;
+  for (int i=0;/*i<10 &&*/ rc==1; i++) {
+    rc = myredis_read((myredis_t)entry->myrds_handle,table,orderid,&str);
   }
 
-  return false ;
+  drop_dbuffer(str);
+
+  // get nothing
+  if (rc<0 || rc==1) {
+    log_error("get nothing, rc=%d\n",rc);
+    return false;
+  }
+
+  return true;
 }
 
 bool is_rds_outTradeNo_exist(rds_order_entry_t entry, const char *table, 
