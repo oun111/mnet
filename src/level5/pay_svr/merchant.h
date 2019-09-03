@@ -22,6 +22,8 @@ struct merchant_info_s {
   dbuffer_t privkey ;
   bool verify_sign ;
   int sign_type ;
+  double max_amt; // max amount per request
+  double min_amt ;// min amount per request
 
   struct rb_node node ;
 

@@ -368,7 +368,8 @@ __done:
 
 static 
 int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params, 
-                      tree_map_t pay_params, tree_map_t pay_data)
+                      tree_map_t pay_params, tree_map_t pay_data,
+                      merchant_info_t pm)
 {
   tree_map_t pay_biz = NULL;
   time_t curr = time(NULL);
@@ -376,6 +377,7 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   char tmp[96] = "";
   char *body = 0, *subject = 0, *out_trade_no = 0, 
        *amount=0, *ret_url = 0, *orderid = 0;
+  double amt = 0.0 ;
 
 
   body = get_tree_map_value(user_params,"body");
@@ -396,6 +398,12 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   amount = get_tree_map_value(user_params,TAMT);
   if (!amount) {
     FORMAT_ERR(errbuf,E_NO_AMT,"");
+    return -1;
+  }
+
+  amt = atof(amount);
+  if (!(amt>=pm->min_amt && amt<=pm->max_amt)) {
+    FORMAT_ERR(errbuf,E_BAD_AMT,amt,pm->min_amt,pm->max_amt);
     return -1;
   }
 
@@ -838,7 +846,7 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
 
   pay_data = new_tree_map();
 
-  if (update_alipay_biz(&pconn->txb,user_params,pay_params,pay_data)) {
+  if (update_alipay_biz(&pconn->txb,user_params,pay_params,pay_data,pm)) {
     goto __done ;
   }
 

@@ -12,6 +12,8 @@
 #include "pay_data.h"
 
 
+#define DEFAULT_MAX_AMT  128.0
+
 
 static int compare(char *s0, char *s1)
 {
@@ -111,6 +113,23 @@ save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info)
   }
   else {
     log_error("no transfund route is configure for merchant '%s'\n",p->id);
+  }
+
+  // amount range per request
+  p->min_amt = p->max_amt = 0.0;
+  pv = get_tree_map_value(p->mch_info,"max_amount");
+  if (pv && strlen(pv)>0) {
+    p->max_amt = atof(pv);
+  }
+  pv = get_tree_map_value(p->mch_info,"min_amount");
+  if (pv && strlen(pv)>0) {
+    p->min_amt = atof(pv);
+  }
+  if (!(p->max_amt>p->min_amt && p->min_amt>0.0)) {
+    p->min_amt = 0.01;
+    p->max_amt = DEFAULT_MAX_AMT;
+    log_error("invalid pay amount range of merchant '%s', default to [%.2f,%.2f]\n",
+              p->id,p->min_amt,p->max_amt);
   }
 
 

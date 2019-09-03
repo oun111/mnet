@@ -372,7 +372,7 @@ class syncd(object):
 
     top['merchants'] = nrows
 
-    return json.dumps(top),len(nrows)
+    return json.dumps(top,cls=DecimalEncoder),len(nrows)
 
 
   def sync_back_alipay_cfg(self,rows):
