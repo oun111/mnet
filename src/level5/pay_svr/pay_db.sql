@@ -18,6 +18,8 @@ CREATE TABLE `merchant_configs` (
   `VERIFY_SIGN` int(11) NOT NULL DEFAULT 1 COMMENT '是否开启 商户 加签/验签 ，0 不开启，1 开启',
   `PAY_CHAN_IDS` varchar(256) NOT NULL DEFAULT '' COMMENT '个性化支付通道配置，对应通道表的id',
   `TRANSFUND_CHAN_IDS` varchar(256) NOT NULL DEFAULT '' COMMENT '个性化转帐通道配置，对应通道表的id',
+  `MIN_AMOUNT` decimal(16,4) NOT NULL DEFAULT 0.0100 COMMENT '商户单笔支付最小金额',
+  `MAX_AMOUNT` decimal(16,4) NOT NULL DEFAULT 100.0000 COMMENT '商户单笔支付最大金额',
   PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 
