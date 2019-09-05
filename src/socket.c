@@ -88,7 +88,7 @@ int new_tcp_svr(unsigned long address, int port)
     return -1;
   }
   /* do listening */
-  if (listen(fd,SOMAXCONN)<0) {
+  if (listen(fd,/*SOMAXCONN*/10240)<0) {
     /* XXX: error message here */
     log_error("error listen 0x%x:%d\n", addr, port);
     return -1;

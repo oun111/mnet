@@ -9,7 +9,7 @@
       "orderCache": "myrds_003",
       "address" : "127.0.0.1",
       "port" : 6379,
-      "cfgScanInterval" : 10
+      "cfgScanInterval" : 2
     },
     "Mysql" : {
       "merchantConfigTableName" : "merchant_configs",

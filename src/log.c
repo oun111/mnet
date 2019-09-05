@@ -113,7 +113,7 @@ write_log(log_t log, char *msg,const size_t sz_buf, const int log_type)
   int ret = 0;
   char *mb = 0;
   char *color_end = "", *color = "" ;
-  FILE *fd = log->fd;
+  FILE *fd = 0;
 
 
   gettimeofday(&tv,NULL);
@@ -124,6 +124,8 @@ write_log(log_t log, char *msg,const size_t sz_buf, const int log_type)
       tm1.tm_mday==log->curr.day)) {
     new_log(log,true);
   }
+
+  fd = log->fd;
 
   if (!fd) {
     fd    = stdout;

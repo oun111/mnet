@@ -53,7 +53,7 @@
   snprintf(tmp,sizeof(tmp),fmt,##arg);\
   snprintf(pmsg,sizeof(msg),"{\"errCode\":\"%d\",\"errMsg\":\"%s\"}",\
     __ec__,ptmp); \
-  if (__errbuf__) create_http_normal_res((__errbuf__),400,pt_html,msg); \
+  if (__errbuf__) create_http_normal_res((__errbuf__),-1,pt_html,msg); \
   log_error("%s\n",tmp);  \
 } while(0)
 
@@ -86,8 +86,6 @@ struct alipay_data_s {
 static int alipay_init(Network_t net);
 
 static void alipay_release();
-
-static struct http_action_s action__alipay_order;
 
 static order_info_t get_order_by_otn(const char *tno, dbuffer_t *errbuf, bool *bRel);
 

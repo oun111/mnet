@@ -171,7 +171,7 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
       return NULL ;
     }
 
-    p->subname = alloc_default_dbuffer(chan);
+    p->subname = alloc_default_dbuffer();
     p->pay_params = params;
     p->rc.max_amount = 0.0;
     p->rc.max_orders = 0;
@@ -227,6 +227,7 @@ int drop_pay_data_internal(pay_channel_t pc)
   return 0;
 }
 
+#if 0
 int drop_pay_channel(pay_channels_entry_t entry, const char *chan)
 {
   pay_channel_t pc = get_pay_channel(entry,chan);
@@ -245,6 +246,20 @@ int drop_pay_channel(pay_channels_entry_t entry, const char *chan)
 
   return 0;
 }
+#else
+static
+int drop_pay_channel(pay_channels_entry_t entry, pay_channel_t pc)
+{
+  drop_pay_data_internal(pc);
+
+  rb_erase(&pc->node,&entry->u.root);
+
+  drop_dbuffer(pc->channel);
+  kfree(pc);
+
+  return 0;
+}
+#endif
 
 static
 int release_all_pay_datas(pay_channels_entry_t entry)
@@ -252,8 +267,10 @@ int release_all_pay_datas(pay_channels_entry_t entry)
   pay_channel_t pos,n;
 
 
-  rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
-    drop_pay_channel(entry,pos->channel);
+  //rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&entry->u.root,node) {
+    //drop_pay_channel(entry,pos->channel);
+    drop_pay_channel(entry,pos);
   }
 
   return 0;
@@ -331,13 +348,15 @@ int init_pay_data(pay_channels_entry_t *paych)
   
   *paych = new_pay_channels_entry();
 
-  rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
+  //rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&entry->u.root,node) {
     tree_map_t chansub = pos->nest_map ;
 
     if (!chansub)
       continue ;
 
-    rbtree_postorder_for_each_entry_safe(pos1,n1,&chansub->u.root,node) {
+    //rbtree_postorder_for_each_entry_safe(pos1,n1,&chansub->u.root,node) {
+    MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos1,n1,&chansub->u.root,node) {
       add_pay_data(*paych,pos->key,pos1->key,pos1->nest_map);
       log_info("adding channel '%s - %s'\n",pos->key,pos1->key);
     }
