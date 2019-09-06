@@ -706,7 +706,8 @@ static int do_dynamic_update()
   mysql_conf_t mscfg = get_mysql_configs(pc);
 
   if (g_alipayData.du.flags & 0x1) {
-    pay_channels_entry_t pce = 0;
+    extern pay_channels_entry_t get_pay_channels_entry();
+    pay_channels_entry_t pce = get_pay_channels_entry();
 
     // the risk control configs
     get_remote_configs(prds,mscfg->rc_conf_table,"",&buff);
@@ -718,8 +719,8 @@ static int do_dynamic_update()
     process_channel_configs(pc,buff);
     drop_dbuffer(buff);
 
-    init_pay_data(&pce);
-    reset_pay_channels_entry(pce);
+    delete_pay_channels_entry(pce);
+    init_pay_data(pce);
 
     g_alipayData.du.flags &= ~(0x1);
   }

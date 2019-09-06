@@ -25,7 +25,7 @@ struct pay_svr_data {
 
   struct backend_entry_s m_backends;
 
-  pay_channels_entry_t m_paych ;
+  struct pay_channels_entry_s m_paych ;
 
   struct order_entry_s m_orders ;
 
@@ -47,14 +47,7 @@ backend_entry_t get_backend_entry()
 
 pay_channels_entry_t get_pay_channels_entry()
 {
-  return g_paySvrData.m_paych ;
-}
-
-void reset_pay_channels_entry(pay_channels_entry_t new_pce)
-{
-  delete_pay_channels_entry(g_paySvrData.m_paych);
-
-  g_paySvrData.m_paych = new_pce ;
+  return &g_paySvrData.m_paych ;
 }
 
 order_entry_t get_order_entry()
@@ -220,7 +213,7 @@ void pay_svr_module_exit()
 {
   release_all_orders(&g_paySvrData.m_orders);
 
-  delete_pay_channels_entry(g_paySvrData.m_paych);
+  delete_pay_channels_entry(&g_paySvrData.m_paych);
 
   release_all_backends(&g_paySvrData.m_backends);
 

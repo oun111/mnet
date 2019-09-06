@@ -84,17 +84,6 @@ get_paydata_by_id(pay_channels_entry_t entry, const char *chan, int id)
   return NULL ;
 }
 
-
-pay_channels_entry_t new_pay_channels_entry()
-{
-  pay_channels_entry_t entry = kmalloc(sizeof(struct pay_channels_entry_s),0L);
-
-
-  entry->u.root = RB_ROOT ;
-
-  return entry;
-}
-
 pay_channel_t new_pay_channel(const char *chan)
 {
   char *pv  = NULL;
@@ -227,26 +216,6 @@ int drop_pay_data_internal(pay_channel_t pc)
   return 0;
 }
 
-#if 0
-int drop_pay_channel(pay_channels_entry_t entry, const char *chan)
-{
-  pay_channel_t pc = get_pay_channel(entry,chan);
-
-
-  if (!pc) {
-    return -1;
-  }
-
-  drop_pay_data_internal(pc);
-
-  rb_erase(&pc->node,&entry->u.root);
-
-  drop_dbuffer(pc->channel);
-  kfree(pc);
-
-  return 0;
-}
-#else
 static
 int drop_pay_channel(pay_channels_entry_t entry, pay_channel_t pc)
 {
@@ -259,7 +228,6 @@ int drop_pay_channel(pay_channels_entry_t entry, pay_channel_t pc)
 
   return 0;
 }
-#endif
 
 static
 int release_all_pay_datas(pay_channels_entry_t entry)
@@ -269,7 +237,6 @@ int release_all_pay_datas(pay_channels_entry_t entry)
 
   //rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
   MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&entry->u.root,node) {
-    //drop_pay_channel(entry,pos->channel);
     drop_pay_channel(entry,pos);
   }
 
@@ -279,8 +246,6 @@ int release_all_pay_datas(pay_channels_entry_t entry)
 void delete_pay_channels_entry(pay_channels_entry_t entry)
 {
   release_all_pay_datas(entry);
-
-  kfree(entry);
 }
 
 void update_paydata_rc_arguments(pay_data_t pd, double amount)
@@ -337,7 +302,7 @@ pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason)
   return NULL ;
 }
 
-int init_pay_data(pay_channels_entry_t *paych)
+int init_pay_data(pay_channels_entry_t paych)
 {
   tm_item_t pos,n;
   tm_item_t pos1,n1;
@@ -346,7 +311,7 @@ int init_pay_data(pay_channels_entry_t *paych)
   tree_map_t entry = get_tree_map_nest(pr,"channels");
   
   
-  *paych = new_pay_channels_entry();
+  paych->u.root = RB_ROOT ;
 
   //rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
   MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&entry->u.root,node) {
@@ -357,7 +322,7 @@ int init_pay_data(pay_channels_entry_t *paych)
 
     //rbtree_postorder_for_each_entry_safe(pos1,n1,&chansub->u.root,node) {
     MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos1,n1,&chansub->u.root,node) {
-      add_pay_data(*paych,pos->key,pos1->key,pos1->nest_map);
+      add_pay_data(paych,pos->key,pos1->key,pos1->nest_map);
       log_info("adding channel '%s - %s'\n",pos->key,pos1->key);
     }
   }

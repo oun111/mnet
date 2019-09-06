@@ -8,8 +8,6 @@ extern backend_entry_t get_backend_entry();
 
 extern pay_channels_entry_t get_pay_channels_entry();
 
-extern void reset_pay_channels_entry(pay_channels_entry_t);
-
 extern order_entry_t get_order_entry();
 
 //extern rds_order_entry_t get_rds_order_entry();

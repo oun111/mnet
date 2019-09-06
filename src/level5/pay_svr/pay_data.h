@@ -61,8 +61,6 @@ extern pay_channel_t get_pay_channel(pay_channels_entry_t entry, const char *cha
 
 extern pay_data_t get_pay_data(pay_channel_t pc, const char *subname);
 
-extern pay_channels_entry_t new_pay_channels_entry();
-
 extern pay_data_t add_pay_data(pay_channels_entry_t entry, const char *chan, 
                                const char *subname, tree_map_t params);
 
@@ -70,7 +68,7 @@ extern void delete_pay_channels_entry(pay_channels_entry_t entry);
 
 extern pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason);
 
-extern int init_pay_data(pay_channels_entry_t *paych);
+extern int init_pay_data(pay_channels_entry_t paych);
 
 extern pay_data_t get_paydata_by_ali_appid(pay_channels_entry_t entry, 
            const char *chan, const char *appid);

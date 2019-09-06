@@ -249,7 +249,9 @@ int parse_cmd_line(int argc, char *argv[])
 
 void sig_term_handler(int sn)
 {
+  flush_logs();
   g_inst.worker_stop = 1;
+  exit(-1);
 }
 
 int instance_start(int argc, char *argv[])
@@ -290,6 +292,7 @@ int instance_start(int argc, char *argv[])
   // signals
   signal(SIGTERM,sig_term_handler);
   signal(SIGINT,sig_term_handler);
+  signal(SIGSEGV,sig_term_handler);
   signal(SIGPIPE,SIG_IGN);
 
   save_log_pid();
