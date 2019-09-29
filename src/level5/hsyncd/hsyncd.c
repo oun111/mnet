@@ -6,6 +6,7 @@
 #include "module.h"
 #include "log.h"
 #include "mfile.h"
+#include "config.h"
 //#include "hsyncd.h"
 
 static
@@ -14,11 +15,19 @@ struct hsyncd_info_s {
 
   int wd ;
 
-  char watch_path[PATH_MAX];
+  char monitor_path[PATH_MAX];
 
   struct monitor_file_entry_s m_mfEntry ;
 
-} g_hsdInfo ;
+  struct hsyncd_config_s m_conf ;
+
+  char conf_path[PATH_MAX];
+
+  char last_move_from[PATH_MAX];
+
+} g_hsdInfo = {
+  .last_move_from = "\0",
+};
 
 
 static int hsyncd_init(Network_t net);
@@ -55,8 +64,9 @@ int hsyncd_rx(Network_t net, connection_t pconn)
   struct stat st; 
   char fb[PATH_MAX] = "", *file = fb; 
   char* buf = dbuffer_ptr(pconn->rxb,0) ; 
-  const char *base_path = g_hsdInfo.watch_path;
-  int ln = dbuffer_data_size(pconn->rxb);
+  const char *base_path = g_hsdInfo.monitor_path;
+  int ln = dbuffer_data_size(pconn->rxb), ret=0;
+  struct inotify_event *event = NULL;
 
 
   // no data to process
@@ -64,37 +74,50 @@ int hsyncd_rx(Network_t net, connection_t pconn)
     return 0;
   }
 
-	for (int offs = 0;offs<ln;) {
+	for (int offs=0; offs<ln; offs+=(sizeof(struct inotify_event)+event->len)) {
 
-    struct inotify_event *event = (struct inotify_event*)(buf+offs) ;
+    event = (struct inotify_event*)(buf+offs) ;
 
-		snprintf(file,sizeof(fb),"%s/%s",base_path,event->name);
+    if (event->mask&IN_ISDIR)
+      continue ;
 
-		if (stat(file,&st)) {
-			log_debug("cant get file %s stat\n",file);
-		}   
 
-		if (event->mask&IN_CREATE) {
-			log_debug("the %s %s is created\n",event->mask&IN_ISDIR?"dir":"file",file);
-		}   
+    snprintf(file,sizeof(fb),"%s/%s",base_path,event->name);
 
-		else if (event->mask&IN_MODIFY) {
-			log_debug("the %s %s is modify, size: %ld\n",event->mask&IN_ISDIR?"dir":"file",file,st.st_size);
-		}   
+    if (stat(file,&st)) {
+      log_debug("cant get file %s stat\n",file);
+    }   
 
-		else if (event->mask&IN_MOVED_FROM) {
-			log_debug("the %s %s is moved from\n",event->mask&IN_ISDIR?"dir":"file",file);
-		}   
+    if (event->mask&IN_CREATE || event->mask&IN_MODIFY) {
+      ret = load_mfile(&g_hsdInfo.m_mfEntry,file,st.st_size);
 
-		else if (event->mask&IN_MOVED_TO) {
-			log_debug("the %s %s is moved to\n",event->mask&IN_ISDIR?"dir":"file",file);
-		}   
+      log_debug("monitor file '%s', size %ld, ret %d\n",file,st.st_size,ret);
+    }   
 
-		else if (event->mask&IN_MOVE_SELF) {
-			log_debug("the %s %s is moved self\n",event->mask&IN_ISDIR?"dir":"file",file);
-		}   
+    else if (event->mask&IN_MOVED_FROM) {
+      strcpy(g_hsdInfo.last_move_from,file);
 
-		offs += sizeof(struct inotify_event)+event->len ;
+      log_debug("the %s %s is moved from\n",event->mask&IN_ISDIR?"dir":"file",file);
+    }   
+
+    else if (event->mask&IN_MOVED_TO) {
+
+      if (strlen(g_hsdInfo.last_move_from)>0) {
+
+        ret = rename_mfile(&g_hsdInfo.m_mfEntry,g_hsdInfo.last_move_from,file);
+        g_hsdInfo.last_move_from[0] = '\0';
+
+        log_debug("monitor file '%s' is renamed to '%s',ret: %d\n",g_hsdInfo.last_move_from,file,ret);
+      }
+
+      log_debug("the %s %s is moved to\n",event->mask&IN_ISDIR?"dir":"file",file);
+    }   
+#if 0
+    else if (event->mask&IN_MOVE_SELF) {
+      log_debug("the %s %s is moved self\n",event->mask&IN_ISDIR?"dir":"file",file);
+    }   
+#endif
+
 	} 
 
   dbuffer_lseek(pconn->rxb,ln,SEEK_CUR,0);
@@ -153,7 +176,7 @@ int hsyncd_init(Network_t net)
   return 0;
 }
 
-static int hsyncd_pre_init(const char *wpath)
+static int hsyncd_pre_init(const char *mpath)
 {
   //int v = inotify_init1(IN_NONBLOCK);
   int v = inotify_init();
@@ -167,8 +190,8 @@ static int hsyncd_pre_init(const char *wpath)
 
 
   // TODO: add watch path list
-  v = inotify_add_watch(g_hsdInfo.in_fd,wpath,
-                        IN_CREATE|IN_MODIFY|IN_MOVED_FROM|IN_MOVED_TO|IN_MOVE_SELF);
+  v = inotify_add_watch(g_hsdInfo.in_fd,mpath,
+                        IN_CREATE|IN_MODIFY|IN_MOVED_FROM|IN_MOVED_TO/*|IN_MOVE_SELF*/);
 
   if (v<0) {
     log_error("inotify_add_watch() fail!\n");
@@ -177,22 +200,56 @@ static int hsyncd_pre_init(const char *wpath)
 
   g_hsdInfo.wd = v ;
 
-  strncpy(g_hsdInfo.watch_path,wpath,sizeof(g_hsdInfo.watch_path));
+  strncpy(g_hsdInfo.monitor_path,mpath,sizeof(g_hsdInfo.monitor_path));
 
   // the monitor file entry
-  init_mfile_entry(&g_hsdInfo.m_mfEntry,-1,-1);
+  init_mfile_entry(&g_hsdInfo.m_mfEntry,6,-1);
 
   return 0;
 }
 
+static
+int parse_cmd_line(int argc, char *argv[])
+{
+  for (int i=1; i<argc; i++) {
+    if (!strcmp(argv[i],"-ch")) {
+      strcpy(g_hsdInfo.conf_path,argv[i+1]);
+    }
+    else if (!strcmp(argv[i],"-h")) {
+      printf("module '%s' help message\n",THIS_MODULE->name);
+      printf("-ch: configure file\n");
+      return 1;
+    }
+  }
+  return 0;
+}
+
+static 
+void dump_params()
+{
+  char *tmp = g_hsdInfo.monitor_path;
+
+  log_info("module '%s' param list: =================\n",THIS_MODULE->name);
+  log_info("monitor path dir: %s\n",tmp);
+  log_info("module param list end =================\n");
+}
+
 void hsyncd_module_init(int argc, char *argv[])
 {
-  // TODO: process arguments/configs
-
-  // TODO: get watch-path from config
-  if (hsyncd_pre_init("/tmp/")) {
+  if (parse_cmd_line(argc,argv)) {
     return ;
   }
+
+  if (init_config(&g_hsdInfo.m_conf,g_hsdInfo.conf_path)) {
+    log_error("init config fail\n");
+    return ;
+  }
+
+  if (hsyncd_pre_init(get_monitor_path(&g_hsdInfo.m_conf))) {
+    return ;
+  }
+
+  dump_params();
 
   register_module(THIS_MODULE);
 

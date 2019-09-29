@@ -49,7 +49,9 @@ typedef struct monitor_file_entry_s* mfile_entry_t ;
 
 extern mfile_t get_mfile(mfile_entry_t entry, const char *f);
 
-extern int create_mfile(mfile_entry_t entry, const char *base_path, const char *f, size_t size);
+extern int load_mfile(mfile_entry_t entry, const char *f, size_t size);
+
+extern int rename_mfile(mfile_entry_t entry, const char *oldfile, const char *newfile);
 
 extern int drop_mfile(mfile_entry_t entry, const char *f);
 
@@ -60,5 +62,7 @@ extern int release_all_mfiles(mfile_entry_t entry);
 extern size_t get_mfile_count(mfile_entry_t entry);
 
 extern bool is_mfile_sync(mfile_entry_t entry, mfile_t p);
+
+extern int iterate_mfiles(mfile_entry_t entry);
 
 #endif /* __MFILE_H__*/

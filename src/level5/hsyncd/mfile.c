@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <errno.h>
 #include "mfile.h"
 #include "kernel.h"
 #include "mm_porting.h"
@@ -43,6 +44,7 @@ mfile_t create_empty_mfile(mfile_entry_t entry, const char *f)
     return NULL ;
 
   p->file_offset= 0L; 
+  write_dbuf_str(p->filename,f) ;
   //p->cont_size  = 0L; 
   //p->rp = 0L;
 
@@ -53,25 +55,23 @@ mfile_t create_empty_mfile(mfile_entry_t entry, const char *f)
     return NULL;
   }
 
+  log_info("new mfile '%s'\n",f);
+
   entry->count++;
 
   return p;
 }
 
 static
-int do_load_file(const char *path, const char *f, size_t startpos, 
-               size_t len, char *buf, int *size)
+int do_load_file(const char *f, size_t startpos, size_t len, 
+                 char *buf, int *size)
 {
   int ret = 0;
   int fd = -1;
-  char filepath[PATH_MAX] = "";
 
-
-  snprintf(filepath,sizeof(filepath),"%s/%s",path,f);
-
-  fd = open(filepath,O_RDONLY);
+  fd = open(f,O_RDONLY);
   if (fd<0) {
-    log_error("open '%s' fail\n",f);
+    log_error("open '%s' fail: %s\n",f,strerror(errno));
     return -1;
   }
 
@@ -86,8 +86,7 @@ int do_load_file(const char *path, const char *f, size_t startpos,
 }
 
 static
-int mfile_load(mfile_entry_t entry, const char *path, const char *f, 
-               mfile_t p, int size)
+int __mfile_load(mfile_entry_t entry, const char *f, mfile_t p, int size)
 {
   char *wb = 0;
   int sz = 0,ret = 0,sz_read=0;
@@ -103,8 +102,8 @@ int mfile_load(mfile_entry_t entry, const char *path, const char *f,
   p->cont_buf = rearrange_dbuffer(p->cont_buf,sz_read);
   wb = dbuffer_ptr(p->cont_buf,1);
 
-  ret = do_load_file(path,f,p->file_offset,sz_read,wb,&sz);
-  if (ret<=0) {
+  ret = do_load_file(f,p->file_offset,sz_read,wb,&sz);
+  if (ret<0) {
     log_debug("nothing to sync!\n");
     return -1;
   }
@@ -122,7 +121,7 @@ bool is_mfile_sync(mfile_entry_t entry, mfile_t p)
 }
 
 int 
-create_mfile(mfile_entry_t entry, const char *base_path, const char *f, size_t size)
+load_mfile(mfile_entry_t entry, const char *f, size_t size)
 {
   mfile_t p = create_empty_mfile(entry,f);
 
@@ -132,27 +131,34 @@ create_mfile(mfile_entry_t entry, const char *base_path, const char *f, size_t s
     return -1;
   }
 
-  write_dbuf_str(p->filename,f) ;
-
-  log_info("new mfile '%s'\n",f);
-
   // try to read file
-  mfile_load(entry,base_path,f,p,size);
+  __mfile_load(entry,f,p,size);
 
   return 0;
 }
 
-int 
-update_mfile(mfile_entry_t entry, const char *base_path, const char *f, size_t size)
+int rename_mfile(mfile_entry_t entry, const char *oldfile, const char *newfile)
 {
-  mfile_t p = get_mfile(entry,f);
+  mfile_t p = get_mfile(entry,oldfile);
 
 
   if (!p) {
+    log_error("mfile '%s' not found\n",oldfile);
     return -1;
   }
 
-  mfile_load(entry,base_path,f,p,size);
+  // remove old file entry from rb tree
+  rb_erase(&p->node,&entry->u.root);
+
+  write_dbuf_str(p->filename,newfile) ;
+
+  // reinsert to tree with new file
+  if (MY_RB_TREE_INSERT(&entry->u.root,p,filename,node,compare)) {
+    log_error("insert mfile '%s' fail\n",newfile);
+    obj_pool_free(entry->pool,p);
+    return -1;
+  }
+
   return 0;
 }
 
@@ -196,7 +202,7 @@ int init_mfile_entry(mfile_entry_t entry, size_t threshold, ssize_t pool_size)
     pos->cont_buf = alloc_default_dbuffer();
   }
 
-  entry->sync_threshold = threshold<4096||threshold>10240?4096:SIZE_ALIGNED(threshold) ;
+  entry->sync_threshold = threshold>10240?4096:SIZE_ALIGNED(threshold) ;
 
   log_debug("done!\n");
 
@@ -225,5 +231,14 @@ int release_all_mfiles(mfile_entry_t entry)
 size_t get_mfile_count(mfile_entry_t entry)
 {
   return entry->count ;
+}
+
+void iterate_mfiles(mfile_entry_t entry)
+{
+  mfile_t pos,n;
+
+  rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
+    log_debug("mfile '%s', file pos: %ld\n",pos->filename,pos->file_offset);
+  }
 }
 
