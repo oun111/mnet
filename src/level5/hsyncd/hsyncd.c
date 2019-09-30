@@ -61,11 +61,10 @@ int hsyncd_l4_rx(Network_t net, connection_t pconn)
 static
 int hsyncd_rx(Network_t net, connection_t pconn)
 {
-  struct stat st; 
   char fb[PATH_MAX] = "", *file = fb; 
   char* buf = dbuffer_ptr(pconn->rxb,0) ; 
   const char *base_path = g_hsdInfo.monitor_path;
-  int ln = dbuffer_data_size(pconn->rxb), ret=0;
+  int ln = dbuffer_data_size(pconn->rxb);
   struct inotify_event *event = NULL;
 
 
@@ -74,7 +73,7 @@ int hsyncd_rx(Network_t net, connection_t pconn)
     return 0;
   }
 
-	for (int offs=0; offs<ln; offs+=(sizeof(struct inotify_event)+event->len)) {
+	for (int offs=0,ret=0; offs<ln; offs+=(sizeof(struct inotify_event)+event->len),ret=0) {
 
     event = (struct inotify_event*)(buf+offs) ;
 
@@ -84,39 +83,40 @@ int hsyncd_rx(Network_t net, connection_t pconn)
 
     snprintf(file,sizeof(fb),"%s/%s",base_path,event->name);
 
-    if (stat(file,&st)) {
-      log_debug("cant get file %s stat\n",file);
-    }   
-
-    if (event->mask&IN_CREATE || event->mask&IN_MODIFY) {
-      ret = load_mfile(&g_hsdInfo.m_mfEntry,file,st.st_size);
-
-      log_debug("monitor file '%s', size %ld, ret %d\n",file,st.st_size,ret);
-    }   
-
-    else if (event->mask&IN_MOVED_FROM) {
+    if (event->mask&IN_MOVED_FROM) {
       strcpy(g_hsdInfo.last_move_from,file);
-
-      log_debug("the %s %s is moved from\n",event->mask&IN_ISDIR?"dir":"file",file);
     }   
 
     else if (event->mask&IN_MOVED_TO) {
 
       if (strlen(g_hsdInfo.last_move_from)>0) {
+        char *lf = g_hsdInfo.last_move_from;
 
-        ret = rename_mfile(&g_hsdInfo.m_mfEntry,g_hsdInfo.last_move_from,file);
-        g_hsdInfo.last_move_from[0] = '\0';
+        ret = rename_mfile(&g_hsdInfo.m_mfEntry,lf,file);
 
-        log_debug("monitor file '%s' is renamed to '%s',ret: %d\n",g_hsdInfo.last_move_from,file,ret);
+        log_debug("file '%s' is renamed to '%s',ret: %d\n",lf,file,ret);
+        *lf = '\0';
+      }
+    }   
+
+    if (event->mask&IN_CREATE || event->mask&IN_MODIFY || 
+         event->mask&IN_MOVED_TO) {
+
+      mfile_t pf ;
+      struct stat st; 
+
+
+      // get file size
+      stat(file,&st) ;
+
+      ret = load_mfile(&g_hsdInfo.m_mfEntry,file,st.st_size,&pf);
+
+      // TODO: parse mfile
+      if (ret>0) {
+        log_debug("file '%s' changes, size %ld, ret: %d\n",file,st.st_size,ret);
       }
 
-      log_debug("the %s %s is moved to\n",event->mask&IN_ISDIR?"dir":"file",file);
-    }   
-#if 0
-    else if (event->mask&IN_MOVE_SELF) {
-      log_debug("the %s %s is moved self\n",event->mask&IN_ISDIR?"dir":"file",file);
-    }   
-#endif
+    }
 
 	} 
 

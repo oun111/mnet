@@ -104,7 +104,7 @@ int __mfile_load(mfile_entry_t entry, const char *f, mfile_t p, int size)
 
   ret = do_load_file(f,p->file_offset,sz_read,wb,&sz);
   if (ret<0) {
-    log_debug("nothing to sync!\n");
+    log_debug("read '%s' fail!\n",f);
     return -1;
   }
 
@@ -112,7 +112,7 @@ int __mfile_load(mfile_entry_t entry, const char *f, mfile_t p, int size)
   p->file_offset += sz ;
 
   dbuffer_lseek(p->cont_buf,sz,SEEK_CUR,1);
-  return 0;
+  return 1;
 }
 
 bool is_mfile_sync(mfile_entry_t entry, mfile_t p)
@@ -121,7 +121,7 @@ bool is_mfile_sync(mfile_entry_t entry, mfile_t p)
 }
 
 int 
-load_mfile(mfile_entry_t entry, const char *f, size_t size)
+load_mfile(mfile_entry_t entry, const char *f, size_t size, mfile_t *pf)
 {
   mfile_t p = create_empty_mfile(entry,f);
 
@@ -131,10 +131,11 @@ load_mfile(mfile_entry_t entry, const char *f, size_t size)
     return -1;
   }
 
-  // try to read file
-  __mfile_load(entry,f,p,size);
+  if (pf)
+    *pf = p ;
 
-  return 0;
+  // try to read file
+  return __mfile_load(entry,f,p,size);
 }
 
 int rename_mfile(mfile_entry_t entry, const char *oldfile, const char *newfile)
