@@ -24,6 +24,11 @@ mfile_t get_mfile(mfile_entry_t entry, const char *f)
   return NULL ;
 }
 
+dbuffer_t get_mfile_contents(mfile_t p)
+{
+  return p->cont_buf ;
+}
+
 static
 mfile_t create_empty_mfile(mfile_entry_t entry, const char *f)
 {

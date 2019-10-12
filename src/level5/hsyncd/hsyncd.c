@@ -7,19 +7,23 @@
 #include "log.h"
 #include "mfile.h"
 #include "config.h"
-//#include "hsyncd.h"
+#include "wdcache.h"
+#include "formats.h"
+#include "myrbtree.h"
 
 static
 struct hsyncd_info_s {
   int in_fd ;
 
-  int wd ;
-
-  char monitor_path[PATH_MAX];
+  struct wdcache_entry_s m_wdEntry ;  
 
   struct monitor_file_entry_s m_mfEntry ;
 
   struct hsyncd_config_s m_conf ;
+
+  struct formats_entry_s m_fmtEntry ;
+
+  struct list_head m_fmtDataList ;
 
   char conf_path[PATH_MAX];
 
@@ -63,7 +67,6 @@ int hsyncd_rx(Network_t net, connection_t pconn)
 {
   char fb[PATH_MAX] = "", *file = fb; 
   char* buf = dbuffer_ptr(pconn->rxb,0) ; 
-  const char *base_path = g_hsdInfo.monitor_path;
   int ln = dbuffer_data_size(pconn->rxb);
   struct inotify_event *event = NULL;
 
@@ -80,7 +83,13 @@ int hsyncd_rx(Network_t net, connection_t pconn)
     if (event->mask&IN_ISDIR)
       continue ;
 
+    wdcache_t pw = get_wdcache(&g_hsdInfo.m_wdEntry,event->wd);
+    if (!pw) {
+      log_error("get no watch path by wd %d\n",event->wd);
+      continue ;
+    }
 
+    const char *base_path = (char*)get_wdcache_path(pw);
     snprintf(file,sizeof(fb),"%s/%s",base_path,event->name);
 
     if (event->mask&IN_MOVED_FROM) {
@@ -113,7 +122,10 @@ int hsyncd_rx(Network_t net, connection_t pconn)
 
       // TODO: parse mfile
       if (ret>0) {
-        log_debug("file '%s' changes, size %ld, ret: %d\n",file,st.st_size,ret);
+        const int fmt_id = get_wdcache_fmtid(pw);
+        dbuffer_t inb = get_mfile_contents(pf);
+
+        read_format_data(&g_hsdInfo.m_fmtEntry,fmt_id,inb,&g_hsdInfo.m_fmtDataList);
       }
 
     }
@@ -128,11 +140,22 @@ int hsyncd_rx(Network_t net, connection_t pconn)
 static
 void hsyncd_release()
 {
-  inotify_rm_watch(g_hsdInfo.in_fd,g_hsdInfo.wd);
+  //inotify_rm_watch(g_hsdInfo.in_fd,g_hsdInfo.wd);
 
   close(g_hsdInfo.in_fd);
 
   release_all_mfiles(&g_hsdInfo.m_mfEntry);
+
+  release_all_wdcaches(&g_hsdInfo.m_wdEntry);
+
+  release_all_formats(&g_hsdInfo.m_fmtEntry);
+
+  free_config(&g_hsdInfo.m_conf);
+
+  common_format_t pos, n;
+  list_for_each_entry_safe(pos,n,&g_hsdInfo.m_fmtDataList,upper) {
+    free_common_format(pos);
+  }
 }
 
 static
@@ -176,10 +199,11 @@ int hsyncd_init(Network_t net)
   return 0;
 }
 
-static int hsyncd_pre_init(const char *mpath)
+static int hsyncd_pre_init(hsyncd_config_t conf)
 {
   //int v = inotify_init1(IN_NONBLOCK);
   int v = inotify_init();
+
 
   if (v<0) {
     log_error("inotify_init1() fail!\n");
@@ -188,22 +212,38 @@ static int hsyncd_pre_init(const char *mpath)
 
   g_hsdInfo.in_fd = v ;
 
+  // init all file formats
+  init_formats_entry(&g_hsdInfo.m_fmtEntry);
 
-  // TODO: add watch path list
-  v = inotify_add_watch(g_hsdInfo.in_fd,mpath,
-                        IN_CREATE|IN_MODIFY|IN_MOVED_FROM|IN_MOVED_TO/*|IN_MOVE_SELF*/);
-
-  if (v<0) {
-    log_error("inotify_add_watch() fail!\n");
-    return -1;
-  }
-
-  g_hsdInfo.wd = v ;
-
-  strncpy(g_hsdInfo.monitor_path,mpath,sizeof(g_hsdInfo.monitor_path));
+  // the wd cache
+  init_wdcache_entry(&g_hsdInfo.m_wdEntry);
 
   // the monitor file entry
   init_mfile_entry(&g_hsdInfo.m_mfEntry,6,-1);
+
+  INIT_LIST_HEAD(&g_hsdInfo.m_fmtDataList);
+
+  // TODO: add watch path list
+  tm_item_t pos, n;
+  //tm_item_t pos1, n1;
+  tree_map_t pl = get_tree_map_nest(conf->m_globSettings.monitor_paths,"monitorPaths");
+
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&pl->u.root,node) {
+    tree_map_t spath = pos->nest_map ;
+
+    char *mpath = get_tree_map_value(spath,"path");
+    char *fmtid = get_tree_map_value(spath,"formatId");
+
+    int wd = inotify_add_watch(g_hsdInfo.in_fd,mpath,
+                               IN_CREATE|IN_MODIFY|IN_MOVED_FROM|IN_MOVED_TO/*|IN_MOVE_SELF*/);
+    if (wd<0) {
+      log_error("inotify_add_watch() fail!\n");
+      continue;
+    }
+
+    // save wd -> watch path mapping
+    add_wdcache(&g_hsdInfo.m_wdEntry,wd,mpath,atoi(fmtid));
+  }
 
   return 0;
 }
@@ -227,10 +267,10 @@ int parse_cmd_line(int argc, char *argv[])
 static 
 void dump_params()
 {
-  char *tmp = g_hsdInfo.monitor_path;
+  //char *tmp = g_hsdInfo.monitor_path;
 
   log_info("module '%s' param list: =================\n",THIS_MODULE->name);
-  log_info("monitor path dir: %s\n",tmp);
+  //log_info("monitor path dir: %s\n",tmp);
   log_info("module param list end =================\n");
 }
 
@@ -245,7 +285,7 @@ void hsyncd_module_init(int argc, char *argv[])
     return ;
   }
 
-  if (hsyncd_pre_init(get_monitor_path(&g_hsdInfo.m_conf))) {
+  if (hsyncd_pre_init(&g_hsdInfo.m_conf)) {
     return ;
   }
 
@@ -254,6 +294,12 @@ void hsyncd_module_init(int argc, char *argv[])
   register_module(THIS_MODULE);
 
   set_proc_name(argc,argv,"hsyncd");
+
+  // XXX: test
+  {
+    extern void parse_test();
+    parse_test();
+  }
 }
 
 void hsyncd_module_exit()

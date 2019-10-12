@@ -1,6 +1,13 @@
 {
   "Globals": {
-    "monitorPath" : "/home/user1/work/tmp"
+    "monitorPaths" : [
+
+      {
+        "path":"/home/user1/work/tmp/hsd",
+        "formatId":100
+      }
+
+    ]
   }
 
 }

@@ -49,6 +49,8 @@ typedef struct monitor_file_entry_s* mfile_entry_t ;
 
 extern mfile_t get_mfile(mfile_entry_t entry, const char *f);
 
+extern dbuffer_t get_mfile_contents(mfile_t p);
+
 extern int load_mfile(mfile_entry_t entry, const char *f, size_t size, mfile_t *pf);
 
 extern int rename_mfile(mfile_entry_t entry, const char *oldfile, const char *newfile);

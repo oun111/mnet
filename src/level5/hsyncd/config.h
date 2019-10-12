@@ -4,8 +4,15 @@
 #include "jsons.h"
 
 
+struct monitorPathInfo {
+  char path[PATH_MAX];
+  int fmt_id ;
+  struct list_head upper;
+} ;
+typedef struct monitorPathInfo* monitorPathInfo_t ;
+
 struct global_setting_s {
-  char monitorPath[PATH_MAX];
+  tree_map_t monitor_paths ;
 } ;
 typedef struct global_setting_s* global_setting_t ;
 

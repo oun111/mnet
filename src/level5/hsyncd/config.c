@@ -27,7 +27,7 @@ struct global_config_keywords {
 } 
 g_confKW = {
   .gsSec       = "Globals",
-  .monitorPath = "monitorPath",
+  .monitorPath = "monitorPaths",
 } ;
 
 
@@ -35,8 +35,8 @@ g_confKW = {
 static 
 int parse_global_settings(hsyncd_config_t conf)
 {
-  size_t vl = 0L;
-  char *pv = NULL;
+  //size_t vl = 0L;
+  //char *pv = NULL;
   jsonKV_t *pg = jsons_find(conf->m_root,g_confKW.gsSec), *p= 0;
   global_setting_t ps = &conf->m_globSettings ;
 
@@ -50,17 +50,20 @@ int parse_global_settings(hsyncd_config_t conf)
 
   p = jsons_find(pg,g_confKW.monitorPath);
   if (p) {
-    pv = jsons_string(p->value,&vl);
-    strncpy(ps->monitorPath,pv,vl);
+    if (conf->m_globSettings.monitor_paths)
+      delete_tree_map(conf->m_globSettings.monitor_paths);
+
+    conf->m_globSettings.monitor_paths = jsons_to_treemap(p) ;
   }
 
   return 0;
 }
-
+#if 0
 const char* get_monitor_path(hsyncd_config_t conf)
 {
   return conf->m_globSettings.monitorPath ;
 }
+#endif
 
 static
 int parse_content(hsyncd_config_t conf)
@@ -87,6 +90,8 @@ int init_config(hsyncd_config_t conf, const char *infile)
   if (err)
     return -1;
 
+  conf->m_globSettings.monitor_paths = NULL ;
+
   if (parse_content(conf)) {
     log_error("parse config content fail\n");
     return -1;
@@ -97,6 +102,9 @@ int init_config(hsyncd_config_t conf, const char *infile)
 
 int free_config(hsyncd_config_t conf)
 {
+  if (conf->m_globSettings.monitor_paths)
+    delete_tree_map(conf->m_globSettings.monitor_paths);
+
   jsons_release(conf->m_root);
 
   return 0;
