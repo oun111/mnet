@@ -24,13 +24,17 @@ struct hsyncd_info_s {
   struct formats_entry_s m_fmtEntry ;
 
   struct list_head m_fmtDataList ;
+  size_t ndata ;
 
   char conf_path[PATH_MAX];
 
   char last_move_from[PATH_MAX];
 
 } g_hsdInfo = {
+
   .last_move_from = "\0",
+
+  .ndata = 0,
 };
 
 
@@ -120,7 +124,7 @@ int hsyncd_rx(Network_t net, connection_t pconn)
 
       ret = load_mfile(&g_hsdInfo.m_mfEntry,file,st.st_size,&pf);
 
-      // TODO: parse mfile
+      // parse mfile
       if (ret>0) {
         const int fmt_id = get_wdcache_fmtid(pw);
         dbuffer_t inb = get_mfile_contents(pf);

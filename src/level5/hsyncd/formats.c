@@ -175,6 +175,22 @@ common_format_t new_common_format()
   return pf ;
 }
 
+cf_pair_t new_cf_pair()
+{
+  cf_pair_t pc = kmalloc(sizeof(struct cf_pair_s),0L);
+
+
+  pc->cf = alloc_default_dbuffer();
+  pc->val = alloc_default_dbuffer();
+
+  return pc;
+}
+
+void save_cf_row_no(common_format_t pf, const char *rowno)
+{
+  write_dbuf_str(pf->row,rowno);
+}
+
 int insert_cf_pair(common_format_t pf, dbuffer_t cf, dbuffer_t val)
 {
   cf_pair_t pc = kmalloc(sizeof(struct cf_pair_s),0L);
@@ -188,6 +204,11 @@ int insert_cf_pair(common_format_t pf, dbuffer_t cf, dbuffer_t val)
 
   list_add_tail(&pc->upper,&pf->cf_list);
   return 0;
+}
+
+void insert_cf_pair2(common_format_t pf, cf_pair_t pc)
+{
+  list_add_tail(&pc->upper,&pf->cf_list);
 }
 
 int free_common_format(common_format_t pf)

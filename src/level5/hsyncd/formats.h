@@ -72,6 +72,14 @@ extern int release_all_formats(formats_entry_t entry);
 extern int read_format_data(formats_entry_t entry, int fmt_id, dbuffer_t inb, 
                             struct list_head *result_list);
 
+extern common_format_t new_common_format();
+
 extern int free_common_format(common_format_t pf);
+
+extern cf_pair_t new_cf_pair();
+
+extern void insert_cf_pair2(common_format_t pf, cf_pair_t pc);
+
+extern void save_cf_row_no(common_format_t pf, const char *rowno);
 
 #endif /* __FORMATS_H__*/
