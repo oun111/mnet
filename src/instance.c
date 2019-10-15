@@ -225,9 +225,9 @@ int parse_cmd_line(int argc, char *argv[])
 
       g_inst.use_log = 1;
 #ifdef FRAMEWORKNAME
-      init_log(&g_log,logpath,FRAMEWORKNAME);
+      init_log(LOG_INSTANCE,logpath,FRAMEWORKNAME);
 #else
-      init_log(&g_log,logpath,"app");
+      init_log(LOG_INSTANCE,logpath,"app");
 #endif
     }
     // connection timeout
@@ -304,7 +304,7 @@ int instance_start(int argc, char *argv[])
     register_simple_timer(&g_inst.timers,&g_log_flusher);
     register_simple_timer(&g_inst.timers,&g_tos_conn_killer);
 
-    log_debug("worker %d start working\n",g_log.pid);
+    log_debug("worker %d start working\n",LOG_INSTANCE->pid);
 
     /* create thread-based epoll */
     fd = init_epoll();
@@ -366,7 +366,7 @@ int instance_stop()
 
   release_module_list();
 
-  close_log(&g_log);
+  close_log(LOG_INSTANCE);
 
   return 0;
 }

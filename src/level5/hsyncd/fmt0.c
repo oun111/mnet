@@ -137,6 +137,7 @@ int parse_record(common_format_t *cf, char *sp, size_t len)
 
   log_debug("row-no: %s\n",(*cf)->row);
 
+  save_cf_table_name(*cf,"logs0");
   
   //log_debug("new record: %s\n",g_fmtInfo.parse_buf);
   return 0;

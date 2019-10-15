@@ -24,10 +24,16 @@ static const
 struct global_config_keywords {
   const char *gsSec;
   const char *monitorPath;
+  const char *hbaseAddr;
+  const char *hbasePort ;
+  const char *workerCount ;
 } 
 g_confKW = {
   .gsSec       = "Globals",
   .monitorPath = "monitorPaths",
+  .hbaseAddr   = "hbaseAddress",
+  .hbasePort   = "hbasePort",
+  .workerCount = "workers",
 } ;
 
 
@@ -48,6 +54,7 @@ int parse_global_settings(hsyncd_config_t conf)
 
   bzero(ps,sizeof(*ps));
 
+  // monitor settings
   p = jsons_find(pg,g_confKW.monitorPath);
   if (p) {
     if (conf->m_globSettings.monitor_paths)
@@ -56,14 +63,48 @@ int parse_global_settings(hsyncd_config_t conf)
     conf->m_globSettings.monitor_paths = jsons_to_treemap(p) ;
   }
 
+  // hbase client settings
+  p = jsons_find(pg,g_confKW.hbaseAddr);
+  if (p) {
+    size_t vl = 0L;
+    char *v = jsons_string(p->value,&vl);
+
+    vl = vl<sizeof(conf->m_globSettings.hbaseAddr)?
+      vl:sizeof(conf->m_globSettings.hbaseAddr);
+    strncpy(conf->m_globSettings.hbaseAddr,v,vl);
+    conf->m_globSettings.hbaseAddr[vl] = '\0';
+  }
+
+  p = jsons_find(pg,g_confKW.hbasePort);
+  if (p) {
+    conf->m_globSettings.hbasePort = atoi(p->value);
+  }
+
+  // workers count
+  p = jsons_find(pg,g_confKW.workerCount);
+  if (p) {
+    conf->m_globSettings.workerCount = atoi(p->value);
+  }
+
   return 0;
 }
-#if 0
-const char* get_monitor_path(hsyncd_config_t conf)
+
+void get_hbase_client_settings(hsyncd_config_t conf, char *a, 
+                              size_t la, int *p)
 {
-  return conf->m_globSettings.monitorPath ;
+  size_t vl = la<sizeof(conf->m_globSettings.hbaseAddr)?
+    la:sizeof(conf->m_globSettings.hbaseAddr);
+
+  strncpy(a,conf->m_globSettings.hbaseAddr,vl);
+  a[vl] = '\0';
+
+  *p = conf->m_globSettings.hbasePort;
 }
-#endif
+
+int get_worker_count(hsyncd_config_t conf)
+{
+  return conf->m_globSettings.workerCount ;
+}
 
 static
 int parse_content(hsyncd_config_t conf)

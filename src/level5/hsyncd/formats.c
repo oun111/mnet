@@ -168,6 +168,8 @@ common_format_t new_common_format()
 
   pf->row = alloc_default_dbuffer();
 
+  pf->tbl = alloc_default_dbuffer();
+
   INIT_LIST_HEAD(&pf->cf_list);
 
   INIT_LIST_HEAD(&pf->upper);
@@ -189,6 +191,11 @@ cf_pair_t new_cf_pair()
 void save_cf_row_no(common_format_t pf, const char *rowno)
 {
   write_dbuf_str(pf->row,rowno);
+}
+
+void save_cf_table_name(common_format_t pf, const char *tbl)
+{
+  write_dbuf_str(pf->tbl,tbl);
 }
 
 int insert_cf_pair(common_format_t pf, dbuffer_t cf, dbuffer_t val)
@@ -224,27 +231,9 @@ int free_common_format(common_format_t pf)
 
   drop_dbuffer(pf->row);
 
+  drop_dbuffer(pf->tbl);
+
   kfree(pf);
-
-  return 0;
-}
-
-int read_format_data(formats_entry_t entry, int fmt_id, dbuffer_t inb, 
-                     struct list_head *result_list)
-{
-  common_format_t fdata = 0;
-  formats_cb_t pc = get_format(entry,fmt_id);
-
-  if (!pc || !pc->parser) {
-    log_error("no parser register for format %d\n",fmt_id);
-    return -1;
-  }
-
-
-  while (pc->parser(inb,&fdata)==1) {
-    if (fdata) 
-      list_add(result_list,&fdata->upper);
-  }
 
   return 0;
 }

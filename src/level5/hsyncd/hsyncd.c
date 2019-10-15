@@ -10,6 +10,7 @@
 #include "wdcache.h"
 #include "formats.h"
 #include "myrbtree.h"
+#include "hstore.h"
 
 static
 struct hsyncd_info_s {
@@ -25,6 +26,8 @@ struct hsyncd_info_s {
 
   struct list_head m_fmtDataList ;
   size_t ndata ;
+
+  struct hstore_entry_s m_storeEntry ;
 
   char conf_path[PATH_MAX];
 
@@ -62,6 +65,26 @@ int hsyncd_l4_rx(Network_t net, connection_t pconn)
 
   /* update write pointer */
   dbuffer_lseek(pconn->rxb,ln,SEEK_CUR,1);
+
+  return 0;
+}
+
+int read_format_data(formats_entry_t entry, int fmt_id, dbuffer_t inb, 
+                     struct list_head *result_list)
+{
+  common_format_t fdata = 0;
+  formats_cb_t pc = get_format(entry,fmt_id);
+
+  if (!pc || !pc->parser) {
+    log_error("no parser register for format %d\n",fmt_id);
+    return -1;
+  }
+
+
+  while (pc->parser(inb,&fdata)==1) {
+    if (fdata) 
+      list_add(result_list,&fdata->upper);
+  }
 
   return 0;
 }
@@ -156,6 +179,8 @@ void hsyncd_release()
 
   free_config(&g_hsdInfo.m_conf);
 
+  release_hstore_entry(&g_hsdInfo.m_storeEntry);
+
   common_format_t pos, n;
   list_for_each_entry_safe(pos,n,&g_hsdInfo.m_fmtDataList,upper) {
     free_common_format(pos);
@@ -249,6 +274,16 @@ static int hsyncd_pre_init(hsyncd_config_t conf)
     add_wdcache(&g_hsdInfo.m_wdEntry,wd,mpath,atoi(fmtid));
   }
 
+  // init mstore
+  char host[32];
+  int port = 0, workers = 0;
+
+  get_hbase_client_settings(conf,host,32,&port);
+
+  workers = get_worker_count(conf);
+
+  init_hstore_entry(&g_hsdInfo.m_storeEntry,workers,host,port);
+
   return 0;
 }
 
@@ -299,11 +334,13 @@ void hsyncd_module_init(int argc, char *argv[])
 
   set_proc_name(argc,argv,"hsyncd");
 
+#if 0
   // XXX: test
   {
     extern void parse_test();
     parse_test();
   }
+#endif
 }
 
 void hsyncd_module_exit()

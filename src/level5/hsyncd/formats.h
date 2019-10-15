@@ -19,6 +19,8 @@ typedef struct cf_pair_s* cf_pair_t ;
 struct common_format_s {
   dbuffer_t row ;
 
+  dbuffer_t tbl ;
+
   struct list_head cf_list ;
 
   struct list_head upper ;
@@ -65,6 +67,8 @@ typedef struct formats_entry_s* formats_entry_t ;
 
 extern int add_format(formats_entry_t entry, formats_cb_t fcb);
 
+extern formats_cb_t get_format(formats_entry_t entry, int fmt_id);
+
 extern int init_formats_entry(formats_entry_t entry);
 
 extern int release_all_formats(formats_entry_t entry);
@@ -81,5 +85,7 @@ extern cf_pair_t new_cf_pair();
 extern void insert_cf_pair2(common_format_t pf, cf_pair_t pc);
 
 extern void save_cf_row_no(common_format_t pf, const char *rowno);
+
+extern void save_cf_table_name(common_format_t pf, const char *tbl);
 
 #endif /* __FORMATS_H__*/

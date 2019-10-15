@@ -13,6 +13,11 @@ typedef struct monitorPathInfo* monitorPathInfo_t ;
 
 struct global_setting_s {
   tree_map_t monitor_paths ;
+
+  char hbaseAddr[32];
+  int hbasePort ;
+
+  int workerCount;
 } ;
 typedef struct global_setting_s* global_setting_t ;
 
@@ -32,6 +37,11 @@ extern const char* get_monitor_path(hsyncd_config_t conf);
 extern int init_config(hsyncd_config_t conf, const char *infile);
 
 extern int free_config(hsyncd_config_t conf);
+
+extern void get_hbase_client_settings(hsyncd_config_t conf, char *a, 
+                                      size_t la, int *p);
+
+extern int get_worker_count(hsyncd_config_t conf);
 
 #endif /* __CONFIG_H__*/
 

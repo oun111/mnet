@@ -26,11 +26,13 @@ struct log_s {
 typedef struct log_s* log_t ;
 
 #define DECLARE_LOG \
-  struct log_s g_log = { \
+  struct log_s g_mnet_log = { \
     .fd = 0, \
   };
 
-extern struct log_s g_log ;
+#define LOG_INSTANCE  (&g_mnet_log)
+
+extern struct log_s g_mnet_log ;
 
 
 extern 
@@ -64,32 +66,32 @@ enum log_type {
   char buf[2048]="";\
   snprintf(buf, sizeof(buf), "[I] %s: " fmt ,\
     __func__, ## arg ); \
-  write_log(&g_log,buf,sizeof(buf),l_inf);\
+  write_log(&g_mnet_log,buf,sizeof(buf),l_inf);\
 } while(0)
 
 #define log_debug(fmt,arg...) do{\
   char buf[2048]="";\
   snprintf(buf, sizeof(buf),"[D] %s: " fmt ,\
     __func__, ## arg ); \
-  write_log(&g_log,buf,sizeof(buf),l_dbg);\
+  write_log(&g_mnet_log,buf,sizeof(buf),l_dbg);\
 } while(0)
 
 #define log_error(fmt,arg...) do{\
   char buf[2048]="";\
   snprintf(buf, sizeof(buf),"[E] %s: " fmt ,\
     __func__, ## arg ); \
-  write_log(&g_log,buf,sizeof(buf),l_err);\
+  write_log(&g_mnet_log,buf,sizeof(buf),l_err);\
 } while(0)
 
 #define hex_dump(buf,ln) do{\
-  __hex_dump(g_log.fd_debug,buf,ln);  \
+  __hex_dump(g_mnet_log.fd_debug,buf,ln);  \
 } while(0)
 
 #define flush_logs() do{\
-  do_flush_log(g_log.fd);  \
+  do_flush_log(g_mnet_log.fd);  \
 } while(0)
 
-#define save_log_pid() update_log_pid(&g_log)
+#define save_log_pid() update_log_pid(&g_mnet_log)
 
 #endif /* __LOG_H__*/
 
