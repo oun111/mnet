@@ -73,9 +73,6 @@ extern int init_formats_entry(formats_entry_t entry);
 
 extern int release_all_formats(formats_entry_t entry);
 
-extern int read_format_data(formats_entry_t entry, int fmt_id, dbuffer_t inb, 
-                            struct list_head *result_list);
-
 extern common_format_t new_common_format();
 
 extern int free_common_format(common_format_t pf);

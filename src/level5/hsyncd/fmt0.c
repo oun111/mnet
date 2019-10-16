@@ -63,7 +63,7 @@ int parse_record(common_format_t *cf, char *sp, size_t len)
 
   p = p0 + 1;
 
-  log_debug("datetimes: %s,ms: %d\n",pc->val,ms);
+  //log_debug("datetimes: %s,ms: %d\n",pc->val,ms);
 
   /* 
    * save pid column
@@ -81,7 +81,7 @@ int parse_record(common_format_t *cf, char *sp, size_t len)
 
   p = p0+1;
 
-  log_debug("pids: %s\n",pc->val);
+  //log_debug("pids: %s\n",pc->val);
 
   /*
    * save log level column
@@ -99,7 +99,7 @@ int parse_record(common_format_t *cf, char *sp, size_t len)
 
   p = p0+1;
 
-  log_debug("log level: %s\n",pc->val);
+  //log_debug("log level: %s\n",pc->val);
 
   /* 
    * save log contents column
@@ -114,7 +114,7 @@ int parse_record(common_format_t *cf, char *sp, size_t len)
 
   insert_cf_pair2(*cf,pc);
 
-  log_debug("contents: %s\n",pc->val);
+  //log_debug("contents: %s\n",pc->val);
 
   /*
    * save row no: hostname-pid-datetime
@@ -135,7 +135,7 @@ int parse_record(common_format_t *cf, char *sp, size_t len)
 
   save_cf_row_no(*cf,rowno);
 
-  log_debug("row-no: %s\n",(*cf)->row);
+  //log_debug("row-no: %s\n",(*cf)->row);
 
   save_cf_table_name(*cf,"logs0");
   

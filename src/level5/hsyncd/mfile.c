@@ -97,6 +97,12 @@ int __mfile_load(mfile_entry_t entry, const char *f, mfile_t p, int size)
   int sz = 0,ret = 0,sz_read=0;
 
 
+  if (unlikely(size<p->file_offset)) {
+    log_error("read fail, new size: %d, read pos: %zu\n",
+              size,p->file_offset);
+    return -1;
+  }
+
   sz_read = size - p->file_offset;
   if (sz_read<entry->sync_threshold) {
     log_info("no need to read file now\n");
@@ -115,6 +121,8 @@ int __mfile_load(mfile_entry_t entry, const char *f, mfile_t p, int size)
 
   //p->cont_size += sz ;
   p->file_offset += sz ;
+
+  log_debug("loaded %d bytes\n",sz);
 
   dbuffer_lseek(p->cont_buf,sz,SEEK_CUR,1);
   return 1;
@@ -209,6 +217,8 @@ int init_mfile_entry(mfile_entry_t entry, size_t threshold, ssize_t pool_size)
   }
 
   entry->sync_threshold = threshold>10240?4096:SIZE_ALIGNED(threshold) ;
+
+  log_debug("sync threshold: %zu\n",entry->sync_threshold);
 
   log_debug("done!\n");
 

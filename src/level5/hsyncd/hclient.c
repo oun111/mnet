@@ -1,5 +1,6 @@
 
 #include "hclient.h"
+#include "log.h"
 
 
 int hclient_init(hclient_t cln, const char *host, const int cport)
@@ -15,7 +16,7 @@ int hclient_init(hclient_t cln, const char *host, const int cport)
 
   thrift_transport_open(cln->transport, NULL);
   if (!thrift_transport_is_open(cln->transport)) {
-    printf("open socket fail!\n");
+    log_error("open socket fail!\n");
     return -1;
   }
 
@@ -57,7 +58,7 @@ int hclient_exists(hclient_t cln, const char *tablename)
   GError *error = NULL;
 
 
-  printf("testing 'exists' command for talbe '%s'*******\n",tablename);
+  log_debug("sending 'exists' command for table '%s'*******\n",tablename);
 
   tget = g_object_new(TYPE_T_GET,NULL);
 
@@ -70,18 +71,18 @@ int hclient_exists(hclient_t cln, const char *tablename)
 
   ret = t_h_base_service_client_exists(cln->client,&ret,table,tget,&io,&error);  
   if (ret==FALSE) {
-    printf("client exists fail(%d): %s (%s)\n",
+    log_error("client exists fail(%d): %s (%s)\n",
            error->code,error->message,io->message);
   }
   else {
-    printf("success!\n");
+    log_info("success!\n");
   }
 
   g_byte_array_unref(table);
   g_object_unref(tget);
   g_object_unref(io);
 
-  return 0;
+  return ret==TRUE?0:-1;
 }
 
 int hclient_get(hclient_t cln, const char *tablename, const char *row, 
@@ -95,7 +96,7 @@ int hclient_get(hclient_t cln, const char *tablename, const char *row,
   TResult *result= NULL;
 
 
-  printf("testing 'get' command for talbe '%s'*******\n",tablename);
+  log_debug("sending 'get' command for table '%s'*******\n",tablename);
 
   // construct TGet
   tget = g_object_new(TYPE_T_GET,NULL);
@@ -120,15 +121,15 @@ int hclient_get(hclient_t cln, const char *tablename, const char *row,
 
   ret = t_h_base_service_client_get(cln->client,&result,table,tget,&io,&error);  
   if (ret==FALSE) {
-    printf("client get fail(%d): %s (%s)\n",error?error->code:-1,
+    log_error("client get fail(%d): %s (%s)\n",error?error->code:-1,
            error?error->message:"n/A",io?io->message:"N/a");
   }
   else {
-    printf("row: %s\n",result->__isset_row?(gchar*)result->row->data:"none");
+    log_debug("row: %s\n",result->__isset_row?(gchar*)result->row->data:"none");
 
     for (int i=0;i<result->columnValues->len;i++) {
       TColumnValue *pcol = result->columnValues->pdata[i];
-      printf("col family '%s'[%d], value '%s'[%d], qualifier '%s'\n",
+      log_debug("col family '%s'[%d], value '%s'[%d], qualifier '%s'\n",
              (gchar*)pcol->family->data,pcol->family->len,
              (gchar*)pcol->value->data,pcol->value->len,
              (gchar*)pcol->qualifier->data);
@@ -139,7 +140,7 @@ int hclient_get(hclient_t cln, const char *tablename, const char *row,
       }
     }
 
-    printf("success!\n");
+    log_info("success!\n");
   }
 
   g_byte_array_unref(table);
@@ -148,7 +149,7 @@ int hclient_get(hclient_t cln, const char *tablename, const char *row,
   if (G_IS_OBJECT(io))
     g_object_unref(io);
 
-  return 0;
+  return ret==TRUE?0:-1;
 }
 
 int hclient_put(hclient_t cln, const char *tablename, 
@@ -162,7 +163,7 @@ int hclient_put(hclient_t cln, const char *tablename,
   GError *error = NULL;
 
 
-  printf("testing 'put' command for talbe '%s'*******\n",tablename);
+  log_debug("sending 'put' command for table '%s'*******\n",tablename);
 
   // construct TPut
   tput = g_object_new(TYPE_T_PUT,NULL);
@@ -187,11 +188,11 @@ int hclient_put(hclient_t cln, const char *tablename,
 
   ret = t_h_base_service_client_put(cln->client,table,tput,&io,&error);  
   if (ret==FALSE) {
-    printf("client put fail(%d): %s (%s)\n",error?error->code:-1,
+    log_error("client put fail(%d): %s (%s)\n",error?error->code:-1,
            error?error->message:"n/A",io?io->message:"N/a");
   }
   else {
-    printf("success!\n");
+    log_info("success!\n");
   }
 
   g_byte_array_unref(table);
@@ -201,7 +202,7 @@ int hclient_put(hclient_t cln, const char *tablename,
   if (G_IS_OBJECT(cval))
     g_object_unref(cval);
 
-  return 0;
+  return ret==TRUE?0:-1;
 }
 
 int hclient_delete(hclient_t cln, const char *tablename, 
@@ -215,7 +216,7 @@ int hclient_delete(hclient_t cln, const char *tablename,
   GError *error = NULL;
 
 
-  printf("testing 'delete' command for talbe '%s'*******\n",tablename);
+  log_debug("sending 'delete' command for table '%s'*******\n",tablename);
 
   // construct TDelete
   tdel = g_object_new(TYPE_T_DELETE,NULL);
@@ -238,11 +239,11 @@ int hclient_delete(hclient_t cln, const char *tablename,
 
   ret = t_h_base_service_client_delete_single(cln->client,table,tdel,&io,&error);  
   if (ret==FALSE) {
-    printf("client delete fail(%d): %s (%s)\n",error?error->code:-1,
+    log_error("client delete fail(%d): %s (%s)\n",error?error->code:-1,
            error?error->message:"n/A",io?io->message:"N/a");
   }
   else {
-    printf("success!\n");
+    log_debug("success!\n");
   }
 
   g_byte_array_unref(table);
@@ -250,5 +251,5 @@ int hclient_delete(hclient_t cln, const char *tablename,
   if (G_IS_OBJECT(io))
     g_object_unref(io);
 
-  return 0;
+  return ret==TRUE?0:-1;
 }

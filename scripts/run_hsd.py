@@ -13,8 +13,8 @@ script,opt = argv
 
 logFlushInterval = 5
 numWorkers = 0
-#logToFile = "-L /home/user1/work/mnet/logs/"
-logToFile = ""
+logToFile = "-L /home/user1/work/mnet/logs/"
+#logToFile = ""
 
 
 if opt=="0" or opt=="1":

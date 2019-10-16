@@ -24,8 +24,10 @@ struct hsyncd_info_s {
 
   struct formats_entry_s m_fmtEntry ;
 
+#if 0
   struct list_head m_fmtDataList ;
   size_t ndata ;
+#endif
 
   struct hstore_entry_s m_storeEntry ;
 
@@ -37,7 +39,7 @@ struct hsyncd_info_s {
 
   .last_move_from = "\0",
 
-  .ndata = 0,
+  //.ndata = 0,
 };
 
 
@@ -69,22 +71,24 @@ int hsyncd_l4_rx(Network_t net, connection_t pconn)
   return 0;
 }
 
-int read_format_data(formats_entry_t entry, int fmt_id, dbuffer_t inb, 
-                     struct list_head *result_list)
+int read_format_data(formats_entry_t entry, int fmt_id, dbuffer_t inb)
 {
   common_format_t fdata = 0;
   formats_cb_t pc = get_format(entry,fmt_id);
+
 
   if (!pc || !pc->parser) {
     log_error("no parser register for format %d\n",fmt_id);
     return -1;
   }
 
-
   while (pc->parser(inb,&fdata)==1) {
     if (fdata) 
-      list_add(result_list,&fdata->upper);
+      do_hbase_store(&g_hsdInfo.m_storeEntry,fdata);
   }
+
+  if (fdata)
+    hstore_start_work(&g_hsdInfo.m_storeEntry);
 
   return 0;
 }
@@ -152,7 +156,7 @@ int hsyncd_rx(Network_t net, connection_t pconn)
         const int fmt_id = get_wdcache_fmtid(pw);
         dbuffer_t inb = get_mfile_contents(pf);
 
-        read_format_data(&g_hsdInfo.m_fmtEntry,fmt_id,inb,&g_hsdInfo.m_fmtDataList);
+        read_format_data(&g_hsdInfo.m_fmtEntry,fmt_id,inb);
       }
 
     }
@@ -181,10 +185,12 @@ void hsyncd_release()
 
   release_hstore_entry(&g_hsdInfo.m_storeEntry);
 
+#if 0
   common_format_t pos, n;
   list_for_each_entry_safe(pos,n,&g_hsdInfo.m_fmtDataList,upper) {
     free_common_format(pos);
   }
+#endif
 }
 
 static
@@ -250,7 +256,7 @@ static int hsyncd_pre_init(hsyncd_config_t conf)
   // the monitor file entry
   init_mfile_entry(&g_hsdInfo.m_mfEntry,6,-1);
 
-  INIT_LIST_HEAD(&g_hsdInfo.m_fmtDataList);
+  //INIT_LIST_HEAD(&g_hsdInfo.m_fmtDataList);
 
   // TODO: add watch path list
   tm_item_t pos, n;
