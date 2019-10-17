@@ -24,11 +24,6 @@ struct hsyncd_info_s {
 
   struct formats_entry_s m_fmtEntry ;
 
-#if 0
-  struct list_head m_fmtDataList ;
-  size_t ndata ;
-#endif
-
   struct hstore_entry_s m_storeEntry ;
 
   char conf_path[PATH_MAX];
@@ -39,7 +34,6 @@ struct hsyncd_info_s {
 
   .last_move_from = "\0",
 
-  //.ndata = 0,
 };
 
 
@@ -171,26 +165,6 @@ int hsyncd_rx(Network_t net, connection_t pconn)
 static
 void hsyncd_release()
 {
-  //inotify_rm_watch(g_hsdInfo.in_fd,g_hsdInfo.wd);
-
-  close(g_hsdInfo.in_fd);
-
-  release_all_mfiles(&g_hsdInfo.m_mfEntry);
-
-  release_all_wdcaches(&g_hsdInfo.m_wdEntry);
-
-  release_all_formats(&g_hsdInfo.m_fmtEntry);
-
-  free_config(&g_hsdInfo.m_conf);
-
-  release_hstore_entry(&g_hsdInfo.m_storeEntry);
-
-#if 0
-  common_format_t pos, n;
-  list_for_each_entry_safe(pos,n,&g_hsdInfo.m_fmtDataList,upper) {
-    free_common_format(pos);
-  }
-#endif
 }
 
 static
@@ -204,7 +178,7 @@ void hsyncd_close(Network_t net, connection_t pconn)
 static
 struct module_struct_s g_module = {
 
-  .name = "hbase syncd",
+  .name = "hsyncd",
 
   .id = -1,
 
@@ -255,8 +229,6 @@ static int hsyncd_pre_init(hsyncd_config_t conf)
 
   // the monitor file entry
   init_mfile_entry(&g_hsdInfo.m_mfEntry,6,-1);
-
-  //INIT_LIST_HEAD(&g_hsdInfo.m_fmtDataList);
 
   // TODO: add watch path list
   tm_item_t pos, n;
@@ -338,19 +310,25 @@ void hsyncd_module_init(int argc, char *argv[])
 
   register_module(THIS_MODULE);
 
-  set_proc_name(argc,argv,"hsyncd");
-
-#if 0
-  // XXX: test
-  {
-    extern void parse_test();
-    parse_test();
-  }
-#endif
+  set_proc_name(argc,argv,THIS_MODULE->name);
 }
 
 void hsyncd_module_exit()
 {
-  log_debug("invoked\n");
+  //inotify_rm_watch(g_hsdInfo.in_fd,g_hsdInfo.wd);
+
+  close(g_hsdInfo.in_fd);
+
+  release_all_mfiles(&g_hsdInfo.m_mfEntry);
+
+  release_all_wdcaches(&g_hsdInfo.m_wdEntry);
+
+  release_all_formats(&g_hsdInfo.m_fmtEntry);
+
+  free_config(&g_hsdInfo.m_conf);
+
+  release_hstore_entry(&g_hsdInfo.m_storeEntry);
+
+  log_debug("releasing resource...\n");
 }
 

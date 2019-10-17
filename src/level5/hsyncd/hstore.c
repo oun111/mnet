@@ -109,7 +109,7 @@ int do_hbase_store(hstore_entry_t entry, common_format_t cf)
   {
     pthread_mutex_lock(&ph->task.lock);
 
-    list_add(&cf->upper,&ph->task.lst);
+    list_add_tail(&cf->upper,&ph->task.lst);
 
     pthread_mutex_unlock(&ph->task.lock);
   }
@@ -131,9 +131,12 @@ void hstore_start_work(hstore_entry_t entry)
 
 int init_hstore_entry(hstore_entry_t entry, size_t count, const char *host, int port)
 {
-  log_debug("force worker count to 1\n");
+  // FIXME: register 'GObject' (in 'hclient' module) 
+  //  with same type name is NOT allowed
+  count = 1;
+  log_debug("workers count force to: %zu\n",count);
 
-  entry->obj_count = /*count*/1 ;
+  entry->obj_count = count ;
   entry->m_hObjs = kmalloc(sizeof(struct hstore_object_s)*entry->obj_count,0L);
 
   strncpy(entry->hbase.host,host,sizeof(entry->hbase.host));
@@ -179,7 +182,7 @@ int release_hstore_entry(hstore_entry_t entry)
     hstore_object_t ph = ((hstore_object_t)entry->m_hObjs)+i;
     hclient_t clt = &ph->clt ;
 
-    pthread_join(ph->worker,NULL);
+    //pthread_join(ph->worker,NULL);
     pthread_cancel(ph->worker);
 
     hclient_release(clt);

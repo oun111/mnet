@@ -163,7 +163,7 @@ int hclient_put(hclient_t cln, const char *tablename,
   GError *error = NULL;
 
 
-  log_debug("sending 'put' command for table '%s'*******\n",tablename);
+  //log_debug("sending 'put' command for table '%s'*******\n",tablename);
 
   // construct TPut
   tput = g_object_new(TYPE_T_PUT,NULL);
@@ -192,7 +192,7 @@ int hclient_put(hclient_t cln, const char *tablename,
            error?error->message:"n/A",io?io->message:"N/a");
   }
   else {
-    log_info("success!\n");
+    //log_info("success!\n");
   }
 
   g_byte_array_unref(table);
