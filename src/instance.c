@@ -36,7 +36,7 @@ struct __attribute__((__aligned__(64))) main_instance_s {
 
   struct Network_s g_nets ;
 
-  int worker_stop:1 ;
+  unsigned int worker_stop:1 ;
 
   int use_log:1 ;
 
@@ -251,7 +251,8 @@ void sig_term_handler(int sn)
 {
   flush_logs();
   g_inst.worker_stop = 1;
-  exit(-1);
+  instance_stop();
+  exit(0);
 }
 
 int instance_start(int argc, char *argv[])
