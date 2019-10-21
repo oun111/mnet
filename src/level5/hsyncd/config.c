@@ -27,6 +27,7 @@ struct global_config_keywords {
   const char *hbaseAddr;
   const char *hbasePort ;
   const char *workerCount ;
+  const char *preload ;
 } 
 g_confKW = {
   .gsSec       = "Globals",
@@ -34,6 +35,7 @@ g_confKW = {
   .hbaseAddr   = "hbaseAddress",
   .hbasePort   = "hbasePort",
   .workerCount = "workers",
+  .preload     = "preload",
 } ;
 
 
@@ -86,6 +88,12 @@ int parse_global_settings(hsyncd_config_t conf)
     conf->m_globSettings.workerCount = atoi(p->value);
   }
 
+  // preload all monitor paths
+  p = jsons_find(pg,g_confKW.preload);
+  if (p) {
+    conf->m_globSettings.preload = atoi(p->value)==0?false:true;
+  }
+
   return 0;
 }
 
@@ -99,6 +107,11 @@ void get_hbase_client_settings(hsyncd_config_t conf, char *a,
   a[vl] = '\0';
 
   *p = conf->m_globSettings.hbasePort;
+}
+
+bool need_preload(hsyncd_config_t conf)
+{
+  return conf->m_globSettings.preload ;
 }
 
 int get_worker_count(hsyncd_config_t conf)

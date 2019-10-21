@@ -2,6 +2,7 @@
 #include <sys/inotify.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdio.h>
 #include "action.h"
 #include "module.h"
 #include "log.h"
@@ -65,7 +66,7 @@ int hsyncd_l4_rx(Network_t net, connection_t pconn)
   return 0;
 }
 
-int read_format_data(formats_entry_t entry, int fmt_id, dbuffer_t inb)
+static int read_format_data(formats_entry_t entry, int fmt_id, dbuffer_t inb)
 {
   common_format_t fdata = 0;
   formats_cb_t pc = get_format(entry,fmt_id);
@@ -83,6 +84,28 @@ int read_format_data(formats_entry_t entry, int fmt_id, dbuffer_t inb)
 
   if (fdata)
     hstore_start_work(&g_hsdInfo.m_storeEntry);
+
+  return 0;
+}
+
+static int process_format_data(const char *file, int fmt_id)
+{
+  mfile_t pf ;
+  struct stat st; 
+  int ret = 0;
+
+
+  // get file size
+  stat(file,&st) ;
+
+  ret = load_mfile(&g_hsdInfo.m_mfEntry,file,st.st_size,&pf);
+
+  // parse mfile
+  if (ret>0) {
+    dbuffer_t inb = get_mfile_contents(pf);
+
+    read_format_data(&g_hsdInfo.m_fmtEntry,fmt_id,inb);
+  }
 
   return 0;
 }
@@ -136,23 +159,7 @@ int hsyncd_rx(Network_t net, connection_t pconn)
     if (event->mask&IN_CREATE || event->mask&IN_MODIFY || 
          event->mask&IN_MOVED_TO) {
 
-      mfile_t pf ;
-      struct stat st; 
-
-
-      // get file size
-      stat(file,&st) ;
-
-      ret = load_mfile(&g_hsdInfo.m_mfEntry,file,st.st_size,&pf);
-
-      // parse mfile
-      if (ret>0) {
-        const int fmt_id = get_wdcache_fmtid(pw);
-        dbuffer_t inb = get_mfile_contents(pf);
-
-        read_format_data(&g_hsdInfo.m_fmtEntry,fmt_id,inb);
-      }
-
+      process_format_data(file,get_wdcache_fmtid(pw));
     }
 
 	} 
@@ -208,6 +215,82 @@ int hsyncd_init(Network_t net)
   return 0;
 }
 
+static int add_watch_paths(hsyncd_config_t conf)
+{
+  tm_item_t pos, n;
+  //tm_item_t pos1, n1;
+  tree_map_t pl = get_tree_map_nest(conf->m_globSettings.monitor_paths,"monitorPaths");
+
+
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&pl->u.root,node) {
+    tree_map_t spath = pos->nest_map ;
+
+    char *mpath = get_tree_map_value(spath,"path");
+    char *fmtid = get_tree_map_value(spath,"formatId");
+
+    int wd = inotify_add_watch(g_hsdInfo.in_fd,mpath,
+                               IN_CREATE|IN_MODIFY|IN_MOVED_FROM|IN_MOVED_TO/*|IN_MOVE_SELF*/);
+    if (wd<0) {
+      log_error("inotify_add_watch() fail!\n");
+      continue;
+    }
+
+    // save wd -> watch path mapping
+    add_wdcache(&g_hsdInfo.m_wdEntry,wd,mpath,atoi(fmtid));
+  }
+  return 0;
+}
+
+static int do_mstore_init(hsyncd_config_t conf)
+{
+  // init mstore
+  char host[32];
+  int port = 0, workers = 0;
+
+  get_hbase_client_settings(conf,host,32,&port);
+
+  workers = get_worker_count(conf);
+
+  init_hstore_entry(&g_hsdInfo.m_storeEntry,workers,host,port);
+
+  return 0;
+}
+
+static int preload_monitor_paths(hsyncd_config_t conf)
+{
+  tm_item_t pos, n;
+  char abpath[PATH_MAX]="";
+  tree_map_t pl = get_tree_map_nest(conf->m_globSettings.monitor_paths,
+                                    "monitorPaths");
+
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&pl->u.root,node) {
+    tree_map_t spath = pos->nest_map ;
+    char *mpath = get_tree_map_value(spath,"path");
+    char *fmtid = get_tree_map_value(spath,"formatId");
+    DIR *dir = opendir(mpath);
+    struct dirent *ent = 0;
+
+
+    snprintf(abpath,sizeof(abpath),"%s",mpath);
+
+    while (dir && (ent=readdir(dir))) {
+      if (ent->d_type&DT_DIR)
+        continue ;
+
+      snprintf(abpath+strlen(mpath),sizeof(abpath)-strlen(mpath),
+               "/%s",ent->d_name);
+
+      process_format_data(abpath,atoi(fmtid));
+    }
+
+    closedir(dir);
+  }
+
+  log_debug("preload monitor path(s) done!");
+
+  return 0;
+}
+
 static int hsyncd_pre_init(hsyncd_config_t conf)
 {
   //int v = inotify_init1(IN_NONBLOCK);
@@ -230,37 +313,14 @@ static int hsyncd_pre_init(hsyncd_config_t conf)
   // the monitor file entry
   init_mfile_entry(&g_hsdInfo.m_mfEntry,6,-1);
 
-  // TODO: add watch path list
-  tm_item_t pos, n;
-  //tm_item_t pos1, n1;
-  tree_map_t pl = get_tree_map_nest(conf->m_globSettings.monitor_paths,"monitorPaths");
+  do_mstore_init(conf);
 
-  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&pl->u.root,node) {
-    tree_map_t spath = pos->nest_map ;
-
-    char *mpath = get_tree_map_value(spath,"path");
-    char *fmtid = get_tree_map_value(spath,"formatId");
-
-    int wd = inotify_add_watch(g_hsdInfo.in_fd,mpath,
-                               IN_CREATE|IN_MODIFY|IN_MOVED_FROM|IN_MOVED_TO/*|IN_MOVE_SELF*/);
-    if (wd<0) {
-      log_error("inotify_add_watch() fail!\n");
-      continue;
-    }
-
-    // save wd -> watch path mapping
-    add_wdcache(&g_hsdInfo.m_wdEntry,wd,mpath,atoi(fmtid));
+  if (need_preload(conf)==true) {
+    preload_monitor_paths(conf);
   }
 
-  // init mstore
-  char host[32];
-  int port = 0, workers = 0;
-
-  get_hbase_client_settings(conf,host,32,&port);
-
-  workers = get_worker_count(conf);
-
-  init_hstore_entry(&g_hsdInfo.m_storeEntry,workers,host,port);
+  // add watch path list
+  add_watch_paths(conf);
 
   return 0;
 }

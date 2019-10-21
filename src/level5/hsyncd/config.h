@@ -18,6 +18,8 @@ struct global_setting_s {
   int hbasePort ;
 
   int workerCount;
+
+  bool preload ;
 } ;
 typedef struct global_setting_s* global_setting_t ;
 
@@ -42,6 +44,8 @@ extern void get_hbase_client_settings(hsyncd_config_t conf, char *a,
                                       size_t la, int *p);
 
 extern int get_worker_count(hsyncd_config_t conf);
+
+extern bool need_preload(hsyncd_config_t conf);
 
 #endif /* __CONFIG_H__*/
 

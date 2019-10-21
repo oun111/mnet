@@ -5,7 +5,9 @@
 
     "hbasePort":-1,
 
-    "workers":2,
+    "workers":1,
+
+    "preload":1,
 
     "monitorPaths" : [
 
