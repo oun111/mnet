@@ -112,12 +112,13 @@ int http_svr_do_get(Network_t net, connection_t pconn,
   if (get_http_hdr_field_str(req,sz_in,"/","?",action,&ln)==-1) {
 
     if (get_http_hdr_field_str(req,sz_in,"/"," ",action,&ln)==-1) {
-      INTERNAL_ERR(&pconn->txb,"action '%s' format error",action);
+      char *pa = action ;
+      INTERNAL_ERR(&pconn->txb,"action '%s' format error",/*action*/pa);
       return -1;
     }
   }
 
-  log_debug("action: %s\n",action);
+  //log_debug("action: %s\n",action);
 
   /*
    * parse param list
@@ -128,7 +129,7 @@ int http_svr_do_get(Network_t net, connection_t pconn,
     //return -1;
   }
 
-  log_debug("values: %s\n",body);
+  //log_debug("values: %s\n",body);
 
   return process_param_list(net,pconn,body,action);
 }
@@ -146,7 +147,8 @@ int http_svr_do_post(Network_t net, connection_t pconn,
    * parse action 
    */
   if (get_http_hdr_field_str(req,sz_in,"/"," ",action,&ln)==-1) {
-    INTERNAL_ERR(&pconn->txb,"action '%s' format error",action);
+    char *pa = action ;
+    INTERNAL_ERR(&pconn->txb,"action '%s' format error",/*action*/pa);
     return -1;
   }
 

@@ -44,6 +44,54 @@ backend_entry_t get_backend_entry()
 }
 
 static
+int alipay_chk_parse_response(char *resp, size_t sz)
+{
+  int ret = -1;
+  char *body = get_http_body_ptr(resp,sz);
+
+
+  if (!body) {
+    log_error("found no body!\n");
+    goto __done;
+  }
+
+  // error page, just go back
+  if (strstr(body,"<!DOCTYPE html")) {
+    goto __done;
+  }
+
+  jsonKV_t *pr = jsons_parse(body);
+  tree_map_t map = jsons_to_treemap(pr);
+
+  if (!map) {
+    log_debug("parse response map fail!\n");
+    goto __done;
+  }
+
+  tree_map_t submap = get_tree_map_nest(map,"root");
+  submap = get_tree_map_nest(submap,"alipay_fund_account_query_response");
+
+  char *retcode = get_tree_map_value(submap,"code");
+  char *retmsg = get_tree_map_value(submap,"sub_msg");
+
+
+  log_info("command %s, message: %s\n",!strcmp(retcode,"10000")?"success":"fail",
+      retmsg);
+
+  ret = 0;
+
+__done:
+
+  if (pr)
+    jsons_release(pr);
+
+  if (map)
+    delete_tree_map(map);
+
+  return ret;
+}
+
+static
 int alipay_chk_rx(Network_t net, connection_t pconn)
 {
   size_t sz_in = 0L;
@@ -55,9 +103,11 @@ int alipay_chk_rx(Network_t net, connection_t pconn)
     char *b = dbuffer_ptr(pconn->rxb,0);
     b[sz_in] = '\0' ;
 
-    log_debug("rx resp: %s",b);
+    //log_debug("rx resp: %s",b);
 
     dbuffer_lseek(pconn->rxb,sz_in,SEEK_CUR,0);
+
+    alipay_chk_parse_response(b,sz_in);
 
     sock_close(pconn->fd);
   }
@@ -248,7 +298,7 @@ int construct_req_params(tree_map_t pay_data, const char *app_id,
 
   put_tree_map_string(pay_data,"app_id",(char*)app_id);
 
-  put_tree_map_string(pay_data,"method","alipay.data.bill.balance.query");
+  put_tree_map_string(pay_data,"method","alipay.fund.account.query");
 
   put_tree_map_string(pay_data,"format","JSON");
 
@@ -257,6 +307,17 @@ int construct_req_params(tree_map_t pay_data, const char *app_id,
   put_tree_map_string(pay_data,"sign_type","RSA2");
 
   put_tree_map_string(pay_data,"version","1.0");
+
+  tree_map_t pay_biz = new_tree_map();
+  put_tree_map_string(pay_biz,"alipay_user_id","123");
+  put_tree_map_string(pay_biz,"account_type","ACCTRANS_ACCOUNT");
+
+
+  dbuffer_t strBiz = create_json_params(pay_biz);
+  put_tree_map_string(pay_data,"biz_content",strBiz);
+
+  drop_dbuffer(strBiz);
+  delete_tree_map(pay_biz);
 
   if (do_signature(pay_data,priv_key_path)) {
     return -1;
@@ -313,7 +374,7 @@ static int do_check_alipay_chans()
     char *i = pos->app_id, *p = pos->priv_key_path;
     log_debug("%s - %s\n",i,p);
 
-    if (strcmp(i,"2019110568911564"))
+    if (0&& strcmp(i,"2019110568911564"))
       continue ;
 
     alipay_chk_biz(pos->app_id,pos->priv_key_path);
