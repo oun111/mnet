@@ -22,7 +22,7 @@
       "port"    : 3306,
       "db"      : "pay_db",
       "usr"     : "athena",
-      "pwd"     : "w81b!6i40eiqt@y%"
+      "pwd"     : "w81b!6i40eiqt@y%" 
     },
     "CheckBill" : {
       "listenPort" : 12471,
