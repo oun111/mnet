@@ -140,6 +140,12 @@ class check_mch_biz:
     self.m_mysql = Mysql(mscfg.address,mscfg.port,mscfg.db,
                          mscfg.usr,mscfg.pwd)
 
+    # 未支付订单数超过该值认为该通道被支付宝封禁
+    self.m_freezeThreshold = 5
+    cfg  = gcfg['Globals']['CheckMerchant']
+    if (len(cfg)>0):
+      self.m_freezeThreshold = cfg['freezeThreshold']
+
 
   def do_biz(self,period):
 
@@ -166,7 +172,7 @@ class check_mch_biz:
       if total==0:
         stat = 0
       # 该通道被封
-      elif total==unpay:
+      elif total==unpay and total>self.m_freezeThreshold:
         stat = 2
       # 该通道正常
       else:
