@@ -29,6 +29,7 @@ enum order_types {
   t_default,
   t_transfund,
   t_pay,
+  t_qrpay,
 } ;
 
 struct order_info_s {
