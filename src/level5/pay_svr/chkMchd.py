@@ -144,7 +144,7 @@ class check_mch_biz:
     self.m_freezeThreshold = 5
     cfg  = gcfg['Globals']['CheckMerchant']
     if (len(cfg)>0):
-      self.m_freezeThreshold = cfg['freezeThreshold']
+      self.m_freezeThreshold = int(cfg['freezeThreshold'])
 
 
   def do_biz(self,period):

@@ -29,7 +29,7 @@
       "billFilePath" : "/tmp/"
     },
     "CheckMerchant" : {
-      "freezeThreshold" : "5"
+      "freezeThreshold" : 15
     }
   },
 
