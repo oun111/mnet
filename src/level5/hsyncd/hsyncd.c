@@ -12,6 +12,7 @@
 #include "formats.h"
 #include "myrbtree.h"
 #include "hstore.h"
+#include "processor.h"
 
 static
 struct hsyncd_info_s {
@@ -31,9 +32,13 @@ struct hsyncd_info_s {
 
   char last_move_from[PATH_MAX];
 
+  bool parent ;
+
 } g_hsdInfo = {
 
   .last_move_from = "\0",
+
+  .parent = true,
 
 };
 
@@ -82,9 +87,6 @@ static int read_format_data(formats_entry_t entry, int fmt_id, dbuffer_t inb)
       do_hbase_store(&g_hsdInfo.m_storeEntry,fdata);
   }
 
-  if (fdata)
-    hstore_start_work(&g_hsdInfo.m_storeEntry);
-
   return 0;
 }
 
@@ -96,7 +98,8 @@ static int process_format_data(const char *file, int fmt_id)
 
 
   // get file size
-  stat(file,&st) ;
+  if (stat(file,&st)) 
+    return -1;
 
   ret = load_mfile(&g_hsdInfo.m_mfEntry,file,st.st_size,&pf);
 
@@ -241,21 +244,6 @@ static int add_watch_paths(hsyncd_config_t conf)
   return 0;
 }
 
-static int do_mstore_init(hsyncd_config_t conf)
-{
-  // init mstore
-  char host[32];
-  int port = 0, workers = 0;
-
-  get_hbase_client_settings(conf,host,32,&port);
-
-  workers = get_worker_count(conf);
-
-  init_hstore_entry(&g_hsdInfo.m_storeEntry,workers,host,port);
-
-  return 0;
-}
-
 static int preload_monitor_paths(hsyncd_config_t conf)
 {
   tm_item_t pos, n;
@@ -291,7 +279,7 @@ static int preload_monitor_paths(hsyncd_config_t conf)
   return 0;
 }
 
-static int hsyncd_pre_init(hsyncd_config_t conf)
+static int hsyncd_pre_init(hsyncd_config_t conf, int workers)
 {
   //int v = inotify_init1(IN_NONBLOCK);
   int v = inotify_init();
@@ -313,7 +301,9 @@ static int hsyncd_pre_init(hsyncd_config_t conf)
   // the monitor file entry
   init_mfile_entry(&g_hsdInfo.m_mfEntry,6,-1);
 
-  do_mstore_init(conf);
+  if (init_hstore_entry(&g_hsdInfo.m_storeEntry,workers)) {
+    return -1;
+  }
 
   if (need_preload(conf)==true) {
     preload_monitor_paths(conf);
@@ -353,6 +343,10 @@ void dump_params()
 
 void hsyncd_module_init(int argc, char *argv[])
 {
+  char host[32], procName[96] = "";
+  int port = 0, workers = 0;
+
+
   if (parse_cmd_line(argc,argv)) {
     return ;
   }
@@ -362,7 +356,29 @@ void hsyncd_module_init(int argc, char *argv[])
     return ;
   }
 
-  if (hsyncd_pre_init(&g_hsdInfo.m_conf)) {
+  workers = get_worker_count(&g_hsdInfo.m_conf);
+
+  // create workers
+  get_hbase_client_settings(&g_hsdInfo.m_conf,host,sizeof(host),&port);
+
+  for (int i=0;i<workers;i++) {
+    int pid = fork();
+
+    if (!pid) {
+      snprintf(procName,sizeof(procName),"%s-worker",THIS_MODULE->name);
+
+      proc_main(host,port,i);
+
+      set_proc_name(argc,argv,procName);
+
+      g_hsdInfo.parent = false ;
+
+      return ;
+    }
+  }
+
+  // init parent
+  if (hsyncd_pre_init(&g_hsdInfo.m_conf,workers)) {
     return ;
   }
 
@@ -375,19 +391,22 @@ void hsyncd_module_init(int argc, char *argv[])
 
 void hsyncd_module_exit()
 {
-  //inotify_rm_watch(g_hsdInfo.in_fd,g_hsdInfo.wd);
+  if (g_hsdInfo.parent) {
 
-  close(g_hsdInfo.in_fd);
+    //inotify_rm_watch(g_hsdInfo.in_fd,g_hsdInfo.wd);
 
-  release_all_mfiles(&g_hsdInfo.m_mfEntry);
+    close(g_hsdInfo.in_fd);
 
-  release_all_wdcaches(&g_hsdInfo.m_wdEntry);
+    release_all_mfiles(&g_hsdInfo.m_mfEntry);
 
-  release_all_formats(&g_hsdInfo.m_fmtEntry);
+    release_all_wdcaches(&g_hsdInfo.m_wdEntry);
+
+    release_all_formats(&g_hsdInfo.m_fmtEntry);
+
+    release_hstore_entry(&g_hsdInfo.m_storeEntry);
+  }
 
   free_config(&g_hsdInfo.m_conf);
-
-  release_hstore_entry(&g_hsdInfo.m_storeEntry);
 
   log_debug("releasing resource...\n");
 }
