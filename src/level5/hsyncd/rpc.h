@@ -43,6 +43,8 @@ typedef struct rpc_clnt_s* rpc_clnt_t ;
 
 extern int rpc_svc_init(int,int*,rpc_rx_cb);
 
+extern void rpc_svc_release();
+
 extern int rpc_svc_rx(int fd);
 
 extern int rpc_clnt_init(rpc_clnt_t, int);

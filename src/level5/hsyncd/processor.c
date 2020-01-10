@@ -63,23 +63,22 @@ static char **
 proc_rpc_rx(char **argp, struct svc_req *rqstp)
 {
 	static char * result= "ok!";
+  struct rpc_data_s *targs = (void*)*argp ;
 
 	/*
 	 * insert server code here
 	 */
-  struct rpc_data_s *targs = (void*)*argp ;
-#if 1
+#if 0
   log_debug("table: %s, rno: %s, k: %s, v: %s\n",
             targs->table,targs->rowno,targs->k,targs->v);
 #endif
 
-#if 1
   int rc = 0;
   do {
     rc = 0;
     // try put
-    if (!g_procInfo.hbase.clt.client || hclient_put(&g_procInfo.hbase.clt,
-         targs->table,targs->rowno,targs->k,targs->v)) {
+    if (hclient_put(&g_procInfo.hbase.clt,targs->table,
+          targs->rowno,targs->k,targs->v)) {
 
       log_debug("retrying put...\n");
       hclient_release(&g_procInfo.hbase.clt);
@@ -88,7 +87,6 @@ proc_rpc_rx(char **argp, struct svc_req *rqstp)
       rc = -1;
     }
   } while (rc<0) ;
-#endif
 
 	return &result;
 }
@@ -135,6 +133,15 @@ int proc_init(Network_t net)
   return 0;
 }
 
+static void sig_term_handler(int sn)
+{
+  rpc_svc_release();
+
+  hclient_release(&g_procInfo.hbase.clt);
+
+  exit(0);
+}
+
 int proc_main(const char *host, int port, int vernum)
 {
   g_procInfo.local_vernum = vernum ;
@@ -156,6 +163,9 @@ int proc_main(const char *host, int port, int vernum)
   }
 
   register_module(THIS_MODULE);
+
+  signal(SIGTERM,sig_term_handler);
+  signal(SIGINT,sig_term_handler);
 
   return 0;
 }

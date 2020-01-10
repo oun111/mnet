@@ -35,7 +35,7 @@ mfile_t create_empty_mfile(mfile_entry_t entry, const char *f)
   mfile_t p = 0;
 
   if (!MY_RB_TREE_FIND(&entry->u.root,(char*)f,p,filename,node,compare)) {
-    log_debug("monitor file '%s' exists\n",f);
+    //log_debug("monitor file '%s' exists\n",f);
     return p ;
   }
 
@@ -105,7 +105,8 @@ int __mfile_load(mfile_entry_t entry, const char *f, mfile_t p, int size)
 
   sz_read = size - p->file_offset;
   if (sz_read<entry->sync_threshold) {
-    log_info("no need to read file now\n");
+    log_info("no need to read file now(rx %d bytes,%zu thresholds)\n",
+             sz_read,entry->sync_threshold);
     return 0;
   }
 
@@ -119,10 +120,7 @@ int __mfile_load(mfile_entry_t entry, const char *f, mfile_t p, int size)
     return -1;
   }
 
-  //p->cont_size += sz ;
   p->file_offset += sz ;
-
-  log_debug("loaded %d bytes\n",sz);
 
   dbuffer_lseek(p->cont_buf,sz,SEEK_CUR,1);
   return 1;

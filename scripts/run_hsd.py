@@ -11,16 +11,14 @@ if len(argv)!=2:
 script,opt = argv
 
 
-logFlushInterval = 5
-numWorkers = 0
-logToFile = "-L /home/user1/work/mnet/logs/"
-#logToFile = ""
+#logToFile = "-L /home/user1/work/mnet/logs/"
+logToFile = ""
 
 
 if opt=="0" or opt=="1":
   os.system("killall hsyncd")
+  os.system("killall hsyncd-worker")
 
   if opt=="1":
-     os.system("./src/mnet_test -l ./modules/ -ch ./conf/hsd_conf.json -mF {0} -mW {1} {2}  &".format(logFlushInterval,numWorkers,logToFile))
-
+     os.system("./src/mnet_test -l ./modules/ -ch ./conf/hsd_conf.json {0} &".format(logToFile))
 

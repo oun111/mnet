@@ -24,11 +24,19 @@ struct rpcSvcInfo_s {
   rpc_rx_cb local_cb ;
 
   struct rb_root root;
+
+  SVCXPRT *transp ;
+
+  int vernum ;
 }
 g_rpcSvcInfo = {
   .local_cb = NULL,
 
-  .root = RB_ROOT,
+  .root     = RB_ROOT,
+
+  .transp   = NULL,
+
+  .vernum   = -1,
 } ;
 
 struct xprtItem_s {
@@ -163,9 +171,23 @@ int rpc_svc_init(int vernum, int *retfd, rpc_rx_cb cb)
     g_rpcSvcInfo.local_cb = cb;
   }
 
+  g_rpcSvcInfo.transp = transp ;
+
+  g_rpcSvcInfo.vernum = vernum ;
+
+
   log_debug("pid %d: rpc %d %d registered\n",getpid(),hsyncdRpc,hsyncdRpcVer+vernum);
 
   return 0;
+}
+
+void rpc_svc_release()
+{
+  if (g_rpcSvcInfo.vernum>0)
+    svc_unregister(hsyncdRpc,hsyncdRpcVer+g_rpcSvcInfo.vernum);
+
+  if (g_rpcSvcInfo.transp)
+    svc_destroy(g_rpcSvcInfo.transp);
 }
 
 int rpc_clnt_init(rpc_clnt_t clnt, int v)

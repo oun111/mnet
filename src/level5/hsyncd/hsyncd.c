@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdio.h>
+#include <dirent.h>
 #include "action.h"
 #include "module.h"
 #include "log.h"
@@ -11,8 +12,8 @@
 #include "wdcache.h"
 #include "formats.h"
 #include "myrbtree.h"
-#include "hstore.h"
 #include "processor.h"
+#include "rpc.h"
 
 static
 struct hsyncd_info_s {
@@ -26,21 +27,33 @@ struct hsyncd_info_s {
 
   struct formats_entry_s m_fmtEntry ;
 
-  struct hstore_entry_s m_storeEntry ;
-
   char conf_path[PATH_MAX];
 
   char last_move_from[PATH_MAX];
 
-  bool parent ;
+  struct list_head prio_list ;
+
+  struct rpc_data_s rpc_buf ;
+
+  bool is_parent ;
 
 } g_hsdInfo = {
 
   .last_move_from = "\0",
 
-  .parent = true,
+  .is_parent = true,
 
 };
+
+struct rpcClnt_object_s {
+
+  struct {
+    struct rpc_clnt_s clnt ;
+  } worker ;
+
+  struct list_head pri_item ;
+} ;
+typedef struct rpcClnt_object_s* rpcClnt_object_t ;
 
 
 static int hsyncd_init(Network_t net);
@@ -71,6 +84,59 @@ int hsyncd_l4_rx(Network_t net, connection_t pconn)
   return 0;
 }
 
+static int rpc_send(common_format_t cf)
+{
+  cf_pair_t pos;
+  struct rpc_data_s *pRpcd = &g_hsdInfo.rpc_buf ;
+  rpcClnt_object_t ph = list_first_entry(&g_hsdInfo.prio_list, 
+                       struct rpcClnt_object_s,pri_item);
+
+
+  strncpy(pRpcd->table,cf->tbl,sizeof(pRpcd->table));
+  strncpy(pRpcd->rowno,cf->row,sizeof(pRpcd->rowno));
+
+  list_for_each_entry(pos,&cf->cf_list,upper) {
+
+    strncpy(pRpcd->k,pos->cf,sizeof(pRpcd->k));
+    strncpy(pRpcd->v,pos->val,sizeof(pRpcd->v));
+
+    rpc_clnt_tx(&ph->worker.clnt,pRpcd);
+  }
+
+  list_del(&ph->pri_item);
+  list_add_tail(&ph->pri_item,&g_hsdInfo.prio_list);
+
+  return 0;
+}
+
+static int init_rpc_clients(size_t count)
+{
+  // priority list
+  INIT_LIST_HEAD(&g_hsdInfo.prio_list);
+
+  for (int i=0;i<count;i++) {
+    rpcClnt_object_t ph = kmalloc(sizeof(struct rpcClnt_object_s),0L);
+
+    // init rpc client
+    rpc_clnt_init(&ph->worker.clnt,i);
+
+    // join priority list
+    list_add(&ph->pri_item,&g_hsdInfo.prio_list);
+  }
+
+  return 0;
+}
+
+static void release_rpc_clients()
+{
+  rpcClnt_object_t pos,n ;
+
+  list_for_each_entry_safe (pos,n,&g_hsdInfo.prio_list,pri_item) {
+    rpc_clnt_release(&pos->worker.clnt);
+    kfree(pos);
+  }
+}
+
 static int read_format_data(formats_entry_t entry, int fmt_id, dbuffer_t inb)
 {
   common_format_t fdata = 0;
@@ -83,8 +149,10 @@ static int read_format_data(formats_entry_t entry, int fmt_id, dbuffer_t inb)
   }
 
   while (pc->parser(inb,&fdata)==1) {
-    if (fdata) 
-      do_hbase_store(&g_hsdInfo.m_storeEntry,fdata);
+    if (fdata) {
+      rpc_send(fdata);
+      free_common_format(fdata);
+    }
   }
 
   return 0;
@@ -231,8 +299,8 @@ static int add_watch_paths(hsyncd_config_t conf)
     char *mpath = get_tree_map_value(spath,"path");
     char *fmtid = get_tree_map_value(spath,"formatId");
 
-    int wd = inotify_add_watch(g_hsdInfo.in_fd,mpath,
-                               IN_CREATE|IN_MODIFY|IN_MOVED_FROM|IN_MOVED_TO/*|IN_MOVE_SELF*/);
+    int wd = inotify_add_watch(g_hsdInfo.in_fd,mpath,IN_CREATE|
+                               IN_MODIFY|IN_MOVED_FROM|IN_MOVED_TO/*|IN_MOVE_SELF*/);
     if (wd<0) {
       log_error("inotify_add_watch() fail!\n");
       continue;
@@ -301,7 +369,7 @@ static int hsyncd_pre_init(hsyncd_config_t conf, int workers)
   // the monitor file entry
   init_mfile_entry(&g_hsdInfo.m_mfEntry,6,-1);
 
-  if (init_hstore_entry(&g_hsdInfo.m_storeEntry,workers)) {
+  if (init_rpc_clients(workers)) {
     return -1;
   }
 
@@ -357,6 +425,10 @@ void hsyncd_module_init(int argc, char *argv[])
   }
 
   workers = get_worker_count(&g_hsdInfo.m_conf);
+  if (workers<=0) {
+    workers = 1 ;
+    log_info("force to %d worker\n",workers);
+  }
 
   // create workers
   get_hbase_client_settings(&g_hsdInfo.m_conf,host,sizeof(host),&port);
@@ -371,13 +443,13 @@ void hsyncd_module_init(int argc, char *argv[])
 
       set_proc_name(argc,argv,procName);
 
-      g_hsdInfo.parent = false ;
+      g_hsdInfo.is_parent = false ;
 
       return ;
     }
   }
 
-  // init parent
+  // init is_parent
   if (hsyncd_pre_init(&g_hsdInfo.m_conf,workers)) {
     return ;
   }
@@ -391,7 +463,7 @@ void hsyncd_module_init(int argc, char *argv[])
 
 void hsyncd_module_exit()
 {
-  if (g_hsdInfo.parent) {
+  if (g_hsdInfo.is_parent) {
 
     //inotify_rm_watch(g_hsdInfo.in_fd,g_hsdInfo.wd);
 
@@ -403,7 +475,7 @@ void hsyncd_module_exit()
 
     release_all_formats(&g_hsdInfo.m_fmtEntry);
 
-    release_hstore_entry(&g_hsdInfo.m_storeEntry);
+    release_rpc_clients();
   }
 
   free_config(&g_hsdInfo.m_conf);
