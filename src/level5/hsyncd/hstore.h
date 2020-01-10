@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include "hclient.h"
 #include "list.h"
-#include "hsyncd_rpc.h"
+#include "rpc.h"
 
 
 

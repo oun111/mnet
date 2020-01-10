@@ -1,7 +1,7 @@
 #include <unistd.h>
 #include "instance.h"
 #include "module.h"
-#include "hsyncd_rpc.h"
+#include "rpc.h"
 #include "hclient.h"
 #include "log.h"
 

@@ -3,8 +3,8 @@
  * It was generated using rpcgen.
  */
 
-#ifndef _HSYNCD_RPC_H_RPCGEN
-#define _HSYNCD_RPC_H_RPCGEN
+#ifndef __RPC_H__
+#define __RPC_H__
 
 #include <rpc/rpc.h>
 #include <rpc/clnt.h>
@@ -51,5 +51,5 @@ extern void rpc_clnt_release(rpc_clnt_t);
 
 extern int rpc_clnt_tx(rpc_clnt_t clnt, void *data);
 
-#endif /* !_HSYNCD_RPC_H_RPCGEN */
+#endif /* !__RPC_H__ */
 

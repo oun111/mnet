@@ -14,7 +14,7 @@
 #include "mm_porting.h"
 #include "rbtree.h"
 #include "myrbtree.h"
-#include "hsyncd_rpc.h"
+#include "rpc.h"
 #include "log.h"
 #include <rpc/pmap_clnt.h>
 
