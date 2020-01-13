@@ -33,6 +33,7 @@ merchant_info_t get_merchant(merchant_entry_t entry, char *merchant_id)
 int 
 save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info)
 {
+  int v = 0;
   char *pv = 0;
   merchant_info_t p = 0;
   extern pay_channels_entry_t get_pay_channels_entry() ;
@@ -131,6 +132,24 @@ save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info)
     log_error("invalid pay amount range of merchant '%s', default to [%.2f,%.2f]\n",
               p->id,p->min_amt,p->max_amt);
   }
+
+
+  // trade range per request
+  p->tt.t0 = p->tt.t1 = -1;
+  pv = get_tree_map_value(p->mch_info,"trade_time0");
+  if (pv && strlen(pv)>0 && (v=atoi(pv))>0) {
+    p->tt.t0 = v ;
+  }
+  pv = get_tree_map_value(p->mch_info,"trade_time1");
+  if (pv && strlen(pv)>0 && (v=atoi(pv))>0) {
+    p->tt.t1 = v ;
+  }
+  if (!((p->tt.t1-p->tt.t0)>=0)) {
+    log_error("invalid trade time range [%d,%d] of merchant '%s', "
+        "default to WHOLE DAY long!\n",p->tt.t0,p->tt.t1,p->id);
+    p->tt.t0 = p->tt.t1 = -1;
+  }
+  log_debug("tt begin %d, ending %d\n",p->tt.t0,p->tt.t1);
 
 
   if (MY_RB_TREE_INSERT(&entry->u.root,p,id,node,compare)) {

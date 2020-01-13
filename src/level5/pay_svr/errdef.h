@@ -29,6 +29,8 @@ enum err_codes {
   E_NO_ORDER_BY_OTN,
   E_SAVE_ORDER,     
   E_PUB_REDIS,       
+  E_TRADE_TIME,
+  E_UNKNOWN_ERROR,
   // TODO: add new error code here
 } ;
 
@@ -61,6 +63,8 @@ const char* err_msgs[] =
   "找不到商户订单号\'%s\'",
   "保存订单\'%s\'失败",
   "推送消息到redis失败",
+  "非交易时间，请在[%d~%d]内交易",
+  "测试模式或未知错误",
 };
 
 #endif /* __ERRDEF_H__*/

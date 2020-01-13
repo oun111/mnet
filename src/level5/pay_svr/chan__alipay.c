@@ -896,6 +896,39 @@ __done:
   return ret;
 }
 
+static
+int check_trade_time(merchant_info_t pm)
+{
+  int t0 = pm->tt.t0 ;
+  int t1 = pm->tt.t1 ;
+  time_t ts = 0L ;
+  struct tm *tm = 0;
+  const int ahour = 60*60, aday = 24*60*60 ;
+
+
+  // we can trade all day long
+  if (t0<0 || t1<0 || t0>=aday) {
+    return 0;
+  }
+
+  // current time
+  ts = time(0);
+  tm = localtime(&ts);
+  ts = tm->tm_hour*ahour + tm->tm_min*60 + tm->tm_sec ;
+  log_debug("current ts: %ld\n",ts);
+
+  // cross day
+  if (t1>aday && ts>(t1-aday)) {
+    return -1;
+  }
+
+  if (ts<t0 || ts>t1) {
+    return -1;
+  }
+
+  return 0;
+}
+
 static 
 int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
 {
@@ -1682,7 +1715,7 @@ int update_alipay_qr_biz(dbuffer_t *errbuf, tree_map_t user_params,
   //put_tree_map_string(pay_biz,"discountable_amount","");
 
   put_tree_map_string(pay_biz,"subject",subject);
-
+#if 0
   {
     tree_map_t goods_detail = new_tree_map();
     dbuffer_t strGDBiz = alloc_default_dbuffer();
@@ -1706,13 +1739,13 @@ int update_alipay_qr_biz(dbuffer_t *errbuf, tree_map_t user_params,
     drop_dbuffer(strGDBiz);
     delete_tree_map(goods_detail);
   }
+#endif
 
-  put_tree_map_string(pay_biz,"body",body);
+  //put_tree_map_string(pay_biz,"body",body);
 
-  put_tree_map_string(pay_biz,"product_code","FACE_TO_FACE_PAYMENT");
+  //put_tree_map_string(pay_biz,"product_code","FACE_TO_FACE_PAYMENT");
 
-  put_tree_map_string(pay_biz,"timeout_express",
-      get_tree_map_value(pay_params,"timeout_express"));
+  put_tree_map_string(pay_biz,"timeout_express",get_tree_map_value(pay_params,"timeout_express"));
 
   //put_tree_map_string(pay_biz,"operator_id","op_01");
 
@@ -1721,7 +1754,7 @@ int update_alipay_qr_biz(dbuffer_t *errbuf, tree_map_t user_params,
   // no credit cards
   //put_tree_map_string(pay_biz,"disable_pay_channels","creditCard,credit_group");
 
-  put_tree_map_string(pay_biz,"merchant_order_no",orderid);
+  //put_tree_map_string(pay_biz,"merchant_order_no",orderid);
 
   dbuffer_t strBiz = create_json_params(pay_biz);
 
@@ -1767,6 +1800,11 @@ int do_alipay_qr(Network_t net,connection_t pconn,tree_map_t user_params)
     return -1 ;
   }
 
+  if (check_trade_time(pm)) {
+    FORMAT_ERR(errbuf,E_TRADE_TIME,pm->tt.t0,pm->tt.t1);
+    return -1;
+  }
+
   reason = alloc_default_dbuffer();
 
   // get suitable pay route
@@ -1800,6 +1838,10 @@ int do_alipay_qr(Network_t net,connection_t pconn,tree_map_t user_params)
   if (do_signature(&pconn->txb,pd,tf_data)<0) {
     goto __done ;
   }
+
+  // XXX: test
+  FORMAT_ERR(errbuf,E_UNKNOWN_ERROR,"");
+  goto __done ;
 
   /* connect alipay server(treat as 'backend')  */
   connection_t out_conn = do_out_connect(net,pconn,url,tno,bt_qr2user);

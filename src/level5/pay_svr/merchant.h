@@ -25,6 +25,12 @@ struct merchant_info_s {
   double max_amt; // max amount per request
   double min_amt ;// min amount per request
 
+  // trade time
+  struct {
+    int t0;
+    int t1 ;
+  } tt; 
+
   struct rb_node node ;
 
   // the merchant-based pay route list
