@@ -89,6 +89,8 @@ static void alipay_release();
 
 static order_info_t get_order_by_otn(const char *tno, dbuffer_t *errbuf, bool *bRel);
 
+connection_t do_out_connect(Network_t, connection_t, const char*, void*, int);
+
 
 static
 int alipay_tx(Network_t net, connection_t pconn)
@@ -242,6 +244,124 @@ __done:
 }
 
 static
+int qr_2nd_process(Network_t net, const char *url_302, backend_t be)
+{
+  char host[128] = "";
+  int port = 0;
+  bool is_ssl = false ;
+  connection_t peer = be->peer ;
+  char *tno = be->data ;
+
+
+  parse_http_url(url_302,host,sizeof(host),&port,NULL,0L,&is_ssl);
+
+  connection_t out_conn = do_out_connect(net,peer,host,tno,bt_qrGet2);
+  if (!out_conn) {
+    log_error("connection to '%s' fail\n",host);
+    return -1;
+  }
+
+  create_http_get_req2(&out_conn->txb,url_302);
+
+  if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
+    alipay_tx(net,out_conn);
+  }
+
+  return 0;
+}
+
+static
+int process_qr_last_resp(Network_t net, backend_t be, char *qrcode)
+{
+  rds_order_entry_t pre = &g_alipayData.m_rOrders;
+  char *tno = be->data, *pmsg = "success" ;
+  order_info_t po = 0;
+  bool rel = false;
+  connection_t peer = be->peer ;
+  tree_map_t res_map = 0;
+  int ret = -1;
+
+
+  po = get_order_by_otn(tno,&peer->txb,&rel);
+  if (unlikely(!po)) {
+    goto __done ;
+  }
+
+  // send a feed back to client
+  res_map = new_tree_map();
+  put_tree_map_string(res_map,STATUS,get_pay_status_str(po->status));
+  put_tree_map_string(res_map,OTNO,po->mch.out_trade_no);
+  put_tree_map_string(res_map,TNO,po->id);
+  put_tree_map_string(res_map,"message",pmsg);
+  if (qrcode) {
+    put_tree_map_string(res_map,"qrcode",qrcode);
+  }
+
+  create_http_normal_res2(&peer->txb,pt_json,res_map);
+
+  if (!peer->ssl || peer->ssl->state==s_ok) {
+    if (!alipay_tx(net,peer))
+      sock_close(peer->fd);
+    else 
+      log_error("send later by %d\n",peer->fd);
+  }
+
+  ret = 0;
+
+__done:
+
+  if (rel)
+    release_rds_order(pre,po);
+
+  if (res_map)
+    delete_tree_map(res_map);
+
+  return ret;
+}
+
+static
+int process_qr2nd_resp(Network_t net, connection_t pconn, backend_t be, 
+                        dbuffer_t resp, size_t sz)
+{
+  int ret = -1, rc = 0;
+  char *qrcode = 0, *url = 0;
+  size_t szb = get_http_hdr_size(resp,strlen(resp));
+  char *lb= kmalloc(szb,0L);
+
+
+  rc = get_http_hdr_field_str(resp,strlen(resp),"Location:",
+                              "\r\n",lb,&szb);
+  if (unlikely(rc)) {
+    log_error("found no 'Location'!\n");
+    goto __done ;
+  }
+
+  // found 302 location
+  url = alloc_default_dbuffer();
+  url_decode(lb,szb,&url);
+
+  // jump again
+  if (!(qrcode=strstr(url,"alipays://"))) {
+    qr_2nd_process(net,url,be);
+  }
+  else {
+    process_qr_last_resp(net,be,qrcode);
+  }
+
+  ret = 0;
+
+__done:
+
+  if (lb)
+    kfree(lb);
+
+  if (url)
+    drop_dbuffer(url);
+
+  return ret;
+}
+
+static
 int process_qr2user_resp(Network_t net, connection_t pconn, backend_t be, 
                          dbuffer_t resp, size_t sz)
 {
@@ -286,7 +406,7 @@ int process_qr2user_resp(Network_t net, connection_t pconn, backend_t be,
 
   if (submap && (qrcode=get_tree_map_value(submap,"qr_code"))) {
     log_debug("qr biz no '%s' success, qrcode: %s\n",tno,qrcode);
-    st = s_paid;
+    st = s_paying;
   }
   else {
     pmsg = get_tree_map_value(submap,"sub_msg");
@@ -305,6 +425,7 @@ int process_qr2user_resp(Network_t net, connection_t pconn, backend_t be,
     log_error("update order '%s' to redis fail\n",po->id);
   }
 
+#if 0
   // send a feed back
   res_map = new_tree_map();
   put_tree_map_string(res_map,STATUS,get_pay_status_str(po->status));
@@ -323,6 +444,10 @@ int process_qr2user_resp(Network_t net, connection_t pconn, backend_t be,
     else 
       log_error("send later by %d\n",peer->fd);
   }
+#else
+  // subsequent steps, get final url from alipay
+  qr_2nd_process(net,qrcode,be);
+#endif
 
   ret = 0;
 
@@ -384,6 +509,10 @@ int alipay_rx(Network_t net, connection_t pconn)
     // qr pay response
     else if (be->type==bt_qr2user) {
       process_qr2user_resp(net,pconn,be,b,sz_in);
+    }
+    // qr pay #2
+    else if (be->type==bt_qrGet2) {
+      process_qr2nd_resp(net,pconn,be,b,sz_in);
     }
 
     dbuffer_lseek(pconn->rxb,sz_in,SEEK_CUR,0);
@@ -915,7 +1044,7 @@ int check_trade_time(merchant_info_t pm)
   ts = time(0);
   tm = localtime(&ts);
   ts = tm->tm_hour*ahour + tm->tm_min*60 + tm->tm_sec ;
-  log_debug("current ts: %ld\n",ts);
+  //log_debug("current ts: %ld\n",ts);
 
   // cross day
   if (t1>aday && ts>(t1-aday)) {
@@ -956,6 +1085,11 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   if (!mch_id || !(pm=get_merchant(pme,mch_id))) {
     FORMAT_ERR(errbuf,E_BAD_MCH,mch_id);
     goto __done ;
+  }
+
+  if (check_trade_time(pm)) {
+    FORMAT_ERR(errbuf,E_TRADE_TIME,pm->tt.t0,pm->tt.t1);
+    return -1;
   }
 
   // verify merchant signature
@@ -1838,10 +1972,6 @@ int do_alipay_qr(Network_t net,connection_t pconn,tree_map_t user_params)
   if (do_signature(&pconn->txb,pd,tf_data)<0) {
     goto __done ;
   }
-
-  // XXX: test
-  FORMAT_ERR(errbuf,E_UNKNOWN_ERROR,"");
-  goto __done ;
 
   /* connect alipay server(treat as 'backend')  */
   connection_t out_conn = do_out_connect(net,pconn,url,tno,bt_qr2user);
