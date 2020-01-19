@@ -425,29 +425,30 @@ int process_qr2user_resp(Network_t net, connection_t pconn, backend_t be,
     log_error("update order '%s' to redis fail\n",po->id);
   }
 
-#if 0
   // send a feed back
-  res_map = new_tree_map();
-  put_tree_map_string(res_map,STATUS,get_pay_status_str(po->status));
-  put_tree_map_string(res_map,OTNO,po->mch.out_trade_no);
-  put_tree_map_string(res_map,TNO,po->id);
-  put_tree_map_string(res_map,"message",pmsg);
-  if (qrcode) {
-    put_tree_map_string(res_map,"qrcode",qrcode);
-  }
+  if (!qrcode) {
+    res_map = new_tree_map();
+    put_tree_map_string(res_map,STATUS,get_pay_status_str(po->status));
+    put_tree_map_string(res_map,OTNO,po->mch.out_trade_no);
+    put_tree_map_string(res_map,TNO,po->id);
+    put_tree_map_string(res_map,"message",pmsg);
+    if (qrcode) {
+      put_tree_map_string(res_map,"qrcode",qrcode);
+    }
 
-  create_http_normal_res2(&peer->txb,pt_json,res_map);
+    create_http_normal_res2(&peer->txb,pt_json,res_map);
 
-  if (!peer->ssl || peer->ssl->state==s_ok) {
-    if (!alipay_tx(net,peer))
-      sock_close(peer->fd);
-    else 
-      log_error("send later by %d\n",peer->fd);
+    if (!peer->ssl || peer->ssl->state==s_ok) {
+      if (!alipay_tx(net,peer))
+        sock_close(peer->fd);
+      else 
+        log_error("send later by %d\n",peer->fd);
+    }
   }
-#else
-  // subsequent steps, get final url from alipay
-  qr_2nd_process(net,qrcode,be);
-#endif
+  else {
+    // subsequent steps, get final url from alipay
+    qr_2nd_process(net,qrcode,be);
+  }
 
   ret = 0;
 
