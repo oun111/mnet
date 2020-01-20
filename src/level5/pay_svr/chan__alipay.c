@@ -1882,6 +1882,8 @@ int update_alipay_qr_biz(dbuffer_t *errbuf, tree_map_t user_params,
 
   put_tree_map_string(pay_biz,"timeout_express",get_tree_map_value(pay_params,"timeout_express"));
 
+  put_tree_map_string(pay_biz,"qr_code_timeout_express",get_tree_map_value(pay_params,"timeout_express"));
+
   //put_tree_map_string(pay_biz,"operator_id","op_01");
 
   //put_tree_map_string(pay_biz,"store_id","store_01");
