@@ -2121,6 +2121,41 @@ static int init_dynamic_cfg_updater()
   return 0;
 }
 
+static 
+int do_alipay_reset_rc(Network_t net,connection_t pconn,tree_map_t user_params)
+{
+  extern pay_channels_entry_t get_pay_channels_entry();
+  pay_channels_entry_t pce = get_pay_channels_entry();
+  const char *du_res = "success";
+  dbuffer_t *errbuf = &pconn->txb;
+  merchant_entry_t pme = get_merchant_entry();
+  merchant_info_t pm = 0;
+
+
+  char *mch_id = get_tree_map_value(user_params,MCHID);
+
+  if (!mch_id || !(pm=get_merchant(pme,mch_id))) {
+    FORMAT_ERR(errbuf,E_BAD_MCH,mch_id);
+    return -1 ;
+  }
+
+  reset_paydata_rc_arguments(pce,g_alipay_mod.name);
+
+  // send a feed back
+  create_http_normal_res(&pconn->txb,-1,pt_html,du_res);
+
+  if (!pconn->ssl || pconn->ssl->state==s_ok) {
+    if (!alipay_tx(net,pconn))
+      sock_close(pconn->fd);
+    else {
+      log_error("send later by %d\n",pconn->fd);
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
 static
 void destroy_dynamic_cfg_updater()
 {
@@ -2179,6 +2214,13 @@ struct http_action_s action__alipay_cfgUpdate =
   .cb      = do_alipay_cfg_update,
 } ;
 
+static
+struct http_action_s action__alipay_reset_rc = 
+{
+  .action  = "reset-rc",
+  .cb      = do_alipay_reset_rc,
+} ;
+
 
 static
 int alipay_init(Network_t net)
@@ -2221,6 +2263,7 @@ int alipay_init(Network_t net)
   add_http_action(pe,g_alipay_mod.name,&action__alipay_transFund);
   add_http_action(pe,g_alipay_mod.name,&action__alipay_cfgUpdate);
   add_http_action(pe,g_alipay_mod.name,&action__alipay_qr);
+  add_http_action(pe,g_alipay_mod.name,&action__alipay_reset_rc);
 
   // TODO: create the 'push messages rx' thread here, 
   //  use to update configs dynamically

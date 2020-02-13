@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
+#include <sys/time.h>
 #include "pay_data.h"
 #include "log.h"
 #include "kernel.h"
@@ -254,6 +255,31 @@ void update_paydata_rc_arguments(pay_data_t pd, double amount)
   pd->rc.max_orders ++ ;
 }
 
+int reset_paydata_rc_arguments(pay_channels_entry_t entry, const char *chan)
+{
+  pay_data_t pd = 0;
+  struct timeval ts ;
+  pay_channel_t pc = get_pay_channel(entry,chan);
+
+
+  if (!pc) {
+    log_error("found no pay channel '%s'\n",chan);
+    return -1;
+  }
+
+  gettimeofday(&ts,NULL);
+
+  list_for_each_entry(pd,&pc->pay_data_list,upper) {
+    pd->rc.time = ts.tv_sec;
+    pd->rc.max_orders = 0;
+    pd->rc.max_amount = 0.0;
+  }
+
+  log_debug("reset rc arguments done!!\n");
+
+  return 0 ;
+}
+
 pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason) 
 {
   pay_route_item_t pr ;
@@ -261,8 +287,13 @@ pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason)
 
 
   // risk control timestamp
+#if 0
   struct timespec ts ;
   clock_gettime(CLOCK_REALTIME,&ts);
+#else
+  struct timeval ts ;
+  gettimeofday(&ts,NULL);
+#endif
 
   // get best pay route
   list_for_each_entry(pr,pr_list,upper) {

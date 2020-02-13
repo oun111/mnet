@@ -75,6 +75,8 @@ extern pay_data_t get_paydata_by_ali_appid(pay_channels_entry_t entry,
 
 extern void update_paydata_rc_arguments(pay_data_t pd, double amount);
 
+extern int reset_paydata_rc_arguments(pay_channels_entry_t entry, const char *chan);
+
 extern int init_pay_route_references(pay_channels_entry_t pe, struct list_head *pr_list,
                                      const char *ch_ids, bool istransfund);
 
