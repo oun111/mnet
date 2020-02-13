@@ -27,5 +27,7 @@ dist:
 	cp scripts/run_paysvr.py $(PAYSVR_DIST_PATH)
 	cp src/level5/pay_svr/syncd.py $(PAYSVR_DIST_PATH)
 	cp src/level5/pay_svr/chkd.py $(PAYSVR_DIST_PATH)
+	cp src/level5/pay_svr/chkMchd.py $(PAYSVR_DIST_PATH)
+	cp src/level5/pay_svr/rcd.py $(PAYSVR_DIST_PATH)
 	cp ./conf/paysvr_conf.json $(PAYSVR_DIST_PATH)
 	cp ./modules/*.dlo $(PAYSVR_DIST_PATH)
