@@ -544,18 +544,17 @@ class syncd(object):
   def run(self):
     cfg = self.rds_cfg;
 
-    try:
+    while (True):
 
-      while (True):
-
+      try:
         self.do_synchronize(cfg.cfgTbl,cfg.cfgMq)
 
         self.do_synchronize(cfg.odrTbl,cfg.odrMq)
 
         time.sleep(0.08);
 
-    except:
-      logger.exception("logging exception")
+      except(Exception):
+        logger.exception("logging exception")
 
 
 
