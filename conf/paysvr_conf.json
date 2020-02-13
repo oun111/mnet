@@ -16,6 +16,7 @@
       "alipayConfigTableName" : "channel_alipay_configs",
       "orderTableName" : "order_data",
       "rcTableName" : "risk_control_configs",
+      "miscRcTableName" : "misc_risk_controls",
       "cbTableName" : "check_bill_details",
       "cbmTableName": "check_bill_main",
       "address" : "127.0.0.1",
