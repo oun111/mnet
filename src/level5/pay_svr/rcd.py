@@ -171,7 +171,7 @@ class rcd(object):
       req = urllib.request.Request(url,data=data)
       res = urllib.request.urlopen(req).read()
       res = str(res).replace('b','').replace('\'','')
-      print("response：{0}".format(res))
+      #print("response：{0}".format(res))
 
       if res == 'success':
         logger.debug("reset rc ok!!")
