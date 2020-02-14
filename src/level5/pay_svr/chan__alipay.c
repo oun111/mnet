@@ -955,8 +955,13 @@ static int do_dynamic_update()
     process_channel_configs(pc,buff);
     drop_dbuffer(buff);
 
+#if 0
     delete_pay_channels_entry(pce);
     init_pay_data(pce);
+#else
+    init_pay_data(pce);
+    drop_outdated_pay_data(pce);
+#endif
 
     g_alipayData.du.flags &= ~(0x1);
   }

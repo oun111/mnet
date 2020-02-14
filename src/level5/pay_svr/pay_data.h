@@ -64,6 +64,8 @@ extern pay_data_t get_pay_data(pay_channel_t pc, const char *subname);
 extern pay_data_t add_pay_data(pay_channels_entry_t entry, const char *chan, 
                                const char *subname, tree_map_t params);
 
+extern int drop_outdated_pay_data(pay_channels_entry_t entry) ;
+
 extern void delete_pay_channels_entry(pay_channels_entry_t entry);
 
 extern pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason);

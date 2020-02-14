@@ -162,17 +162,22 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
     }
 
     p->subname = alloc_default_dbuffer();
-    p->pay_params = params;
+    //p->pay_params = params;
     p->rc.max_amount = 0.0;
     p->rc.max_orders = 0;
     p->rc.time = 0L;
     p->cfg_rc.max_amount = 0.0;
     p->cfg_rc.max_orders = 0;
     p->cfg_rc.time = 0L;
+    p->rsa_cache.sign_item   = NULL;
+    p->rsa_cache.versign_item= NULL;
 
     INIT_LIST_HEAD(&p->upper); 
     list_add(&p->upper,&pc->pay_data_list);
   }
+
+  // update pay params
+  p->pay_params = params;
 
   // update risk control configs
   rcid = get_tree_map_value(p->pay_params,"rcid");
@@ -193,11 +198,16 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
   ppub  = get_tree_map_value(p->pay_params,"public_key_path");
   ppriv = get_tree_map_value(p->pay_params,"private_key_path");
   if (ppub && ppriv) {
+    release_rsa_entry(&p->rsa_cache);
     init_rsa_entry(&p->rsa_cache,ppub,ppriv);
   }
 
   pv = (char*)subname ;
   write_dbuf_str(p->subname,pv);
+
+  // XXX: test
+  char *appid = get_tree_map_value(p->pay_params,"app_id");
+  log_debug("for appid '%s'\n",appid);
 
   return p;
 }
@@ -342,7 +352,7 @@ int init_pay_data(pay_channels_entry_t paych)
   tree_map_t entry = get_tree_map_nest(pr,"channels");
   
   
-  paych->u.root = RB_ROOT ;
+  //paych->u.root = RB_ROOT ;
 
   //rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
   MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&entry->u.root,node) {
@@ -355,6 +365,63 @@ int init_pay_data(pay_channels_entry_t paych)
     MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos1,n1,&chansub->u.root,node) {
       add_pay_data(paych,pos->key,pos1->key,pos1->nest_map);
       log_info("adding channel '%s - %s'\n",pos->key,pos1->key);
+    }
+  }
+
+  return 0;
+}
+
+int drop_outdated_pay_data(pay_channels_entry_t entry)
+{
+  pay_channel_t pos,n;
+  pay_data_t posd,nd ;
+  extern paySvr_config_t get_running_configs();
+  tree_map_t pr = get_running_configs()->chan_conf;
+  tree_map_t cfg_entry = get_tree_map_nest(pr,"channels");
+
+
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&entry->u.root,node) {
+
+    //log_debug("scanning channel '%s'\n",pos->channel);
+
+    // find existing chan latest configs
+    tm_item_t ti = 0;
+    
+    // not found means the channel is outdated!
+    MY_RB_TREE_FIND(&cfg_entry->u.root,pos->channel,ti,key,node,compare);
+    if (!ti) {
+      log_debug("droping outdated pay channel '%s'\n",pos->channel);
+      drop_pay_channel(entry,pos);
+      continue ;
+    }
+
+    tree_map_t chansub = ti->nest_map ;
+
+    list_for_each_entry_safe(posd,nd,&pos->pay_data_list,upper) {
+
+      //log_debug("scanning paydata '%s'\n",posd->subname);
+
+      // find pay data item from latest configs
+      tm_item_t pi = 0;
+
+      // not found means this paydata is outdated!!
+      MY_RB_TREE_FIND(&chansub->u.root,posd->subname,pi,key,node,compare);
+      if (!pi) {
+        log_debug("droping outdated pay data '%s'\n",posd->subname);
+
+        list_del(&posd->upper);
+        drop_dbuffer(posd->subname);
+        release_rsa_entry(&posd->rsa_cache);
+        kfree(posd);
+      }
+      // suppose the latest pay datas are added before
+#if 0
+      // if exists, refresh it
+      else {
+        add_pay_data(entry,pos->channel,posd->subname,pi->nest_map);
+      }
+#endif
+
     }
   }
 

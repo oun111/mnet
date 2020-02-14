@@ -31,7 +31,10 @@ struct pay_svr_data {
 
   struct merchant_entry_s m_merchant ;
 
-} g_paySvrData ;
+} g_paySvrData = 
+{
+  .m_paych.u.root = RB_ROOT,
+};
 
 
 
