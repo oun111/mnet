@@ -205,10 +205,6 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
   pv = (char*)subname ;
   write_dbuf_str(p->subname,pv);
 
-  // XXX: test
-  char *appid = get_tree_map_value(p->pay_params,"app_id");
-  log_debug("for appid '%s'\n",appid);
-
   return p;
 }
 
