@@ -23,6 +23,7 @@ struct global_config_keywords {
   const char *port;
   const char *cfgCache;
   const char *odrCache;
+  const char *rcCache;
   const char *cfgScanIntv;
   const char *alipayCfgTbl ;
   const char *mchCfgTbl ;
@@ -44,6 +45,7 @@ g_confKW = {
   .port         = "port",
   .cfgCache     = "cfgCache",
   .odrCache     = "orderCache",
+  .rcCache      = "rcCache",
   .cfgScanIntv  = "cfgScanInterval",
   .alipayCfgTbl = "alipayConfigTableName",
   .mchCfgTbl    = "merchantConfigTableName",
@@ -200,7 +202,9 @@ int process_myredis_configs(paySvr_config_t conf)
 
   get_conf_str(pr,g_confKW.cfgCache,pcfg->cfg_cache,sizeof(pcfg->cfg_cache));
 
-  get_conf_str(pr,g_confKW.odrCache,pcfg->order_cache,sizeof(pcfg->cfg_cache));
+  get_conf_str(pr,g_confKW.odrCache,pcfg->order_cache,sizeof(pcfg->order_cache));
+
+  get_conf_str(pr,g_confKW.rcCache,pcfg->rc_cache,sizeof(pcfg->rc_cache));
 
   get_conf_int(pr,g_confKW.cfgScanIntv,&pcfg->cfg_scan_interval);
 

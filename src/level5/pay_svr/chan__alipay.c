@@ -24,6 +24,7 @@
 #include "timer.h"
 #include "md.h"
 #include "errdef.h"
+#include "runtime_rc.h"
 
 
 #define ALIPAY_DBG  0
@@ -66,6 +67,10 @@ struct alipay_data_s {
   struct myredis_s m_rds ; // fetch order data
 
   struct myredis_s m_cfg_rds ; // fetch config data
+
+  struct myredis_s m_rc_rds ; // fetch runtime rc data
+
+  struct runtime_rc_s m_rc_entry ;
 
   // used by dynamic updater
   struct dynamic_updater_s {
@@ -2146,6 +2151,9 @@ int do_alipay_reset_rc(Network_t net,connection_t pconn,tree_map_t user_params)
 
   reset_paydata_rc_arguments(pce,g_alipay_mod.name);
 
+  // save to redis storage
+  save_runtime_rc(pce,&g_alipayData.m_rc_entry,g_alipay_mod.name);
+
   // send a feed back
   create_http_normal_res(&pconn->txb,-1,pt_html,du_res);
 
@@ -2230,6 +2238,8 @@ struct http_action_s action__alipay_reset_rc =
 static
 int alipay_init(Network_t net)
 {
+  extern pay_channels_entry_t get_pay_channels_entry();
+  pay_channels_entry_t pce = get_pay_channels_entry();
   http_action_entry_t pe = get_http_action_entry();
   paySvr_config_t pc = get_running_configs();
   myredis_conf_t rconf = get_myredis_configs(pc) ;
@@ -2245,6 +2255,12 @@ int alipay_init(Network_t net)
   //  but access 'cfg cache' instead of 'order cache'
   myredis_dup(&g_alipayData.m_rds,&g_alipayData.m_cfg_rds,
               rconf->cfg_cache);
+  // also copy 'rc cache'
+  myredis_dup(&g_alipayData.m_rds,&g_alipayData.m_rc_rds,
+              rconf->rc_cache);
+
+  // runtime rc data
+  init_runtime_rc(&g_alipayData.m_rc_entry,&g_alipayData.m_rc_rds);
 
   // redis order cache
   init_rds_order_entry(&g_alipayData.m_rOrders,&g_alipayData.m_rds,
@@ -2252,6 +2268,9 @@ int alipay_init(Network_t net)
 
   // auto id
   aid_init(&g_alipayData.aid,"alp",&g_alipayData.m_rds);
+
+  // fetch runtime rc data from redis
+  fetch_runtime_rc(pce,&g_alipayData.m_rc_entry,g_alipay_mod.name);
 
   // 
   // for dynamic configs: we have 2 choice of dynamically updating
@@ -2281,6 +2300,12 @@ int alipay_init(Network_t net)
 static
 void alipay_release()
 {
+  extern pay_channels_entry_t get_pay_channels_entry();
+  pay_channels_entry_t pce = get_pay_channels_entry();
+
+
+  save_runtime_rc(pce,&g_alipayData.m_rc_entry,g_alipay_mod.name);
+
   release_all_rds_orders(&g_alipayData.m_rOrders);
 
   myredis_release(&g_alipayData.m_rds);

@@ -5,13 +5,21 @@
 #include "tree_map.h"
 #include "list.h"
 #include "crypto.h"
+#include "runtime_rc.h"
 
 
 struct risk_control_s {
-  unsigned long time ;
-  int max_orders ;  // max order count per minute
-  double max_amount ; // max order amount per minute
-  long long period; // period to check 
+  struct {
+    unsigned long time ;
+    int max ;
+    long long period; // period to check order count
+  } order ;
+
+  struct {
+    unsigned long time ;
+    double max ; // max order amount per minute
+    long long period; // period to check amount 
+  } amount ;
 } ;
 
 struct pay_data_item_s {
@@ -83,6 +91,10 @@ extern int init_pay_route_references(pay_channels_entry_t pe, struct list_head *
                                      const char *ch_ids, bool istransfund);
 
 extern int release_all_pay_route_references(struct list_head *pr_list);
+
+extern int save_runtime_rc(pay_channels_entry_t, runtime_rc_t, const char*);
+
+extern int fetch_runtime_rc(pay_channels_entry_t, runtime_rc_t, const char*);
 
 #endif /* __PAY_DATA_H__*/
 

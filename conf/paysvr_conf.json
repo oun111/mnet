@@ -7,9 +7,10 @@
     "Redis" : {
       "cfgCache": "myrds_002",
       "orderCache": "myrds_003",
+      "rcCache": "myrds_004",
       "address" : "127.0.0.1",
       "port" : 6379,
-      "cfgScanInterval" : 2
+      "cfgScanInterval" : 1
     },
     "Mysql" : {
       "merchantConfigTableName" : "merchant_configs",

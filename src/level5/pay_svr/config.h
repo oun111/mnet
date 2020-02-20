@@ -20,6 +20,7 @@ struct myredis_config_s {
   int port ;
   char cfg_cache[32]; // config table in redis
   char order_cache[32]; // order table in redis
+  char rc_cache[32]; // run-time risk control data in redis
   int cfg_scan_interval ;
 } ;
 typedef struct myredis_config_s* myredis_conf_t ;

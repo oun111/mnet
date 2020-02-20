@@ -116,18 +116,21 @@ static int get_rc_paras(tree_map_t rc_cfg, struct risk_control_s *rcp, dbuffer_t
   FETCH_RC_KEY("rcid",rc_cfg,rcid,*reason);
 
   FETCH_RC_KEY("max_orders",rc_cfg,tmp,*reason);
-  rcp->max_orders = atoi(tmp);
+  rcp->order.max = atoi(tmp);
 
   // max amount 
   FETCH_RC_KEY("max_amount",rc_cfg,tmp,*reason) ;
-  rcp->max_amount = atof(tmp);
+  rcp->amount.max = atof(tmp);
 
-  // period
-  FETCH_RC_KEY("period",rc_cfg,tmp,*reason) ;
-  rcp->period = atol(tmp);
+  // periods
+  FETCH_RC_KEY("odr_period",rc_cfg,tmp,*reason) ;
+  rcp->order.period = atol(tmp);
 
-  log_info("rcid: %s, max_orders: %d, max_amount: %f, period: %lld\n",
-      rcid, rcp->max_orders, rcp->max_amount, rcp->period);
+  FETCH_RC_KEY("amt_period",rc_cfg,tmp,*reason) ;
+  rcp->amount.period = atol(tmp);
+
+  log_info("rcid: %s, max_orders: %d(period: %lld), max_amount: %f(period: %lld)\n",
+      rcid, rcp->order.max, rcp->order.period, rcp->amount.max, rcp->amount.period);
 
   return 0;
 }
@@ -163,6 +166,7 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
 
     p->appid = alloc_default_dbuffer();
     //p->pay_params = params;
+#if 0
     p->rc.max_amount = 0.0;
     p->rc.max_orders = 0;
     p->rc.time = 0L;
@@ -171,6 +175,11 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
     p->cfg_rc.time = 0L;
     p->rsa_cache.sign_item   = NULL;
     p->rsa_cache.versign_item= NULL;
+#else
+    bzero(&p->rc,sizeof(p->rc));
+    bzero(&p->cfg_rc,sizeof(p->cfg_rc));
+    bzero(&p->rsa_cache,sizeof(p->rsa_cache));
+#endif
 
     INIT_LIST_HEAD(&p->upper); 
     list_add(&p->upper,&pc->pay_data_list);
@@ -256,8 +265,13 @@ void delete_pay_channels_entry(pay_channels_entry_t entry)
 
 void update_paydata_rc_arguments(pay_data_t pd, double amount)
 {
+#if 0
   pd->rc.max_amount += amount ;
   pd->rc.max_orders ++ ;
+#else
+  pd->rc.amount.max += amount ;
+  pd->rc.order.max ++ ;
+#endif
 }
 
 int reset_paydata_rc_arguments(pay_channels_entry_t entry, const char *chan)
@@ -275,12 +289,79 @@ int reset_paydata_rc_arguments(pay_channels_entry_t entry, const char *chan)
   gettimeofday(&ts,NULL);
 
   list_for_each_entry(pd,&pc->pay_data_list,upper) {
+#if 0
     pd->rc.time = ts.tv_sec;
     pd->rc.max_orders = 0;
     pd->rc.max_amount = 0.0;
+#else
+    pd->rc.order.time = ts.tv_sec;
+    pd->rc.order.max  = 0;
+    pd->rc.amount.time= ts.tv_sec;
+    pd->rc.amount.max = 0.0;
+#endif
   }
 
   log_debug("reset rc arguments done!!\n");
+
+  return 0 ;
+}
+
+int 
+fetch_runtime_rc(pay_channels_entry_t entry, runtime_rc_t re, const char *chan)
+{
+  pay_data_t pd = 0;
+  struct timeval tv;
+  pay_channel_t pc = get_pay_channel(entry,chan);
+
+
+  if (!pc) {
+    log_error("found no pay channel '%s'\n",chan);
+    return -1;
+  }
+
+  gettimeofday(&tv,NULL);
+
+  list_for_each_entry(pd,&pc->pay_data_list,upper) {
+    // get latest local time, NOT from redis storage
+    pd->rc.order.time = tv.tv_sec;
+    pd->rc.amount.time = tv.tv_sec;
+    re->fetch(re,rt_amount,pd->appid,&pd->rc.amount.max);
+    re->fetch(re,rt_orders,pd->appid,&pd->rc.order.max);
+
+    log_debug("%s: amount(%lu,%f), order(%lu,%d)\n",pd->appid,
+        pd->rc.amount.time,pd->rc.amount.max,
+        pd->rc.order.time,pd->rc.order.max);
+  }
+
+  log_debug("fetch runtime rc data done!!\n");
+
+  return 0 ;
+}
+
+int 
+save_runtime_rc(pay_channels_entry_t entry, runtime_rc_t re, const char *chan)
+{
+  pay_data_t pd = 0;
+  pay_channel_t pc = get_pay_channel(entry,chan);
+
+
+  if (!pc) {
+    log_error("found no pay channel '%s'\n",chan);
+    return -1;
+  }
+
+  list_for_each_entry(pd,&pc->pay_data_list,upper) {
+
+    // don't save time onto redis storage, it's useless
+
+    pd->rc.amount.max = rand()%100;
+    pd->rc.order.max = rand()%20 ;
+    re->save(re,rt_amount,pd->appid,&pd->rc.amount.max);
+
+    re->save(re,rt_orders,pd->appid,&pd->rc.order.max);
+  }
+
+  //log_debug("save runtime rc data done!!\n");
 
   return 0 ;
 }
@@ -292,33 +373,52 @@ pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason)
 
 
   // risk control timestamp
-#if 0
-  struct timespec ts ;
-  clock_gettime(CLOCK_REALTIME,&ts);
-#else
   struct timeval ts ;
   gettimeofday(&ts,NULL);
-#endif
 
   // get best pay route
   list_for_each_entry(pr,pr_list,upper) {
 
     pay_data_t pos = pr->pdr ;
 
+#if 0
     if (pos->rc.time==0L || (ts.tv_sec-pos->rc.time)>pos->cfg_rc.period) {
       pos->rc.time = ts.tv_sec;
       pos->rc.max_orders = 0;
       pos->rc.max_amount = 0.0;
+      log_error("reseting appid %s\n",pos->appid);
     }
-    log_debug("config rc: %lld, %d, %f\n",pos->cfg_rc.period,pos->cfg_rc.max_orders,pos->cfg_rc.max_amount);
-    log_debug("current rc: %ld, %d, %f\n",pos->rc.time,pos->rc.max_orders,pos->rc.max_amount);
+#else
+    // order timer times out!
+    if (pos->rc.order.time==0L || (ts.tv_sec-pos->rc.order.time)>pos->cfg_rc.order.period) {
+      pos->rc.order.time = ts.tv_sec;
+      pos->rc.order.max = 0;
+      //log_error("reseting appid %s order rc\n",pos->appid);
+    }
+    // amount timer times out!
+    if (pos->rc.amount.time==0L || (ts.tv_sec-pos->rc.amount.time)>pos->cfg_rc.amount.period) {
+      pos->rc.amount.time = ts.tv_sec;
+      pos->rc.amount.max = 0.0;
+      //log_error("reseting appid %s amount rc\n",pos->appid);
+    }
+#endif
+    log_debug("appid: %s\n",pos->appid);
+    log_debug("  config rc: amount(%fy / %llds),order(%d / %llds)\n",
+        pos->cfg_rc.amount.max,pos->cfg_rc.amount.period,
+        pos->cfg_rc.order.max,pos->cfg_rc.order.period);
+    log_debug("  current rc: amount(%fy, %lus),order(%d / %lus)\n",
+        pos->rc.amount.max,ts.tv_sec-pos->rc.amount.time,
+        pos->rc.order.max,ts.tv_sec-pos->rc.order.time);
 
-    if ((ts.tv_sec-pos->rc.time)<pos->cfg_rc.period) {
-      // 
-      if (pos->rc.max_orders>=pos->cfg_rc.max_orders)
+    if ((ts.tv_sec-pos->rc.order.time)<pos->cfg_rc.order.period) {
+
+      if (pos->rc.order.max>=pos->cfg_rc.order.max)
         continue ;
+    }
 
-      if (pos->rc.max_amount>=pos->cfg_rc.max_amount)
+    if ((ts.tv_sec-pos->rc.amount.time)<pos->cfg_rc.amount.period) {
+
+      if (pos->rc.amount.max>=pos->cfg_rc.amount.max)
         continue ;
     }
 
