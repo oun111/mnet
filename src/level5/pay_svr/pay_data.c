@@ -27,13 +27,13 @@ pay_channel_t get_pay_channel(pay_channels_entry_t entry, const char *chan)
   return p;
 }
 
-pay_data_t get_pay_data(pay_channel_t pc, const char *subname)
+pay_data_t get_pay_data(pay_channel_t pc, const char *appid)
 {
   pay_data_t pd = 0;
 
 
   list_for_each_entry(pd,&pc->pay_data_list,upper) {
-    if (!strcmp(pd->subname,subname))
+    if (!strcmp(pd->appid,appid))
       return pd;
   }
 
@@ -134,7 +134,7 @@ static int get_rc_paras(tree_map_t rc_cfg, struct risk_control_s *rcp, dbuffer_t
 
 pay_data_t 
 add_pay_data(pay_channels_entry_t entry, const char *chan, 
-             const char *subname, tree_map_t params)
+             const char *appid, tree_map_t params)
 {
   char *pv = 0;
   pay_channel_t pc = get_pay_channel(entry,chan);
@@ -152,7 +152,7 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
     }
   }
 
-  p = get_pay_data(pc,subname);
+  p = get_pay_data(pc,appid);
 
   if (!p) {
     p = kmalloc(sizeof(struct pay_data_item_s),0L);
@@ -161,7 +161,7 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
       return NULL ;
     }
 
-    p->subname = alloc_default_dbuffer();
+    p->appid = alloc_default_dbuffer();
     //p->pay_params = params;
     p->rc.max_amount = 0.0;
     p->rc.max_orders = 0;
@@ -202,8 +202,8 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
     init_rsa_entry(&p->rsa_cache,ppub,ppriv);
   }
 
-  pv = (char*)subname ;
-  write_dbuf_str(p->subname,pv);
+  pv = (char*)appid ;
+  write_dbuf_str(p->appid,pv);
 
   return p;
 }
@@ -215,7 +215,7 @@ int drop_pay_data_internal(pay_channel_t pc)
 
 
   list_for_each_entry_safe(pos,n,&pc->pay_data_list,upper) {
-    drop_dbuffer(pos->subname);
+    drop_dbuffer(pos->appid);
     release_rsa_entry(&pos->rsa_cache);
     kfree(pos);
   }
@@ -242,7 +242,6 @@ int release_all_pay_datas(pay_channels_entry_t entry)
   pay_channel_t pos,n;
 
 
-  //rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
   MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&entry->u.root,node) {
     drop_pay_channel(entry,pos);
   }
@@ -350,17 +349,18 @@ int init_pay_data(pay_channels_entry_t paych)
   
   //paych->u.root = RB_ROOT ;
 
-  //rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
   MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&entry->u.root,node) {
     tree_map_t chansub = pos->nest_map ;
 
     if (!chansub)
       continue ;
 
-    //rbtree_postorder_for_each_entry_safe(pos1,n1,&chansub->u.root,node) {
     MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos1,n1,&chansub->u.root,node) {
-      add_pay_data(paych,pos->key,pos1->key,pos1->nest_map);
-      log_info("adding channel '%s - %s'\n",pos->key,pos1->key);
+
+      char *appid = get_tree_map_value(pos1->nest_map,"app_id");
+
+      add_pay_data(paych,pos->key,/*pos1->key*/appid,pos1->nest_map);
+      log_info("adding channel by appid '%s - %s'\n",pos->key,/*pos1->key*/appid);
     }
   }
 
@@ -395,28 +395,30 @@ int drop_outdated_pay_data(pay_channels_entry_t entry)
 
     list_for_each_entry_safe(posd,nd,&pos->pay_data_list,upper) {
 
-      //log_debug("scanning paydata '%s'\n",posd->subname);
+      log_debug("scanning paydata by appid '%s'\n",posd->appid);
 
       // find pay data item from latest configs
-      tm_item_t pi = 0;
+      tm_item_t pi, ni;
+      bool found = false ;
 
       // not found means this paydata is outdated!!
-      MY_RB_TREE_FIND(&chansub->u.root,posd->subname,pi,key,node,compare);
-      if (!pi) {
-        log_debug("droping outdated pay data '%s'\n",posd->subname);
+      MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pi,ni,&chansub->u.root,node) {
+        char *appid = get_tree_map_value(pi->nest_map,"app_id");
+
+        if (!strcmp(appid,posd->appid)) {
+          found = true ;
+          break ;
+        }
+      }
+
+      if (!found) {
+        log_debug("droping outdated pay data by appid '%s'\n",posd->appid);
 
         list_del(&posd->upper);
-        drop_dbuffer(posd->subname);
+        drop_dbuffer(posd->appid);
         release_rsa_entry(&posd->rsa_cache);
         kfree(posd);
       }
-      // suppose the latest pay datas are added before
-#if 0
-      // if exists, refresh it
-      else {
-        add_pay_data(entry,pos->channel,posd->subname,pi->nest_map);
-      }
-#endif
 
     }
   }

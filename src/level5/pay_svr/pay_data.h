@@ -15,7 +15,7 @@ struct risk_control_s {
 } ;
 
 struct pay_data_item_s {
-  dbuffer_t subname ;
+  dbuffer_t appid ;
 
   struct risk_control_s rc ;
 
