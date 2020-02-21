@@ -354,8 +354,6 @@ save_runtime_rc(pay_channels_entry_t entry, runtime_rc_t re, const char *chan)
 
     // don't save time onto redis storage, it's useless
 
-    pd->rc.amount.max = rand()%100;
-    pd->rc.order.max = rand()%20 ;
     re->save(re,rt_amount,pd->appid,&pd->rc.amount.max);
 
     re->save(re,rt_orders,pd->appid,&pd->rc.order.max);
