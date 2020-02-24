@@ -16,7 +16,9 @@ int scan_simple_timer_list(simple_timer_entry_t entry, void *net)
 
   list_for_each_entry_safe(pos,n,&entry->list,upper) {
 
-    if (pos->sec_count++ > pos->timeouts) {
+    if (++pos->sec_count >= pos->timeouts) {
+      //log_debug("timer '%s' timeouts %d\n",pos->desc,pos->timeouts);
+
       pos->cb(net,(void*)(uintptr_t)pos->timeouts);
       pos->sec_count = 0;
     }

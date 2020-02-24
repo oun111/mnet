@@ -1390,14 +1390,15 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
     goto __done;
   }
 
-  // update risk control arguments
-  update_paydata_rc_arguments(pd,po->amount);
-
   // update order status by ALI status
   ptr = get_tree_map_value(user_params,"trade_status");
 
-  if (likely(ptr)) 
-    st = !strcmp(ptr,"TRADE_SUCCESS")?s_paid:s_err;
+  if (likely(ptr) && !strcmp(ptr,"TRADE_SUCCESS")) {
+
+    st = s_paid;
+
+    update_paydata_rc_arguments(pd,po->amount);
+  }
 
   set_order_message(po,ptr);
 
@@ -2063,7 +2064,7 @@ static int fetch_du_notice(void *pnet, void *ptos)
   mysql_conf_t mscfg = get_mysql_configs(pc);
   myredis_conf_t rconf = get_myredis_configs(pc);
   dbuffer_t *pmsg = &g_alipayData.du.push_msg ;
-  int ret = 0;
+  int ret = 0, retry = 0;
   
 
   // a single redis connection for subscribe/publish
@@ -2078,22 +2079,29 @@ static int fetch_du_notice(void *pnet, void *ptos)
     }
   }
 
-  while (!myredis_subscribe_msg(prds,pmsg) && 
-         dbuffer_data_size(*pmsg)>0L) {
+  // retry if subscribe nothing
+  while (++retry<10) {
 
-    if (!strcasecmp(*pmsg,mscfg->rc_conf_table) || 
-        !strcasecmp(*pmsg,mscfg->alipay_conf_table)) {
-      g_alipayData.du.flags |= 0x1;
-      // also update merchant configs
-      g_alipayData.du.flags |= 0x2;
-      log_debug("updating '%s'...\n",*pmsg);
-    }
+    if (myredis_subscribe_msg(prds,pmsg)==0 && 
+          dbuffer_data_size(*pmsg)>0L) {
 
-    if (!strcasecmp(*pmsg,mscfg->mch_conf_table)) {
-      g_alipayData.du.flags |= 0x2;
-      log_debug("updating '%s'...\n",*pmsg);
+      if (!strcasecmp(*pmsg,mscfg->rc_conf_table) || 
+          !strcasecmp(*pmsg,mscfg->alipay_conf_table)) {
+        g_alipayData.du.flags |= 0x1;
+        // also update merchant configs
+        g_alipayData.du.flags |= 0x2;
+        log_debug("updating '%s'...\n",*pmsg);
+      }
+
+      if (!strcasecmp(*pmsg,mscfg->mch_conf_table)) {
+        g_alipayData.du.flags |= 0x2;
+        log_debug("updating '%s'...\n",*pmsg);
+      }
+
+      break ;
     }
   }
+
 
   //myredis_release(&rds);
 
