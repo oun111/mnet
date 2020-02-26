@@ -134,20 +134,15 @@ class check_mch_biz:
       mscfg.pwd     = cfg['pwd']
       mscfg.odrTbl  = cfg['orderTableName']
       mscfg.chanTbl = cfg['alipayConfigTableName']
+      mscfg.mRcTbl  = cfg['miscRcTableName']
       logger.debug("mysql configs: host: {0}:{1}".
             format(mscfg.address,mscfg.port))
 
     self.m_mysql = Mysql(mscfg.address,mscfg.port,mscfg.db,
                          mscfg.usr,mscfg.pwd)
 
-    # 未支付订单数超过该值认为该通道被支付宝封禁
-    self.m_freezeThreshold = 5
-    cfg  = gcfg['Globals']['CheckMerchant']
-    if (len(cfg)>0):
-      self.m_freezeThreshold = int(cfg['freezeThreshold'])
 
-
-  def do_biz(self,period):
+  def do_biz(self,period,freezeThreshold):
 
     if period==-1:
       updateSql = "update {chanTbl} set status=0 ".format(chanTbl=self.mysql_cfg.chanTbl)
@@ -161,22 +156,19 @@ class check_mch_biz:
 
     for r in rows:
       appid = r['APP_ID']
-      strsql= "select unpay.count unpay_count, total.count total_count from (select count(1) count from {odrTbl} where CHAN_MCH_NO='{mch_no}' and status<>2 and create_time>={ts}  ) unpay, (select count(1) count from {odrTbl} where CHAN_MCH_NO='{mch_no}' and create_time>={ts}  ) total where 1=1".format(mch_no=appid,ts=times,odrTbl=self.mysql_cfg.odrTbl)
+      strsql= "select paid.count paid_count, total.count total_count from (select count(1) count from {odrTbl} where CHAN_MCH_NO='{mch_no}' and status<>2 and create_time>={ts} and status=2  ) paid, (select count(1) count from {odrTbl} where CHAN_MCH_NO='{mch_no}' and create_time>={ts}  ) total where 1=1".format(mch_no=appid,ts=times,odrTbl=self.mysql_cfg.odrTbl)
 
       res = self.m_mysql.do_exec(strsql)
       total = res[0]['total_count']
-      unpay = res[0]['unpay_count']
+      paid = res[0]['paid_count']
 
       stat = 0
-      # 该通道未使用
-      if total==0:
-        stat = 0
-      # 该通道被封
-      elif total==unpay and total>self.m_freezeThreshold:
-        stat = 2
       # 该通道正常
-      else:
+      if paid>0:
         stat = 1
+      # 该通道被封
+      elif total>=freezeThreshold:
+        stat = 2
 
       updateSql = "update {chanTbl} set status={stat} where app_id='{app_id}'"\
                   .format(chanTbl=self.mysql_cfg.chanTbl,stat=stat,app_id=appid)
@@ -184,39 +176,20 @@ class check_mch_biz:
       #print("id: {0}, appid: {1}, stat: {2}".format(r['id'],appid,stat))
 
 
-  def getPeriodByDatetime(self):
-
-    t = time.time()
-    tstruct = time.localtime(t)
-
-    # 周六、日 不探测
-    if tstruct.tm_wday==5 or tstruct.tm_wday==6:
-      return -1
-
-    # 3 ~6 不探测
-    if tstruct.tm_hour>=3 and tstruct.tm_hour<=6:
-      return -1
-
-    # 8~12，14~24, 0~1 周期为20分钟
-    if tstruct.tm_hour<=1 or tstruct.tm_hour>=14 or (tstruct.tm_hour>=8 and tstruct.tm_hour<=12):
-      return 20*60
-
-    # 其余周期为 30 分钟
-    return 30*60
-
-
   def run(self):
 
     try:
 
       while (True):
+        rows = self.m_mysql.query(self.mysql_cfg.mRcTbl," freeze_threshold, freeze_timespan ")
 
-        period = self.getPeriodByDatetime()
+        period    = rows[0]['freeze_timespan']
+        fthreshold= rows[0]['freeze_threshold']
 
-        self.do_biz(period)
+        self.do_biz(period,fthreshold)
         
-        if period<0:
-          period = 60
+        # 检测间隔
+        period = period%300+360
 
         time.sleep(period);
 
