@@ -156,7 +156,7 @@ class check_mch_biz:
 
     for r in rows:
       appid = r['APP_ID']
-      strsql= "select paid.count paid_count, total.count total_count from (select count(1) count from {odrTbl} where CHAN_MCH_NO='{mch_no}' and status<>2 and create_time>={ts} and status=2  ) paid, (select count(1) count from {odrTbl} where CHAN_MCH_NO='{mch_no}' and create_time>={ts}  ) total where 1=1".format(mch_no=appid,ts=times,odrTbl=self.mysql_cfg.odrTbl)
+      strsql= "select paid.count paid_count, total.count total_count from (select count(1) count from {odrTbl} where CHAN_MCH_NO='{mch_no}' and create_time>={ts} and status=2  ) paid, (select count(1) count from {odrTbl} where CHAN_MCH_NO='{mch_no}' and create_time>={ts}  ) total where 1=1".format(mch_no=appid,ts=times,odrTbl=self.mysql_cfg.odrTbl)
 
       res = self.m_mysql.do_exec(strsql)
       total = res[0]['total_count']
