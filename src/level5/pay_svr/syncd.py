@@ -279,28 +279,17 @@ class syncd(object):
 
   def do_sql_insert_update(self,dct1,table,key):
 
-    #logger.debug("dct: ",dct1)
+    #logger.debug("dct: {0}".format(dct1))
     for ch in dct1:
-      strSql  = ""
-      kval    = ch[key]
-      mysql   = self.m_mysql
-      strCond = (" where " + key + "='" + kval + "'")
-      selist  = "count(1)"
-
-      res = mysql.query(table,selist,strCond)
-
-      if (res[0][selist]>0):
-
-        updList = self.concat_sql_list(ch,0)
-        strSql  = ("update "+ table + " set " + 
-                   updList +
-                   " where " + key  + " = '" + kval + "'")
-      else:
-        instList = self.concat_sql_list(ch,1)
-        valList  = self.concat_sql_list(ch,2)
-        strSql   = ("insert into " + table + 
-                    "(" + instList + ")" +
-                    " values(" + valList + ")")
+      mysql    = self.m_mysql
+      updList  = self.concat_sql_list(ch,0)
+      instList = self.concat_sql_list(ch,1)
+      valList  = self.concat_sql_list(ch,2)
+      strSql   = ("insert into " + table + 
+                  "(" + instList + ")" +
+                  " values(" + valList + ")" +
+                  " on duplicate key update " +
+                  updList)
 
       logger.debug("===redis -> mysql=== "+strSql)
 
@@ -341,12 +330,17 @@ class syncd(object):
     cb = self.sync_cb[table][1]
     cb(table,db_key,json.loads(v))
 
+    # FIXME: this will overwrite  consequent 
+    #   value writen on this key, the latest
+    #   value    may   be   lost
+    """
     resMap['status'] = self.rds_status.mr__ok
     resMap['table']  = table
     resMap['value']  = v
 
     fj = json.dumps(resMap)
     rds.write(rdsTbl,key,fj)
+    """
 
 
   def sync_back_order_data_index(self,rows):
