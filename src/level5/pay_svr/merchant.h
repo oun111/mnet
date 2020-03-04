@@ -10,6 +10,11 @@
 #define MCH_ID_SIZE  32
 
 
+struct fixed_amount_s {
+  struct rb_node node ;
+  double amount ;
+} ;
+typedef struct fixed_amount_s* fixed_amt ;
 
 struct merchant_info_s {
 
@@ -22,8 +27,12 @@ struct merchant_info_s {
   dbuffer_t privkey ;
   bool verify_sign ;
   int sign_type ;
-  double max_amt; // max amount per request
-  double min_amt ;// min amount per request
+
+  struct {
+    double max; // max amount per request
+    double min;// min amount per request
+    struct rb_root fixed ; // fix amounts
+  } amounts ;
 
   // trade time
   struct {
@@ -54,6 +63,8 @@ typedef struct merchant_entry_s* merchant_entry_t ;
 
 
 extern merchant_info_t get_merchant(merchant_entry_t entry, char *merchant_id);
+
+extern bool is_merchant_amount_valid(merchant_info_t pm, double amt, dbuffer_t *errbuf);
 
 extern int save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info) ;
 

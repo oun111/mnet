@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include "tree_map.h"
 #include "merchant.h"
 #include "kernel.h"
@@ -15,6 +16,11 @@
 #define DEFAULT_MAX_AMT  128.0
 
 
+static int compare_double(double d0, double d1)
+{
+  return d0>d1?1:d0<d1?-1:0 ;
+}
+
 static int compare(char *s0, char *s1)
 {
   return strcmp(s0,s1) ;
@@ -28,6 +34,101 @@ merchant_info_t get_merchant(merchant_entry_t entry, char *merchant_id)
     return p ;
 
   return NULL ;
+}
+
+static 
+int next_amount(char *raw, char **p, char **e)
+{
+  *p = raw ;
+  while (isspace(*(*p))) 
+    (*p)++ ;
+
+  *e = strchr(*p,',');
+
+  if (*e==NULL)
+    return -1;
+
+  **e = '\0';
+
+  return 0;
+}
+
+static 
+int parse_amount_range(const char *raw, double *min, double *max)
+{
+  char  *p = 0, *e = 0;
+
+  // min part
+  if (next_amount((char*)raw,&p,&e)) {
+    return -1;
+  }
+
+  *min = atof(p);
+  *e   = ',';
+
+  // max part
+  p = 0;
+  next_amount(e+1,&p,&e);
+  *max = atof(p);
+
+  return 0;
+}
+
+static
+int parse_amount_fixed(const char *raw, struct rb_root *map)
+{
+  char  *p = 0, *e = 0;
+  fixed_amt famt = NULL ;
+  int rc = 0;
+
+  for (p=(char*)raw; rc==0; p=e+1) {
+    double d = 0.0 ;
+
+    rc = next_amount(p,&p,&e);
+    d  = atof(p);
+    if (d<=0)
+      continue ;
+
+    famt = kmalloc(sizeof(struct fixed_amount_s),0L);
+    famt->amount = d;
+
+    MY_RB_TREE_INSERT(map,famt,amount,node,compare_double);
+
+    if (e)
+      *e = ',';
+
+  }
+
+  return 0;
+}
+
+static 
+void print_fixed_amounts(struct rb_root *map)
+{
+  fixed_amt pos, n;
+
+
+  if (map->rb_node==NULL)
+    return ;
+
+  log_debug("fixed amounts are: \n");
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,map,node) {
+    log_debug("  %.2f\n",pos->amount);
+  }
+}
+
+static 
+int release_fixed_amounts(struct rb_root *map)
+{
+  fixed_amt pos, n;
+
+
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,map,node) {
+    rb_erase(&pos->node,map);
+    kfree(pos);
+  }
+
+  return 0;
 }
 
 int 
@@ -116,23 +217,31 @@ save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info)
     log_error("no transfund route is configure for merchant '%s'\n",p->id);
   }
 
-  // amount range per request
-  p->min_amt = p->max_amt = 0.0;
-  pv = get_tree_map_value(p->mch_info,"max_amount");
-  if (pv && strlen(pv)>0) {
-    p->max_amt = atof(pv);
+  /*
+   * amount controls
+   */
+  // 1#: amount range per request
+  p->amounts.max  = 0.0;
+  p->amounts.max  = 0.0;
+  pv = get_tree_map_value(p->mch_info,"amount_range");
+  if (pv && strlen(pv)>0 && parse_amount_range(pv,&p->amounts.min,&p->amounts.max)) {
+    log_error("invalid amount range config: '%s'\n",pv);
   }
-  pv = get_tree_map_value(p->mch_info,"min_amount");
-  if (pv && strlen(pv)>0) {
-    p->min_amt = atof(pv);
-  }
-  if (!(p->max_amt>p->min_amt && p->min_amt>0.0)) {
-    p->min_amt = 0.01;
-    p->max_amt = DEFAULT_MAX_AMT;
+  if (!(p->amounts.max>p->amounts.min && p->amounts.min>0.0)) {
+    p->amounts.min = 0.01;
+    p->amounts.max = DEFAULT_MAX_AMT;
     log_error("invalid pay amount range of merchant '%s', default to [%.2f,%.2f]\n",
-              p->id,p->min_amt,p->max_amt);
+              p->id,p->amounts.min,p->amounts.max);
   }
+  log_debug("amount range: %.2f ~ %.2f\n",p->amounts.min,p->amounts.max);
 
+  // 2#: fixed amounts
+  p->amounts.fixed= RB_ROOT ;
+  pv = get_tree_map_value(p->mch_info,"amount_fixed");
+  if (pv && strlen(pv)>0 && parse_amount_fixed(pv,&p->amounts.fixed)) {
+    log_error("invalid fixed amount config: '%s'\n",pv);
+  }
+  print_fixed_amounts(&p->amounts.fixed);
 
   // trade range per request
   p->tt.t0 = p->tt.t1 = -1;
@@ -165,6 +274,44 @@ save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info)
   return 0;
 }
 
+bool is_merchant_amount_valid(merchant_info_t pm, double amt, dbuffer_t *errbuf)
+{
+  char tmp[64] = "";
+
+
+  // check fixed amounts if the fixed list's not empty
+  if (pm->amounts.fixed.rb_node!=NULL) {
+    fixed_amt pos = NULL, n = NULL ;
+
+    MY_RB_TREE_FIND(&pm->amounts.fixed,amt,pos,amount,node,compare_double);
+
+    if (!pos) {
+      *errbuf = alloc_default_dbuffer();
+
+      MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&pm->amounts.fixed,node) {
+        if (dbuffer_data_size(*errbuf)>0)
+          append_dbuf_str(*errbuf,",");
+        snprintf(tmp,sizeof(tmp),"%.2f",pos->amount);
+        append_dbuf_str(*errbuf,tmp);
+      }
+
+      return false ;
+    }
+  }
+  // otherwise check range
+  else  if (!(amt>=pm->amounts.min && amt<=pm->amounts.max)) {
+
+    *errbuf = alloc_default_dbuffer();
+    snprintf(tmp,sizeof(tmp),"%.2f",pm->amounts.min);
+    write_dbuf_str(*errbuf,tmp);
+    append_dbuf_str(*errbuf," ~ ");
+    snprintf(tmp,sizeof(tmp),"%.2f",pm->amounts.max);
+    append_dbuf_str(*errbuf,tmp);
+    return false;
+  }
+
+  return true;
+}
 
 static
 int drop_merchant_internal(merchant_entry_t entry, merchant_info_t p)
@@ -176,6 +323,8 @@ int drop_merchant_internal(merchant_entry_t entry, merchant_info_t p)
 
   release_all_pay_route_references(&p->alipay_pay_route);
   release_all_pay_route_references(&p->alipay_transfund_route);
+
+  release_fixed_amounts(&p->amounts.fixed);
 
   kfree(p);
 

@@ -49,7 +49,7 @@
 
 
 #define FORMAT_ERR(__errbuf__,__ec__,arg...) do{\
-  char msg[96],tmp[96],*pmsg=msg,*ptmp=tmp; \
+  char msg[256],tmp[256],*pmsg=msg,*ptmp=tmp; \
   const char *fmt = err_msgs[__ec__]; \
   snprintf(tmp,sizeof(tmp),fmt,##arg);\
   snprintf(pmsg,sizeof(msg),"{\"errCode\":\"%d\",\"errMsg\":\"%s\"}",\
@@ -640,9 +640,12 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
     return -1;
   }
 
+  dbuffer_t tmpbuf = NULL ;
+
   amt = atof(amount);
-  if (!(amt>=pm->min_amt && amt<=pm->max_amt)) {
-    FORMAT_ERR(errbuf,E_BAD_AMT,amt,pm->min_amt,pm->max_amt);
+  if (is_merchant_amount_valid(pm,amt,&tmpbuf)==false) {
+    FORMAT_ERR(errbuf,E_BAD_AMT,amt,tmpbuf);
+    drop_dbuffer(tmpbuf);
     return -1;
   }
 
@@ -1802,9 +1805,12 @@ int update_alipay_qr_biz(dbuffer_t *errbuf, tree_map_t user_params,
     return -1;
   }
 
+  dbuffer_t tmpbuf = NULL ;
+
   amt = atof(amount);
-  if (!(amt>=pm->min_amt && amt<=pm->max_amt)) {
-    FORMAT_ERR(errbuf,E_BAD_AMT,amt,pm->min_amt,pm->max_amt);
+  if (is_merchant_amount_valid(pm,amt,&tmpbuf)==false) {
+    FORMAT_ERR(errbuf,E_BAD_AMT,amt,tmpbuf);
+    drop_dbuffer(tmpbuf);
     return -1;
   }
 
