@@ -29,6 +29,7 @@ struct merchant_info_s {
   int sign_type ;
 
   struct {
+    int method:4; // 0: range, 1: fixed
     double max; // max amount per request
     double min;// min amount per request
     struct rb_root fixed ; // fix amounts

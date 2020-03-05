@@ -74,6 +74,27 @@ int parse_amount_range(const char *raw, double *min, double *max)
   return 0;
 }
 
+static 
+int parse_time_range(const char *raw, int *min, int *max)
+{
+  char  *p = 0, *e = 0;
+
+  // min part
+  if (next_amount((char*)raw,&p,&e)) {
+    return -1;
+  }
+
+  *min = atoi(p);
+  *e   = ',';
+
+  // max part
+  p = 0;
+  next_amount(e+1,&p,&e);
+  *max = atoi(p);
+
+  return 0;
+}
+
 static
 int parse_amount_fixed(const char *raw, struct rb_root *map)
 {
@@ -131,68 +152,81 @@ int release_fixed_amounts(struct rb_root *map)
   return 0;
 }
 
-int 
-save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info)
+static
+int import_amount_restrictions(merchant_info_t p)
+{
+  char *pv = 0;
+
+
+  p->amounts.method = 0 ;
+  pv = get_tree_map_value(p->mch_info,"amount_check_method");
+  if (pv && strlen(pv)>0) {
+    int m = atoi(pv);
+    p->amounts.method = m>1||m<0?0:m;
+  }
+
+  log_debug("amount check method: %d\n",p->amounts.method);
+
+  // 1#: amount range per request
+  p->amounts.max  = 0.0;
+  p->amounts.max  = 0.0;
+  pv = get_tree_map_value(p->mch_info,"amount_range");
+  if (pv && strlen(pv)>0 && parse_amount_range(pv,&p->amounts.min,&p->amounts.max)) {
+    log_error("invalid amount range config: '%s'\n",pv);
+  }
+
+  if (!(p->amounts.max>p->amounts.min && p->amounts.min>0.0)) {
+    p->amounts.min = 0.01;
+    p->amounts.max = DEFAULT_MAX_AMT;
+    log_error("invalid pay amount range of merchant '%s', default to [%.2f,%.2f]\n",
+              p->id,p->amounts.min,p->amounts.max);
+  }
+
+  log_debug("amount range: %.2f ~ %.2f\n",p->amounts.min,p->amounts.max);
+
+  // 2#: fixed amounts
+  p->amounts.fixed= RB_ROOT ;
+  pv = get_tree_map_value(p->mch_info,"amount_fixed");
+  if (pv && strlen(pv)>0 && parse_amount_fixed(pv,&p->amounts.fixed)) {
+    log_error("invalid fixed amount config: '%s'\n",pv);
+  }
+
+  print_fixed_amounts(&p->amounts.fixed);
+
+  return 0;
+}
+
+static
+int import_tradetime_restrictions(merchant_info_t p)
 {
   int v = 0;
   char *pv = 0;
-  merchant_info_t p = 0;
+
+
+  p->tt.t0 = p->tt.t1 = -1;
+  pv = get_tree_map_value(p->mch_info,"trade_time_range");
+  if (pv && strlen(pv)>0 && (v=atoi(pv))>0) {
+    parse_time_range(pv,&p->tt.t0,&p->tt.t1) ;
+  }
+
+  if (!((p->tt.t1-p->tt.t0)>0)) {
+    log_error("invalid trade time range [%d,%d] of merchant '%s', "
+        "default to WHOLE DAY long!\n",p->tt.t0,p->tt.t1,p->id);
+    p->tt.t0 = p->tt.t1 = -1;
+  }
+
+  log_debug("time range: %d ~ %d\n",p->tt.t0,p->tt.t1);
+
+  return 0;
+}
+
+static
+int import_pay_routes(merchant_info_t p)
+{
+  char *pv = 0;
   extern pay_channels_entry_t get_pay_channels_entry() ;
   pay_channels_entry_t pe = get_pay_channels_entry() ;
 
-
-  if (!MY_RB_TREE_FIND(&entry->u.root,merchant_id,p,id,node,compare)) {
-    log_debug("merchant id %s already exists\n",merchant_id);
-    return 0 ;
-  }
-
-  p = kmalloc(sizeof(struct merchant_info_s),0L);
-
-  if (!p)
-    return -1 ;
-
-
-  strncpy(p->id,merchant_id,sizeof(p->id));
-
-  p->mch_info = mch_info ;
-
-  p->pubkey  = alloc_default_dbuffer();
-  p->privkey = alloc_default_dbuffer();
-
-  // the public key
-  pv = get_tree_map_value(p->mch_info,"pubkey");
-  if (pv) {
-    write_dbuf_str(p->pubkey,pv);
-  }
-
-  // the private key
-  pv = get_tree_map_value(p->mch_info,"privkey");
-  if (pv) {
-    write_dbuf_str(p->privkey,pv);
-  }
-
-
-  p->verify_sign = false ;
-
-  // is verify sign
-  pv = get_tree_map_value(p->mch_info,"verify_sign");
-  if (pv) {
-    p->verify_sign = pv[0]=='1';
-  }
-
-
-  p->sign_type = MD_MD5;
-
-  // sign type
-  pv = get_tree_map_value(p->mch_info,"sign_type");
-  if (pv) {
-    if (!strcasecmp(pv,"md5")) p->sign_type = MD_MD5;
-    else if (!strcasecmp(pv,"sha1")) p->sign_type = MD_SHA1;
-    else if (!strcasecmp(pv,"sha224")) p->sign_type = MD_SHA224;
-    else if (!strcasecmp(pv,"sha256")) p->sign_type = MD_SHA256;
-    else if (!strcasecmp(pv,"sha384")) p->sign_type = MD_SHA384;
-    else if (!strcasecmp(pv,"sha512")) p->sign_type = MD_SHA512;
-  }
 
   INIT_LIST_HEAD(&p->alipay_pay_route);
   INIT_LIST_HEAD(&p->alipay_transfund_route);
@@ -217,49 +251,79 @@ save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info)
     log_error("no transfund route is configure for merchant '%s'\n",p->id);
   }
 
-  /*
-   * amount controls
-   */
-  // 1#: amount range per request
-  p->amounts.max  = 0.0;
-  p->amounts.max  = 0.0;
-  pv = get_tree_map_value(p->mch_info,"amount_range");
-  if (pv && strlen(pv)>0 && parse_amount_range(pv,&p->amounts.min,&p->amounts.max)) {
-    log_error("invalid amount range config: '%s'\n",pv);
-  }
-  if (!(p->amounts.max>p->amounts.min && p->amounts.min>0.0)) {
-    p->amounts.min = 0.01;
-    p->amounts.max = DEFAULT_MAX_AMT;
-    log_error("invalid pay amount range of merchant '%s', default to [%.2f,%.2f]\n",
-              p->id,p->amounts.min,p->amounts.max);
-  }
-  log_debug("amount range: %.2f ~ %.2f\n",p->amounts.min,p->amounts.max);
+  return 0;
+}
 
-  // 2#: fixed amounts
-  p->amounts.fixed= RB_ROOT ;
-  pv = get_tree_map_value(p->mch_info,"amount_fixed");
-  if (pv && strlen(pv)>0 && parse_amount_fixed(pv,&p->amounts.fixed)) {
-    log_error("invalid fixed amount config: '%s'\n",pv);
-  }
-  print_fixed_amounts(&p->amounts.fixed);
+static
+int import_cryptos(merchant_info_t p)
+{
+  char *pv = 0;
 
-  // trade range per request
-  p->tt.t0 = p->tt.t1 = -1;
-  pv = get_tree_map_value(p->mch_info,"trade_time0");
-  if (pv && strlen(pv)>0 && (v=atoi(pv))>0) {
-    p->tt.t0 = v ;
-  }
-  pv = get_tree_map_value(p->mch_info,"trade_time1");
-  if (pv && strlen(pv)>0 && (v=atoi(pv))>0) {
-    p->tt.t1 = v ;
-  }
-  if (!((p->tt.t1-p->tt.t0)>=0)) {
-    log_error("invalid trade time range [%d,%d] of merchant '%s', "
-        "default to WHOLE DAY long!\n",p->tt.t0,p->tt.t1,p->id);
-    p->tt.t0 = p->tt.t1 = -1;
-  }
-  log_debug("tt begin %d, ending %d\n",p->tt.t0,p->tt.t1);
 
+  p->pubkey  = alloc_default_dbuffer();
+  p->privkey = alloc_default_dbuffer();
+
+  // the public key
+  pv = get_tree_map_value(p->mch_info,"pubkey");
+  if (pv) {
+    write_dbuf_str(p->pubkey,pv);
+  }
+
+  // the private key
+  pv = get_tree_map_value(p->mch_info,"privkey");
+  if (pv) {
+    write_dbuf_str(p->privkey,pv);
+  }
+
+  p->verify_sign = false ;
+
+  // is verify sign
+  pv = get_tree_map_value(p->mch_info,"verify_sign");
+  if (pv) {
+    p->verify_sign = pv[0]=='1';
+  }
+
+  p->sign_type = MD_MD5;
+
+  // sign type
+  pv = get_tree_map_value(p->mch_info,"sign_type");
+  if (pv) {
+    if (!strcasecmp(pv,"md5")) p->sign_type = MD_MD5;
+    else if (!strcasecmp(pv,"sha1")) p->sign_type = MD_SHA1;
+    else if (!strcasecmp(pv,"sha224")) p->sign_type = MD_SHA224;
+    else if (!strcasecmp(pv,"sha256")) p->sign_type = MD_SHA256;
+    else if (!strcasecmp(pv,"sha384")) p->sign_type = MD_SHA384;
+    else if (!strcasecmp(pv,"sha512")) p->sign_type = MD_SHA512;
+  }
+
+  return 0;
+}
+
+int 
+save_merchant(merchant_entry_t entry, char *merchant_id, tree_map_t mch_info)
+{
+  merchant_info_t p = 0;
+
+
+  if (!MY_RB_TREE_FIND(&entry->u.root,merchant_id,p,id,node,compare)) {
+    log_debug("merchant id %s already exists\n",merchant_id);
+    return 0 ;
+  }
+
+  p = kmalloc(sizeof(struct merchant_info_s),0L);
+  if (!p)
+    return -1 ;
+
+  strncpy(p->id,merchant_id,sizeof(p->id));
+  p->mch_info = mch_info ;
+
+  import_cryptos(p);
+
+  import_pay_routes(p);
+
+  import_amount_restrictions(p);
+
+  import_tradetime_restrictions(p);
 
   if (MY_RB_TREE_INSERT(&entry->u.root,p,id,node,compare)) {
     log_error("insert merchant id %s fail\n",merchant_id);
@@ -279,8 +343,8 @@ bool is_merchant_amount_valid(merchant_info_t pm, double amt, dbuffer_t *errbuf)
   char tmp[64] = "";
 
 
-  // check fixed amounts if the fixed list's not empty
-  if (pm->amounts.fixed.rb_node!=NULL) {
+  // fixed amounts
+  if (pm->amounts.method==1) {
     fixed_amt pos = NULL, n = NULL ;
 
     MY_RB_TREE_FIND(&pm->amounts.fixed,amt,pos,amount,node,compare_double);
