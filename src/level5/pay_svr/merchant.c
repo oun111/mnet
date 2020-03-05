@@ -199,13 +199,12 @@ int import_amount_restrictions(merchant_info_t p)
 static
 int import_tradetime_restrictions(merchant_info_t p)
 {
-  int v = 0;
   char *pv = 0;
 
 
   p->tt.t0 = p->tt.t1 = -1;
   pv = get_tree_map_value(p->mch_info,"trade_time_range");
-  if (pv && strlen(pv)>0 && (v=atoi(pv))>0) {
+  if (pv && strlen(pv)>0) {
     parse_time_range(pv,&p->tt.t0,&p->tt.t1) ;
   }
 
