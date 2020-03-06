@@ -350,6 +350,7 @@ bool is_merchant_amount_valid(merchant_info_t pm, double amt, dbuffer_t *errbuf)
 
     if (!pos) {
       *errbuf = alloc_default_dbuffer();
+      write_dbuf_str(*errbuf,"");
 
       MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&pm->amounts.fixed,node) {
         if (dbuffer_data_size(*errbuf)>0)
