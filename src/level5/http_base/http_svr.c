@@ -183,6 +183,9 @@ ssize_t http_svr_rx_raw(Network_t net, connection_t pconn)
   if (szhdr==0L) {
     log_error("no header size(sz_in: %zu)\n",sz_in);
     log_error("rx: %s\n",b);
+    // invalid http packet!!
+    if (unlikely(sz_in>=1024))
+      return -2;
     return -1;
   }
 
@@ -237,6 +240,10 @@ int http_svr_rx(Network_t net, connection_t pconn)
 
     /* REMEMBER TO update the read pointer of rx buffer */
     dbuffer_lseek(pconn->rxb,sz_in,SEEK_CUR,0);
+  }
+
+  if (unlikely(sz_in==-2)) {
+    return -1;
   }
 
   return 0;
