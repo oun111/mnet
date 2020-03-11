@@ -184,9 +184,7 @@ ssize_t http_svr_rx_raw(Network_t net, connection_t pconn)
     log_error("no header size(sz_in: %zu)\n",sz_in);
     log_error("rx: %s\n",b);
     // invalid http packet!!
-    if (unlikely(sz_in>=1024))
-      return -2;
-    return -1;
+    return unlikely(sz_in>4096)?-2:-1;
   }
 
   szReq = get_http_body_size(b,sz_in);
