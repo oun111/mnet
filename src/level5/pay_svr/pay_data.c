@@ -350,6 +350,11 @@ save_runtime_rc(pay_channels_entry_t entry, runtime_rc_t re, const char *chan)
     return -1;
   }
 
+  if (!re->save) {
+    log_error("no save_runtime_rc() handler!\n");
+    return -1;
+  }
+
   list_for_each_entry(pd,&pc->pay_data_list,upper) {
 
     // don't save time onto redis storage, it's useless

@@ -701,8 +701,7 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   snprintf(tmp,sizeof(tmp),"$%s",amount);
   put_tree_map_string(pay_biz,TAMT,tmp);
 
-  put_tree_map_string(pay_biz,"product_code",
-      get_tree_map_value(pay_params,"product_code"));
+  put_tree_map_string(pay_biz,"product_code","QUICK_WAP_WAY");
 
   put_tree_map_string(pay_biz,"timeout_express",
       get_tree_map_value(pay_params,"timeout_express"));
@@ -711,16 +710,12 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   /*put_tree_map_string(pay_biz,"disable_pay_channels",
       "creditCard,credit_group");*/
 
-#if 1
+  // 2020.3.12 新加参数 begin
+  // 商品类型: 实物类
+  put_tree_map_string(pay_biz,"goods_type","$1");
+  // 2020.3.12 新加参数 end!
+
   dbuffer_t strBiz = create_json_params(pay_biz);
-#else
-  dbuffer_t strBiz = alloc_default_dbuffer();
-  {
-    jsonKV_t *pr = jsons_parse_tree_map(pay_biz);
-    jsons_toString(pr,&strBiz,/*true*/false);
-    jsons_release(pr);
-  }
-#endif
 
   put_tree_map_string(pay_data,"biz_content",strBiz);
 
