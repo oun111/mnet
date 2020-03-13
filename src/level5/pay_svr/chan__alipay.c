@@ -694,7 +694,7 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
       get_tree_map_value(pay_params,SIGNTYPE));
 
   put_tree_map_string(pay_biz,"body",body);
-  put_tree_map_string(pay_biz,"subject",subject);
+  put_tree_map_string(pay_biz,"subject",/*subject*/orderid);
   put_tree_map_string(pay_biz,OTNO,out_trade_no);
 
   // $ express an integer
@@ -1861,7 +1861,7 @@ int update_alipay_qr_biz(dbuffer_t *errbuf, tree_map_t user_params,
 
   //put_tree_map_string(pay_biz,"discountable_amount","");
 
-  put_tree_map_string(pay_biz,"subject",subject);
+  put_tree_map_string(pay_biz,"subject",/*subject*/orderid);
 #if 0
   {
     tree_map_t goods_detail = new_tree_map();
@@ -1904,6 +1904,127 @@ int update_alipay_qr_biz(dbuffer_t *errbuf, tree_map_t user_params,
   //put_tree_map_string(pay_biz,"disable_pay_channels","creditCard,credit_group");
 
   //put_tree_map_string(pay_biz,"merchant_order_no",orderid);
+
+  dbuffer_t strBiz = create_json_params(pay_biz);
+
+  put_tree_map_string(pay_data,"biz_content",strBiz);
+
+
+  drop_dbuffer(strBiz);
+  delete_tree_map(pay_biz);
+
+  return 0;
+}
+
+static 
+int update_alipay_page_biz(dbuffer_t *errbuf, tree_map_t user_params, 
+                      tree_map_t pay_params, tree_map_t pay_data,
+                      merchant_info_t pm)
+{
+  tree_map_t pay_biz = NULL;
+  time_t curr = time(NULL);
+  struct tm *tm = localtime(&curr);
+  char tmp[96] = "";
+  char *body = 0, *subject = 0, *out_trade_no = 0, 
+       *amount=0, *ret_url = 0, *orderid = 0;
+  double amt = 0.0 ;
+
+
+  body = get_tree_map_value(user_params,"body");
+  if (!body) {
+    FORMAT_ERR(errbuf,E_NO_BODY,"");
+    return -1;
+  }
+
+  subject = get_tree_map_value(user_params,"subject");
+  if (!subject) {
+    FORMAT_ERR(errbuf,E_NO_SUBJECT,"");
+    return -1;
+  }
+
+  orderid = aid_add_and_fetch(&g_alipayData.aid,1L);
+  log_debug("create new order id: %s\n",orderid);
+
+  amount = get_tree_map_value(user_params,TAMT);
+  if (!amount) {
+    FORMAT_ERR(errbuf,E_NO_AMT,"");
+    return -1;
+  }
+
+  dbuffer_t tmpbuf = NULL ;
+
+  amt = atof(amount);
+  if (is_merchant_amount_valid(pm,amt,&tmpbuf)==false) {
+    FORMAT_ERR(errbuf,E_BAD_AMT,amt,tmpbuf);
+    drop_dbuffer(tmpbuf);
+    return -1;
+  }
+
+  ret_url = get_tree_map_value(user_params,RETURL);
+  if (!ret_url) {
+    FORMAT_ERR(errbuf,E_NO_RETURL,"");
+    return -1;
+  }
+
+  // user out_trade_no to be alipay request order id
+  out_trade_no = get_tree_map_value(user_params,OTNO);
+  if (!out_trade_no) {
+    FORMAT_ERR(errbuf,E_NO_OTN,"");
+    return -1;
+  }
+
+
+  pay_biz = new_tree_map();
+
+  snprintf(tmp,sizeof(tmp),"%04d-%02d-%02d %02d:%02d:%02d",tm->tm_year+1900,
+           tm->tm_mon+1,tm->tm_mday,tm->tm_hour,tm->tm_min,
+           tm->tm_sec);
+  put_tree_map_string(pay_data,"timestamp",tmp);
+
+  put_tree_map_string(pay_data,APPID,
+      get_tree_map_value(pay_params,APPID));
+
+  put_tree_map_string(pay_data,"method",
+      get_tree_map_value(pay_params,"method"));
+
+  put_tree_map_string(pay_data,"format",
+      get_tree_map_value(pay_params,"format"));
+
+  put_tree_map_string(pay_data,"charset",
+      get_tree_map_value(pay_params,"charset"));
+
+  put_tree_map_string(pay_data,"version",
+      get_tree_map_value(pay_params,"version"));
+
+  put_tree_map_string(pay_data,NURL,
+      get_tree_map_value(pay_params,NURL));
+
+  put_tree_map_string(pay_data,"return_url",ret_url);
+
+  put_tree_map_string(pay_data,SIGNTYPE,
+      get_tree_map_value(pay_params,SIGNTYPE));
+
+  put_tree_map_string(pay_biz,"body",body);
+  put_tree_map_string(pay_biz,"subject",subject);
+  put_tree_map_string(pay_biz,OTNO,out_trade_no);
+
+  // $ express an integer
+  snprintf(tmp,sizeof(tmp),"$%s",amount);
+  put_tree_map_string(pay_biz,TAMT,tmp);
+
+  put_tree_map_string(pay_biz,"product_code","QUICK_WAP_WAY");
+
+  put_tree_map_string(pay_biz,"timeout_express",
+      get_tree_map_value(pay_params,"timeout_express"));
+
+  // no credit cards
+  /*put_tree_map_string(pay_biz,"disable_pay_channels",
+      "creditCard,credit_group");*/
+
+  // 2020.3.12 新加参数 begin
+  // 商品类型: 实物类
+  put_tree_map_string(pay_biz,"goods_type","$1");
+  // 2020.3.12 新加参数 end!
 
   dbuffer_t strBiz = create_json_params(pay_biz);
 
@@ -2006,6 +2127,109 @@ int do_alipay_qr(Network_t net,connection_t pconn,tree_map_t user_params)
   }
 
   log_debug("user qr biz no '%s' done!\n",tno);
+
+  ret = 0;
+
+__done:
+
+  if (tf_data)
+    delete_tree_map(tf_data);
+  if (reason)
+    drop_dbuffer(reason);
+
+  return ret;
+}
+
+static 
+int do_alipay_page(Network_t net,connection_t pconn,tree_map_t user_params)
+{
+  char *url = 0;
+  const char *payChan = g_alipay_mod.name ;
+  dbuffer_t reason = 0;
+  pay_data_t pd = 0;
+  char *tno = get_tree_map_value(user_params,OTNO);
+  tree_map_t pay_params = NULL ;
+  dbuffer_t *errbuf = &pconn->txb;
+  merchant_entry_t pme = get_merchant_entry();
+  merchant_info_t pm = 0;
+  char *mch_id = NULL;
+  int ret = -1;
+  tree_map_t tf_data = 0;
+
+
+  log_debug("user page biz no: '%s'\n",tno);
+
+  // if there're new configs, do updates
+  do_dynamic_update();
+
+  mch_id = get_tree_map_value(user_params,MCHID);
+  if (!mch_id || !(pm=get_merchant(pme,mch_id))) {
+    FORMAT_ERR(errbuf,E_BAD_MCH,mch_id);
+    return -1 ;
+  }
+
+  // verify merchant signature
+  if (!verify_merchant_sign(pm,user_params,errbuf)) {
+    return -1 ;
+  }
+
+  if (check_trade_time(pm)) {
+    FORMAT_ERR(errbuf,E_TRADE_TIME,pm->tt.t0,pm->tt.t1);
+    return -1;
+  }
+
+  reason = alloc_default_dbuffer();
+
+  // get suitable pay route
+  pd = get_pay_route2(&pm->alipay_pay_route,&reason);
+  if (!pd) {
+    FORMAT_ERR(errbuf,E_BAD_ROUTE,payChan);
+    goto __done ;
+  }
+
+  log_debug("with app_id: %s\n",get_tree_map_value(pd->pay_params,APPID));
+
+  pay_params = pd->pay_params ;
+  url = get_tree_map_value(pay_params,REQ_URL);
+
+  if (unlikely(!url)) {
+    FORMAT_ERR(errbuf,E_NO_CONF_REQURL,"");
+    goto __done ;
+  }
+
+  tf_data = new_tree_map();
+
+  if (update_alipay_page_biz(&pconn->txb,user_params,pay_params,tf_data,pm)) {
+    goto __done ;
+  }
+
+  if (create_order(&pconn->txb,pay_params,user_params,t_pagepay)) {
+    goto __done ;
+  }
+
+  // deals with cryptographic
+  if (do_signature(&pconn->txb,pd,tf_data)<0) {
+    goto __done ;
+  }
+
+  /* connect alipay server(treat as 'backend')  */
+  connection_t out_conn = do_out_connect(net,pconn,url,tno,bt_qr2user);
+  if (unlikely(!out_conn)) {
+    log_error("connection to '%s' fail\n",url);
+    goto __done;
+  }
+
+  // send request
+  create_http_get_req(&out_conn->txb,url,pt_html,tf_data);
+
+  if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
+    if (!alipay_tx(net,out_conn))
+      sock_close(out_conn->fd);
+    else 
+      log_error("send later by %d\n",out_conn->fd);
+  }
+
+  log_debug("user page biz no '%s' done!\n",tno);
 
   ret = 0;
 
@@ -2228,6 +2452,14 @@ struct http_action_s action__alipay_qr =
   .cb      = do_alipay_qr,
 } ;
 
+#if 0
+static
+struct http_action_s action__alipay_page = 
+{
+  .action  = "page",
+  .cb      = do_alipay_page,
+} ;
+#endif
 
 static
 struct http_action_s action__alipay_cfgUpdate = 
@@ -2296,6 +2528,7 @@ int alipay_init(Network_t net)
   add_http_action(pe,g_alipay_mod.name,&action__alipay_transFund);
   add_http_action(pe,g_alipay_mod.name,&action__alipay_cfgUpdate);
   add_http_action(pe,g_alipay_mod.name,&action__alipay_qr);
+  //add_http_action(pe,g_alipay_mod.name,&action__alipay_page);
   add_http_action(pe,g_alipay_mod.name,&action__alipay_reset_rc);
 
   // TODO: create the 'push messages rx' thread here, 
