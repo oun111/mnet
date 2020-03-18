@@ -9,6 +9,7 @@
 #include "myrbtree.h"
 #include "config.h"
 #include "bitmap64.h"
+#include "order.h"
 
 
 static int compare(const char *s0, const char *s1)
@@ -44,7 +45,6 @@ pay_data_t
 get_paydata_by_ali_appid(pay_channels_entry_t entry, const char *chan, 
                          const char *appid)
 {
-  pay_data_t pd = 0;
   pay_channel_t pc = get_pay_channel(entry,chan);
 
 
@@ -53,18 +53,12 @@ get_paydata_by_ali_appid(pay_channels_entry_t entry, const char *chan,
     return NULL;
   }
 
-  list_for_each_entry(pd,&pc->pay_data_list,upper) {
-    const char *ch_appid = get_tree_map_value(pd->pay_params,"app_id");
-
-    if (appid && !strcmp(ch_appid,appid))
-      return pd;
-  }
-
-  return NULL ;
+  return get_pay_data(pc,appid);
 }
 
 pay_data_t 
-get_paydata_by_id(pay_channels_entry_t entry, const char *chan, int id)
+get_paydata_by_id(pay_channels_entry_t entry, const char *chan, 
+                  int id, int *paytype)
 {
   pay_data_t pd = 0;
   pay_channel_t pc = get_pay_channel(entry,chan);
@@ -76,10 +70,13 @@ get_paydata_by_id(pay_channels_entry_t entry, const char *chan, int id)
   }
 
   list_for_each_entry(pd,&pc->pay_data_list,upper) {
-    const char *p_id = get_tree_map_value(pd->pay_params,"id");
 
-    if (p_id && atoi(p_id)==id)
-      return pd;
+    // search id from external id list
+    for (int i=0;i<t_max;i++) 
+      if (pd->pt_desc.id[i]==id) {
+        *paytype = i ;
+        return pd ;
+      }
   }
 
   return NULL ;
@@ -139,6 +136,7 @@ pay_data_t
 add_pay_data(pay_channels_entry_t entry, const char *chan, 
              const char *appid, tree_map_t params)
 {
+  int nv = 0;
   char *pv = 0;
   pay_channel_t pc = get_pay_channel(entry,chan);
   pay_data_t p = NULL;
@@ -181,6 +179,8 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
     bzero(&p->rsa_cache,sizeof(p->rsa_cache));
 #endif
 
+    memset(p->pt_desc.id,-1,sizeof(p->pt_desc.id));
+
     INIT_LIST_HEAD(&p->upper); 
     list_add(&p->upper,&pc->pay_data_list);
   }
@@ -209,6 +209,17 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
   if (ppub && ppriv) {
     release_rsa_entry(&p->rsa_cache);
     init_rsa_entry(&p->rsa_cache,ppub,ppriv);
+  }
+
+  // pay type
+  pv = get_tree_map_value(p->pay_params,"pay_type");
+  nv = pv?atoi(pv):-1;
+  if (unlikely(!IS_ORDERTYPE_VALID(nv))) 
+    log_error("invalid pay type %d\n", nv);
+  else {
+    // related record id
+    pv = get_tree_map_value(p->pay_params,"id");
+    p->pt_desc.id[nv] = atoi(pv) ;
   }
 
   pv = (char*)appid ;
@@ -369,7 +380,7 @@ save_runtime_rc(pay_channels_entry_t entry, runtime_rc_t re, const char *chan)
   return 0 ;
 }
 
-pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason) 
+pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason, unsigned int *pt) 
 {
   pay_route_item_t pr ;
   char msg[256] = "";
@@ -384,14 +395,6 @@ pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason)
 
     pay_data_t pos = pr->pdr ;
 
-#if 0
-    if (pos->rc.time==0L || (ts.tv_sec-pos->rc.time)>pos->cfg_rc.period) {
-      pos->rc.time = ts.tv_sec;
-      pos->rc.max_orders = 0;
-      pos->rc.max_amount = 0.0;
-      log_error("reseting appid %s\n",pos->appid);
-    }
-#else
     // order timer times out!
     if (pos->rc.order.time==0L || (ts.tv_sec-pos->rc.order.time)>pos->cfg_rc.order.period) {
       pos->rc.order.time = ts.tv_sec;
@@ -404,7 +407,6 @@ pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason)
       pos->rc.amount.max = 0.0;
       //log_error("reseting appid %s amount rc\n",pos->appid);
     }
-#endif
     log_debug("appid: %s\n",pos->appid);
     log_debug("  config rc: amount(%fy / %llds),order(%d / %llds)\n",
         pos->cfg_rc.amount.max,pos->cfg_rc.amount.period,
@@ -424,6 +426,9 @@ pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason)
       if (pos->rc.amount.max>=pos->cfg_rc.amount.max)
         continue ;
     }
+
+    // get pay type
+    *pt = pr->pt ;
 
     // move pay data item to list tail
     {
@@ -502,19 +507,30 @@ int drop_outdated_pay_data(pay_channels_entry_t entry)
 
       // find pay data item from latest configs
       tm_item_t pi, ni;
-      bool found = false ;
+      int pts = 0;
+      unsigned short ids[t_max];
 
+      memset(ids,-1,sizeof(ids));
       // not found means this paydata is outdated!!
       MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pi,ni,&chansub->u.root,node) {
         char *appid = get_tree_map_value(pi->nest_map,"app_id");
+        char *pv = get_tree_map_value(pi->nest_map,"pay_type");
+        int nv   = !pv?-1:atoi(pv);
+
+
+        if (unlikely(!IS_ORDERTYPE_VALID(nv))) {
+          log_error("pay type %d invalid!!\n",nv);
+          break ;
+        }
 
         if (!strcmp(appid,posd->appid)) {
-          found = true ;
-          break ;
+          char *pid= get_tree_map_value(pi->nest_map,"id");
+          ids[nv] = atoi(pid);
+          pts ++ ;
         }
       }
 
-      if (!found) {
+      if (!pts) {
         log_debug("droping outdated pay data by appid '%s'\n",posd->appid);
 
         list_del(&posd->upper);
@@ -522,6 +538,8 @@ int drop_outdated_pay_data(pay_channels_entry_t entry)
         release_rsa_entry(&posd->rsa_cache);
         kfree(posd);
       }
+      else 
+        memcpy(posd->pt_desc.id,ids,sizeof(ids));
 
     }
   }
@@ -562,7 +580,7 @@ int init_pay_route_references(pay_channels_entry_t pe, struct list_head *pr_list
   pay_data_t pd = NULL;
   const char *chan = "alipay";
   struct bitmap64_s bm ;
-  int id = 0;
+  int id = 0, pt = 0;
 
 
   // bitmap with 5000+ bits available
@@ -579,7 +597,7 @@ int init_pay_route_references(pay_channels_entry_t pe, struct list_head *pr_list
       continue ;
     }
 
-    if (bm64_test_bit(&bm,id) && (pd=get_paydata_by_id(pe,chan,id))) {
+    if (bm64_test_bit(&bm,id) && (pd=get_paydata_by_id(pe,chan,id,&pt))) {
 
       char *tf = get_tree_map_value(pd->pay_params,"istransfund");
 
@@ -589,6 +607,7 @@ int init_pay_route_references(pay_channels_entry_t pe, struct list_head *pr_list
 
       pr = kmalloc(sizeof(struct pay_route_item_s),0L);
       pr->pdr = pd ;
+      pr->pt  = pt ; // id --> pay type
       list_add(&pr->upper,pr_list);
     }
   }

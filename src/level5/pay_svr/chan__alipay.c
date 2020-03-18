@@ -27,8 +27,6 @@
 #include "runtime_rc.h"
 
 
-#define ALIPAY_DBG  0
-
 
 #define REQ_URL      "req_url"
 #define PARAM_TYPE   "param_type"
@@ -96,6 +94,68 @@ static order_info_t get_order_by_otn(const char *tno, dbuffer_t *errbuf, bool *b
 
 connection_t do_out_connect(Network_t, connection_t, const char*, void*, int);
 
+static int update_alipay_biz(dbuffer_t *errbuf, tree_map_t  user_params, 
+                             tree_map_t pay_params, tree_map_t pay_data,
+                             merchant_info_t pm);
+
+static int update_alipay_transfund_biz(dbuffer_t *errbuf, tree_map_t user_params, 
+                                       tree_map_t pay_params, tree_map_t pay_data,
+                                       merchant_info_t pm);
+
+static int update_alipay_qr_biz(dbuffer_t *errbuf, tree_map_t user_params, 
+                                tree_map_t pay_params, tree_map_t pay_data,
+                                merchant_info_t pm);
+
+static int update_alipay_page_biz(dbuffer_t *errbuf, tree_map_t user_params, 
+                                  tree_map_t pay_params, tree_map_t pay_data,
+                                  merchant_info_t pm);
+
+static inline int page_return(Network_t net,connection_t pconn,const char *url,
+                              const char *tno,  tree_map_t   pay_data,  int bt,
+                              merchant_info_t pm) ;
+
+static inline int page_nevigate(Network_t net,connection_t pconn,const char *url,
+                                const char *tno,  tree_map_t  pay_data, int   bt,
+                                merchant_info_t unuse)  ;
+
+struct payAction_s {
+  int(*update)(dbuffer_t*,tree_map_t,tree_map_t,tree_map_t,merchant_info_t);
+  int(*page)(Network_t,connection_t,const char*,const char*,tree_map_t,int,merchant_info_t);
+  int backend_type ;
+} g_payActs[] = 
+{
+  // t_default
+  {},
+
+  // t_transfund
+  {
+    .update = update_alipay_transfund_biz,
+    .page   = page_nevigate,
+    .backend_type = bt_transfund2user,
+  },
+
+  // t_pay
+  {
+    .update = update_alipay_biz,
+    .page   = page_return,
+    .backend_type = bt_none,
+  },
+
+  // t_qrpay
+  {
+    .update = update_alipay_qr_biz,
+    .page   = page_nevigate,
+    .backend_type = bt_qr2user,
+  },
+
+  // t_pagepay
+  {
+    .update = update_alipay_page_biz,
+    .page   = page_return,
+    .backend_type = bt_none,
+  },
+
+} ;
 
 static
 int alipay_tx(Network_t net, connection_t pconn)
@@ -350,6 +410,7 @@ int process_qr2nd_resp(Network_t net, connection_t pconn, backend_t be,
     qr_2nd_process(net,url,be);
   }
   else {
+    qrcode = /*strstr(qrcode,"https://")*/url;
     process_qr_last_resp(net,be,qrcode);
   }
 
@@ -673,25 +734,17 @@ int update_alipay_biz(dbuffer_t *errbuf, tree_map_t user_params,
   put_tree_map_string(pay_data,APPID,
       get_tree_map_value(pay_params,APPID));
 
-  put_tree_map_string(pay_data,"method",
-      get_tree_map_value(pay_params,"method"));
+  put_tree_map_string(pay_data,"method","alipay.trade.wap.pay");
 
-  put_tree_map_string(pay_data,"format",
-      get_tree_map_value(pay_params,"format"));
-
-  put_tree_map_string(pay_data,"charset",
-      get_tree_map_value(pay_params,"charset"));
-
-  put_tree_map_string(pay_data,"version",
-      get_tree_map_value(pay_params,"version"));
+  put_tree_map_string(pay_data,"format","JSON");
+  put_tree_map_string(pay_data,"charset","utf-8");
+  put_tree_map_string(pay_data,SIGNTYPE,"RSA2");
+  put_tree_map_string(pay_data,"version","1.0");
 
   put_tree_map_string(pay_data,NURL,
       get_tree_map_value(pay_params,NURL));
 
   put_tree_map_string(pay_data,"return_url",ret_url);
-
-  put_tree_map_string(pay_data,SIGNTYPE,
-      get_tree_map_value(pay_params,SIGNTYPE));
 
   put_tree_map_string(pay_biz,"body",body);
   put_tree_map_string(pay_biz,"subject",/*subject*/orderid);
@@ -894,7 +947,7 @@ int create_order(dbuffer_t *errbuf,tree_map_t pay_params, tree_map_t user_params
     return -1;
   }
 
-  if (!nurl && type==t_pay) {
+  if (!nurl && (type>=t_pay && type<=t_pagepay)) {
     FORMAT_ERR(errbuf,E_NO_NOTIFYURL,"");
     return -1;
   }
@@ -958,13 +1011,8 @@ static int do_dynamic_update()
     process_channel_configs(pc,buff);
     drop_dbuffer(buff);
 
-#if 0
-    delete_pay_channels_entry(pce);
-    init_pay_data(pce);
-#else
     init_pay_data(pce);
     drop_outdated_pay_data(pce);
-#endif
 
     g_alipayData.du.flags &= ~(0x1);
   }
@@ -1067,6 +1115,44 @@ int check_trade_time(merchant_info_t pm)
   return 0;
 }
 
+static inline
+int page_return(Network_t net,connection_t pconn,const char *url,
+    const char *tno,tree_map_t pay_data,int bt,merchant_info_t pm) 
+{
+  if (create_alipay_link(&pconn->txb,pconn,url,pm,pay_data)) {
+    return -1 ;
+  }
+
+  return 0;
+}
+
+static inline
+int page_nevigate(Network_t net,connection_t pconn,const char *url,
+    const char *tno,tree_map_t pay_data,int bt,merchant_info_t unuse) 
+{
+  /* connect alipay server(treat as 'backend')  */
+  connection_t out_conn = do_out_connect(net,pconn,(char*)url,
+      (char*)tno,bt);
+
+
+  if (unlikely(!out_conn)) {
+    log_error("connection to '%s' fail\n",url);
+    return -1;
+  }
+
+  // send request
+  create_http_get_req(&out_conn->txb,url,pt_html,pay_data);
+
+  if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
+    if (!alipay_tx(net,out_conn))
+      sock_close(out_conn->fd);
+    else 
+      log_error("send later by %d\n",out_conn->fd);
+  }
+
+  return 0;
+}
+
 static 
 int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
 {
@@ -1082,6 +1168,7 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   merchant_entry_t pme = get_merchant_entry();
   merchant_info_t pm = 0;
   char *mch_id = NULL;
+  unsigned int pt = 0;
   int ret = -1;
 
 
@@ -1109,7 +1196,7 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   reason = alloc_default_dbuffer();
 
   //pd = get_pay_route(get_pay_channels_entry(),payChan,&reason);
-  pd = get_pay_route2(&pm->alipay_pay_route,&reason);
+  pd = get_pay_route2(&pm->alipay_pay_route,&reason,&pt);
   if (!pd) {
     FORMAT_ERR(errbuf,E_BAD_ROUTE,payChan);
     goto __done ;
@@ -1125,13 +1212,22 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
     goto __done ;
   }
 
-  pay_data = new_tree_map();
-
-  if (update_alipay_biz(&pconn->txb,user_params,pay_params,pay_data,pm)) {
+  // get pay action
+  struct payAction_s *pa = &g_payActs[pt];
+  if (unlikely(!pa)) {
+    FORMAT_ERR(errbuf,E_INVALID_PAYTYPE,"");
     goto __done ;
   }
 
-  if (create_order(&pconn->txb,pay_params,user_params,t_pay)) {
+  log_debug("pay type: %d\n",pt);
+
+  pay_data = new_tree_map();
+
+  if (pa->update(&pconn->txb,user_params,pay_params,pay_data,pm)) {
+    goto __done ;
+  }
+
+  if (create_order(&pconn->txb,pay_params,user_params,pt)) {
     goto __done ;
   }
 
@@ -1140,22 +1236,9 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
     goto __done ;
   }
 
-#if ALIPAY_DBG==1
-  int param_type = 0;
-  char *str = get_tree_map_value(pay_params,PARAM_TYPE);
-
-  if (str) {
-    param_type = !strcmp(str,"html")?pt_html:pt_json;
-  }
-
-  if (create_browser_redirect_req(&out_conn->txb,url,param_type,pay_data)) {
+  if (pa->page(net,out_conn,url,tno,pay_data,pa->backend_type,pm)) {
     goto __done ;
   }
-#else
-  if (create_alipay_link(&pconn->txb,out_conn,url,pm,pay_data)) {
-    goto __done ;
-  }
-#endif
 
   log_debug("user out trade no '%s' done!\n",tno);
 
@@ -1422,15 +1505,15 @@ __done:
 static 
 int do_alipay_query(Network_t net,connection_t pconn,tree_map_t user_params)
 {
-  char *tno = get_tree_map_value(user_params,OTNO);
   rds_order_entry_t pre = &g_alipayData.m_rOrders;
   order_info_t po = 0;
   tree_map_t qry_res = 0;
   char tmp[64] = "", *ptr = 0;
+  char *tno = get_tree_map_value(user_params,OTNO);
   merchant_entry_t pme = get_merchant_entry();
   merchant_info_t pm = 0;
-  int param_type = pt_json ;
   dbuffer_t *errbuf = &pconn->txb;
+  int param_type = pt_json ;
   int ret = -1;
   bool bRel = false ;
 
@@ -1565,7 +1648,8 @@ int do_alipay_manual_notify(Network_t net,connection_t pconn,tree_map_t user_par
 
 static 
 int update_alipay_transfund_biz(dbuffer_t *errbuf, tree_map_t user_params, 
-                                tree_map_t pay_params, tree_map_t pay_data)
+                                tree_map_t pay_params, tree_map_t pay_data,
+                                merchant_info_t pm)
 {
   tree_map_t pay_biz = NULL;
   time_t curr = time(NULL);
@@ -1631,17 +1715,11 @@ int update_alipay_transfund_biz(dbuffer_t *errbuf, tree_map_t user_params,
   put_tree_map_string(pay_data,"method",
       "alipay.fund.trans.toaccount.transfer");
 
-  put_tree_map_string(pay_data,"format",
-      get_tree_map_value(pay_params,"format"));
-
-  put_tree_map_string(pay_data,"charset",
-      get_tree_map_value(pay_params,"charset"));
-
-  put_tree_map_string(pay_data,SIGNTYPE,
-      get_tree_map_value(pay_params,SIGNTYPE));
-
-  put_tree_map_string(pay_data,"version",
-      get_tree_map_value(pay_params,"version"));
+  // TODO: remove them from db
+  put_tree_map_string(pay_data,"format","JSON");
+  put_tree_map_string(pay_data,"charset","utf-8");
+  put_tree_map_string(pay_data,SIGNTYPE,"RSA2");
+  put_tree_map_string(pay_data,"version","1.0");
 
   put_tree_map_string(pay_biz,"out_biz_no",out_biz_no);
   put_tree_map_string(pay_biz,"payee_type","ALIPAY_LOGONID");
@@ -1664,105 +1742,6 @@ int update_alipay_transfund_biz(dbuffer_t *errbuf, tree_map_t user_params,
   delete_tree_map(pay_biz);
 
   return 0;
-}
-
-static 
-int do_alipay_trans_fund(Network_t net,connection_t pconn,tree_map_t user_params)
-{
-  char *url = 0;
-  const char *payChan = g_alipay_mod.name ;
-  dbuffer_t reason = 0;
-  pay_data_t pd = 0;
-  char *tno = get_tree_map_value(user_params,OTNO);
-  tree_map_t pay_params = NULL ;
-  dbuffer_t *errbuf = &pconn->txb;
-  merchant_entry_t pme = get_merchant_entry();
-  merchant_info_t pm = 0;
-  char *mch_id = NULL;
-  int ret = -1;
-  tree_map_t tf_data = 0;
-
-
-  log_debug("user out biz no: '%s'\n",tno);
-
-  // if there're new configs, do updates
-  do_dynamic_update();
-
-  mch_id = get_tree_map_value(user_params,MCHID);
-  if (!mch_id || !(pm=get_merchant(pme,mch_id))) {
-    FORMAT_ERR(errbuf,E_BAD_MCH,mch_id);
-    return -1 ;
-  }
-
-  // verify merchant signature
-  if (!verify_merchant_sign(pm,user_params,errbuf)) {
-    return -1 ;
-  }
-
-  reason = alloc_default_dbuffer();
-
-  // get suitable trans-fund route
-  //pd = get_trans_fund_route(get_pay_channels_entry(),payChan,&reason);
-  pd = get_pay_route2(&pm->alipay_transfund_route,&reason);
-  if (!pd) {
-    FORMAT_ERR(errbuf,E_BAD_ROUTE,payChan);
-    goto __done ;
-  }
-
-  log_debug("with app_id: %s\n",get_tree_map_value(pd->pay_params,APPID));
-
-  pay_params = pd->pay_params ;
-  url = get_tree_map_value(pay_params,REQ_URL);
-
-  if (unlikely(!url)) {
-    FORMAT_ERR(errbuf,E_NO_CONF_REQURL,"");
-    goto __done ;
-  }
-
-  tf_data = new_tree_map();
-
-  if (update_alipay_transfund_biz(&pconn->txb,user_params,pay_params,tf_data)) {
-    goto __done ;
-  }
-
-  if (create_order(&pconn->txb,pay_params,user_params,t_transfund)) {
-    goto __done ;
-  }
-
-  // deals with cryptographic
-  if (do_signature(&pconn->txb,pd,tf_data)<0) {
-    goto __done ;
-  }
-
-  /* connect alipay server(treat as 'backend')  */
-  connection_t out_conn = do_out_connect(net,pconn,url,tno,bt_transfund2user);
-  if (unlikely(!out_conn)) {
-    log_error("connection to '%s' fail\n",url);
-    goto __done;
-  }
-
-  // send request
-  create_http_get_req(&out_conn->txb,url,pt_html,tf_data);
-
-  if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
-    if (!alipay_tx(net,out_conn))
-      sock_close(out_conn->fd);
-    else 
-      log_error("send later by %d\n",out_conn->fd);
-  }
-
-  log_debug("user out biz no '%s' done!\n",tno);
-
-  ret = 0;
-
-__done:
-
-  if (tf_data)
-    delete_tree_map(tf_data);
-  if (reason)
-    drop_dbuffer(reason);
-
-  return ret;
 }
 
 static 
@@ -1837,17 +1816,10 @@ int update_alipay_qr_biz(dbuffer_t *errbuf, tree_map_t user_params,
 
   put_tree_map_string(pay_data,"method","alipay.trade.precreate");
 
-  put_tree_map_string(pay_data,"format",
-      get_tree_map_value(pay_params,"format"));
-
-  put_tree_map_string(pay_data,"charset",
-      get_tree_map_value(pay_params,"charset"));
-
-  put_tree_map_string(pay_data,SIGNTYPE,
-      get_tree_map_value(pay_params,SIGNTYPE));
-
-  put_tree_map_string(pay_data,"version",
-      get_tree_map_value(pay_params,"version"));
+  put_tree_map_string(pay_data,"format","JSON");
+  put_tree_map_string(pay_data,"charset","utf-8");
+  put_tree_map_string(pay_data,SIGNTYPE,"RSA2");
+  put_tree_map_string(pay_data,"version","1.0");
 
   put_tree_map_string(pay_data,NURL,
       get_tree_map_value(pay_params,NURL));
@@ -1862,18 +1834,18 @@ int update_alipay_qr_biz(dbuffer_t *errbuf, tree_map_t user_params,
   //put_tree_map_string(pay_biz,"discountable_amount","");
 
   put_tree_map_string(pay_biz,"subject",/*subject*/orderid);
-#if 0
+
   {
     tree_map_t goods_detail = new_tree_map();
     dbuffer_t strGDBiz = alloc_default_dbuffer();
 
-    put_tree_map_string(goods_detail,"goods_id","qrpay_001");
-    put_tree_map_string(goods_detail,"goods_name","货款");
+    put_tree_map_string(goods_detail,"goods_id","qrp_001");
+    put_tree_map_string(goods_detail,"goods_name","吸尘器");
     put_tree_map_string(goods_detail,"quantity","1");
     snprintf(tmp,sizeof(tmp),"$%s",amount);
     put_tree_map_string(goods_detail,"price",tmp);
-    put_tree_map_string(goods_detail,"goods_category","qrpay_cat_001");
-    put_tree_map_string(goods_detail,"categories_tree","qrpay_cat_001|qrpay_cat_002");
+    put_tree_map_string(goods_detail,"goods_category","qrt_001");
+    put_tree_map_string(goods_detail,"categories_tree","qrt_001|qrt_002");
     put_tree_map_string(goods_detail,"body",body);
 
     jsonKV_t *pr = jsons_parse_tree_map(goods_detail);
@@ -1886,11 +1858,10 @@ int update_alipay_qr_biz(dbuffer_t *errbuf, tree_map_t user_params,
     drop_dbuffer(strGDBiz);
     delete_tree_map(goods_detail);
   }
-#endif
 
-  //put_tree_map_string(pay_biz,"body",body);
+  put_tree_map_string(pay_biz,"body",body);
 
-  //put_tree_map_string(pay_biz,"product_code","FACE_TO_FACE_PAYMENT");
+  put_tree_map_string(pay_biz,"product_code","FACE_TO_FACE_PAYMENT");
 
   put_tree_map_string(pay_biz,"timeout_express",get_tree_map_value(pay_params,"timeout_express"));
 
@@ -1898,7 +1869,9 @@ int update_alipay_qr_biz(dbuffer_t *errbuf, tree_map_t user_params,
 
   //put_tree_map_string(pay_biz,"operator_id","op_01");
 
-  //put_tree_map_string(pay_biz,"store_id","store_01");
+  put_tree_map_string(pay_biz,"store_id","qrs_001");
+
+  put_tree_map_string(pay_biz,"merchant_order_no",out_trade_no);
 
   // no credit cards
   //put_tree_map_string(pay_biz,"disable_pay_channels","creditCard,credit_group");
@@ -1935,6 +1908,8 @@ int update_alipay_page_biz(dbuffer_t *errbuf, tree_map_t user_params,
     FORMAT_ERR(errbuf,E_NO_BODY,"");
     return -1;
   }
+  // FIXME:
+  body = "华为mate30手机";
 
   subject = get_tree_map_value(user_params,"subject");
   if (!subject) {
@@ -1984,35 +1959,52 @@ int update_alipay_page_biz(dbuffer_t *errbuf, tree_map_t user_params,
   put_tree_map_string(pay_data,APPID,
       get_tree_map_value(pay_params,APPID));
 
-  put_tree_map_string(pay_data,"method",
-      get_tree_map_value(pay_params,"method"));
+  put_tree_map_string(pay_data,"method","alipay.trade.page.pay");
 
-  put_tree_map_string(pay_data,"format",
-      get_tree_map_value(pay_params,"format"));
-
-  put_tree_map_string(pay_data,"charset",
-      get_tree_map_value(pay_params,"charset"));
-
-  put_tree_map_string(pay_data,"version",
-      get_tree_map_value(pay_params,"version"));
+  put_tree_map_string(pay_data,"format","JSON");
+  put_tree_map_string(pay_data,"charset","utf-8");
+  put_tree_map_string(pay_data,SIGNTYPE,"RSA2");
+  put_tree_map_string(pay_data,"version","1.0");
 
   put_tree_map_string(pay_data,NURL,
       get_tree_map_value(pay_params,NURL));
 
   put_tree_map_string(pay_data,"return_url",ret_url);
 
-  put_tree_map_string(pay_data,SIGNTYPE,
-      get_tree_map_value(pay_params,SIGNTYPE));
-
   put_tree_map_string(pay_biz,"body",body);
-  put_tree_map_string(pay_biz,"subject",subject);
+  put_tree_map_string(pay_biz,"subject",orderid);
   put_tree_map_string(pay_biz,OTNO,out_trade_no);
+  put_tree_map_string(pay_biz,"product_code","FAST_INSTANT_TRADE_PAY");
+
+#if 0
+  {
+    tree_map_t goods_detail = new_tree_map();
+    dbuffer_t strGDBiz = alloc_default_dbuffer();
+
+    put_tree_map_string(goods_detail,"goods_id","pp_001");
+    put_tree_map_string(goods_detail,"goods_name",body);
+    put_tree_map_string(goods_detail,"quantity","1");
+    snprintf(tmp,sizeof(tmp),"$%s",amount);
+    put_tree_map_string(goods_detail,"price",tmp);
+    put_tree_map_string(goods_detail,"goods_category","ppt_001");
+    put_tree_map_string(goods_detail,"categories_tree","ppt_001|ppt_002");
+    put_tree_map_string(goods_detail,"body",body);
+
+    jsonKV_t *pr = jsons_parse_tree_map(goods_detail);
+    pr = jsons_add_to_array(NULL,pr);
+    jsons_toString(pr,&strGDBiz,true);
+    jsons_release(pr);
+
+    put_tree_map_string(pay_biz,"goods_detail",strGDBiz);
+
+    drop_dbuffer(strGDBiz);
+    delete_tree_map(goods_detail);
+  }
+#endif
 
   // $ express an integer
   snprintf(tmp,sizeof(tmp),"$%s",amount);
   put_tree_map_string(pay_biz,TAMT,tmp);
-
-  put_tree_map_string(pay_biz,"product_code","QUICK_WAP_WAY");
 
   put_tree_map_string(pay_biz,"timeout_express",
       get_tree_map_value(pay_params,"timeout_express"));
@@ -2026,6 +2018,20 @@ int update_alipay_page_biz(dbuffer_t *errbuf, tree_map_t user_params,
   put_tree_map_string(pay_biz,"goods_type","$1");
   // 2020.3.12 新加参数 end!
 
+  put_tree_map_string(pay_biz,"merchant_order_no",out_trade_no);
+
+  put_tree_map_string(pay_biz,"store_id","pps_001");
+
+  // 跳转模式：1 二维码 2 跳转
+  put_tree_map_string(pay_biz,"qr_pay_mode","$4");
+  put_tree_map_string(pay_biz,"qrcode_width","1");
+
+  // 请求后页面的集成方式
+  put_tree_map_string(pay_biz,"integration_type","ALIAPP");
+
+  put_tree_map_string(pay_biz,"request_from_url",ret_url);
+
+
   dbuffer_t strBiz = create_json_params(pay_biz);
 
   put_tree_map_string(pay_data,"biz_content",strBiz);
@@ -2038,213 +2044,8 @@ int update_alipay_page_biz(dbuffer_t *errbuf, tree_map_t user_params,
 }
 
 static 
-int do_alipay_qr(Network_t net,connection_t pconn,tree_map_t user_params)
-{
-  char *url = 0;
-  const char *payChan = g_alipay_mod.name ;
-  dbuffer_t reason = 0;
-  pay_data_t pd = 0;
-  char *tno = get_tree_map_value(user_params,OTNO);
-  tree_map_t pay_params = NULL ;
-  dbuffer_t *errbuf = &pconn->txb;
-  merchant_entry_t pme = get_merchant_entry();
-  merchant_info_t pm = 0;
-  char *mch_id = NULL;
-  int ret = -1;
-  tree_map_t tf_data = 0;
-
-
-  log_debug("user qr biz no: '%s'\n",tno);
-
-  // if there're new configs, do updates
-  do_dynamic_update();
-
-  mch_id = get_tree_map_value(user_params,MCHID);
-  if (!mch_id || !(pm=get_merchant(pme,mch_id))) {
-    FORMAT_ERR(errbuf,E_BAD_MCH,mch_id);
-    return -1 ;
-  }
-
-  // verify merchant signature
-  if (!verify_merchant_sign(pm,user_params,errbuf)) {
-    return -1 ;
-  }
-
-  if (check_trade_time(pm)) {
-    FORMAT_ERR(errbuf,E_TRADE_TIME,pm->tt.t0,pm->tt.t1);
-    return -1;
-  }
-
-  reason = alloc_default_dbuffer();
-
-  // get suitable pay route
-  pd = get_pay_route2(&pm->alipay_pay_route,&reason);
-  if (!pd) {
-    FORMAT_ERR(errbuf,E_BAD_ROUTE,payChan);
-    goto __done ;
-  }
-
-  log_debug("with app_id: %s\n",get_tree_map_value(pd->pay_params,APPID));
-
-  pay_params = pd->pay_params ;
-  url = get_tree_map_value(pay_params,REQ_URL);
-
-  if (unlikely(!url)) {
-    FORMAT_ERR(errbuf,E_NO_CONF_REQURL,"");
-    goto __done ;
-  }
-
-  tf_data = new_tree_map();
-
-  if (update_alipay_qr_biz(&pconn->txb,user_params,pay_params,tf_data,pm)) {
-    goto __done ;
-  }
-
-  if (create_order(&pconn->txb,pay_params,user_params,t_qrpay)) {
-    goto __done ;
-  }
-
-  // deals with cryptographic
-  if (do_signature(&pconn->txb,pd,tf_data)<0) {
-    goto __done ;
-  }
-
-  /* connect alipay server(treat as 'backend')  */
-  connection_t out_conn = do_out_connect(net,pconn,url,tno,bt_qr2user);
-  if (unlikely(!out_conn)) {
-    log_error("connection to '%s' fail\n",url);
-    goto __done;
-  }
-
-  // send request
-  create_http_get_req(&out_conn->txb,url,pt_html,tf_data);
-
-  if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
-    if (!alipay_tx(net,out_conn))
-      sock_close(out_conn->fd);
-    else 
-      log_error("send later by %d\n",out_conn->fd);
-  }
-
-  log_debug("user qr biz no '%s' done!\n",tno);
-
-  ret = 0;
-
-__done:
-
-  if (tf_data)
-    delete_tree_map(tf_data);
-  if (reason)
-    drop_dbuffer(reason);
-
-  return ret;
-}
-
-static 
-int do_alipay_page(Network_t net,connection_t pconn,tree_map_t user_params)
-{
-  char *url = 0;
-  const char *payChan = g_alipay_mod.name ;
-  dbuffer_t reason = 0;
-  pay_data_t pd = 0;
-  char *tno = get_tree_map_value(user_params,OTNO);
-  tree_map_t pay_params = NULL ;
-  dbuffer_t *errbuf = &pconn->txb;
-  merchant_entry_t pme = get_merchant_entry();
-  merchant_info_t pm = 0;
-  char *mch_id = NULL;
-  int ret = -1;
-  tree_map_t tf_data = 0;
-
-
-  log_debug("user page biz no: '%s'\n",tno);
-
-  // if there're new configs, do updates
-  do_dynamic_update();
-
-  mch_id = get_tree_map_value(user_params,MCHID);
-  if (!mch_id || !(pm=get_merchant(pme,mch_id))) {
-    FORMAT_ERR(errbuf,E_BAD_MCH,mch_id);
-    return -1 ;
-  }
-
-  // verify merchant signature
-  if (!verify_merchant_sign(pm,user_params,errbuf)) {
-    return -1 ;
-  }
-
-  if (check_trade_time(pm)) {
-    FORMAT_ERR(errbuf,E_TRADE_TIME,pm->tt.t0,pm->tt.t1);
-    return -1;
-  }
-
-  reason = alloc_default_dbuffer();
-
-  // get suitable pay route
-  pd = get_pay_route2(&pm->alipay_pay_route,&reason);
-  if (!pd) {
-    FORMAT_ERR(errbuf,E_BAD_ROUTE,payChan);
-    goto __done ;
-  }
-
-  log_debug("with app_id: %s\n",get_tree_map_value(pd->pay_params,APPID));
-
-  pay_params = pd->pay_params ;
-  url = get_tree_map_value(pay_params,REQ_URL);
-
-  if (unlikely(!url)) {
-    FORMAT_ERR(errbuf,E_NO_CONF_REQURL,"");
-    goto __done ;
-  }
-
-  tf_data = new_tree_map();
-
-  if (update_alipay_page_biz(&pconn->txb,user_params,pay_params,tf_data,pm)) {
-    goto __done ;
-  }
-
-  if (create_order(&pconn->txb,pay_params,user_params,t_pagepay)) {
-    goto __done ;
-  }
-
-  // deals with cryptographic
-  if (do_signature(&pconn->txb,pd,tf_data)<0) {
-    goto __done ;
-  }
-
-  /* connect alipay server(treat as 'backend')  */
-  connection_t out_conn = do_out_connect(net,pconn,url,tno,bt_qr2user);
-  if (unlikely(!out_conn)) {
-    log_error("connection to '%s' fail\n",url);
-    goto __done;
-  }
-
-  // send request
-  create_http_get_req(&out_conn->txb,url,pt_html,tf_data);
-
-  if (!out_conn->ssl || out_conn->ssl->state==s_ok) {
-    if (!alipay_tx(net,out_conn))
-      sock_close(out_conn->fd);
-    else 
-      log_error("send later by %d\n",out_conn->fd);
-  }
-
-  log_debug("user page biz no '%s' done!\n",tno);
-
-  ret = 0;
-
-__done:
-
-  if (tf_data)
-    delete_tree_map(tf_data);
-  if (reason)
-    drop_dbuffer(reason);
-
-  return ret;
-}
-
-static 
-int do_alipay_cfg_update(Network_t net,connection_t pconn,tree_map_t user_params)
+int do_alipay_cfg_update(Network_t net,
+    connection_t pconn,tree_map_t user_params)
 {
   myredis_t prds = &g_alipayData.m_cfg_rds ;
   //myredis_t prds = &g_alipayData.du.rds ;
@@ -2439,29 +2240,6 @@ struct http_action_s action__alipay_manualNotify =
 } ;
 
 static
-struct http_action_s action__alipay_transFund = 
-{
-  .action  = "transfund",
-  .cb      = do_alipay_trans_fund,
-} ;
-
-static
-struct http_action_s action__alipay_qr = 
-{
-  .action  = "qr",
-  .cb      = do_alipay_qr,
-} ;
-
-#if 0
-static
-struct http_action_s action__alipay_page = 
-{
-  .action  = "page",
-  .cb      = do_alipay_page,
-} ;
-#endif
-
-static
 struct http_action_s action__alipay_cfgUpdate = 
 {
   .action  = "cfgUpdate",
@@ -2525,10 +2303,7 @@ int alipay_init(Network_t net)
   add_http_action(pe,g_alipay_mod.name,&action__alipay_notify);
   add_http_action(pe,g_alipay_mod.name,&action__alipay_query);
   add_http_action(pe,g_alipay_mod.name,&action__alipay_manualNotify);
-  add_http_action(pe,g_alipay_mod.name,&action__alipay_transFund);
   add_http_action(pe,g_alipay_mod.name,&action__alipay_cfgUpdate);
-  add_http_action(pe,g_alipay_mod.name,&action__alipay_qr);
-  //add_http_action(pe,g_alipay_mod.name,&action__alipay_page);
   add_http_action(pe,g_alipay_mod.name,&action__alipay_reset_rc);
 
   // TODO: create the 'push messages rx' thread here, 

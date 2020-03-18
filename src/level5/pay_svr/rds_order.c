@@ -6,6 +6,7 @@
 #include "jsons.h"
 #include "tree_map.h"
 #include "log.h"
+#include "myrbtree.h"
 
 
 void 
@@ -173,9 +174,11 @@ get_rds_order(rds_order_entry_t entry, const char *table,
   map = jsons_to_treemap(pr);
 
   // we only take the 1st order
-  rbtree_postorder_for_each_entry_safe(pos,n,&map->u.root,node) {
+  //rbtree_postorder_for_each_entry_safe(pos,n,&map->u.root,node) {
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&map->u.root,node) {
     tree_map_t mp1 = pos->nest_map;
-    rbtree_postorder_for_each_entry_safe(pos1,n1,&mp1->u.root,node) {
+    //rbtree_postorder_for_each_entry_safe(pos1,n1,&mp1->u.root,node) {
+    MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos1,n1,&mp1->u.root,node) {
       odr_map = pos1->nest_map;
       break ;
     }

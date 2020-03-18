@@ -295,7 +295,8 @@ tree_map_t get_rc_conf_by_channel(paySvr_config_t conf, const char *chan)
   if (!rc_cfg)
     return NULL ;
 
-  rbtree_postorder_for_each_entry_safe(pos,n,&rc_cfg->u.root,node) {
+  //rbtree_postorder_for_each_entry_safe(pos,n,&rc_cfg->u.root,node) {
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&rc_cfg->u.root,node) {
     tree_map_t rc_map = pos->nest_map;
     const char *rcname = get_tree_map_value(rc_map,"channel") ;
 
@@ -315,7 +316,8 @@ tree_map_t get_rc_conf_by_rcid(paySvr_config_t conf, const char *rcid)
   if (!rc_cfg)
     return NULL ;
 
-  rbtree_postorder_for_each_entry_safe(pos,n,&rc_cfg->u.root,node) {
+  //rbtree_postorder_for_each_entry_safe(pos,n,&rc_cfg->u.root,node) {
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&rc_cfg->u.root,node) {
     tree_map_t rc_map = pos->nest_map;
     const char *rcname = get_tree_map_value(rc_map,"rcid") ;
 

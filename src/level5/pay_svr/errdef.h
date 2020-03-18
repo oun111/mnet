@@ -30,6 +30,7 @@ enum err_codes {
   E_SAVE_ORDER,     
   E_PUB_REDIS,       
   E_TRADE_TIME,
+  E_INVALID_PAYTYPE,
   E_UNKNOWN_ERROR,
   // TODO: add new error code here
 } ;
@@ -64,6 +65,7 @@ const char* err_msgs[] =
   "保存订单\'%s\'失败",
   "推送消息到redis失败",
   "非交易时间，请在[%d~%d]内交易",
+  "无效支付类型，请联系管理员",
   "测试模式或未知错误",
 };
 

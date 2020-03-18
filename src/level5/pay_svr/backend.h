@@ -48,7 +48,7 @@ typedef struct backend_entry_s* backend_entry_t ;
 
 
 #define for_each_backends(entry,pos,n)  \
-  rbtree_postorder_for_each_entry_safe(pos,n,&(entry)->u.root,node) 
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&(entry)->u.root,node) 
 
 
 extern int create_backend(backend_entry_t, int, connection_t, int, void*) ;

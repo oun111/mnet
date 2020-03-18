@@ -31,7 +31,11 @@ enum order_types {
   t_pay,
   t_qrpay,
   t_pagepay,
+  t_max,
 } ;
+
+#define IS_ORDERTYPE_VALID(__pt__) \
+  ((__pt__)>=t_default && (__pt__)<t_max)
 
 struct order_info_s {
 

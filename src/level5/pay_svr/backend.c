@@ -124,7 +124,8 @@ int release_all_backends(backend_entry_t entry)
 {
   backend_t pos,n;
 
-  rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
+  //rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&entry->u.root,node) {
     drop_backend_internal(entry,pos);
   }
 

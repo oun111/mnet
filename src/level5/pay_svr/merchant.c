@@ -380,6 +380,7 @@ bool is_merchant_amount_valid(merchant_info_t pm, double amt, dbuffer_t *errbuf)
 static
 int drop_merchant_internal(merchant_entry_t entry, merchant_info_t p)
 {
+  log_debug("droping merchant %s...\n",p->id);
   rb_erase(&p->node,&entry->u.root);
 
   drop_dbuffer(p->pubkey);
@@ -425,7 +426,7 @@ int release_all_merchants(merchant_entry_t entry)
 {
   merchant_info_t pos,n;
 
-  rbtree_postorder_for_each_entry_safe(pos,n,&entry->u.root,node) {
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&entry->u.root,node) {
     drop_merchant_internal(entry,pos);
   }
 
@@ -447,7 +448,8 @@ int init_merchant_data(merchant_entry_t pm)
 
   init_merchant_entry(pm,-1);
 
-  rbtree_postorder_for_each_entry_safe(pos,n,&mcfg->u.root,node) {
+  //rbtree_postorder_for_each_entry_safe(pos,n,&mcfg->u.root,node) {
+  MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos,n,&mcfg->u.root,node) {
     tree_map_t mch_map = pos->nest_map;
     char *mch_id = get_tree_map_value(mch_map,"name") ;
 

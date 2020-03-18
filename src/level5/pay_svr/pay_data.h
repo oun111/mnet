@@ -6,6 +6,7 @@
 #include "list.h"
 #include "crypto.h"
 #include "runtime_rc.h"
+#include "order.h"
 
 
 struct risk_control_s {
@@ -32,6 +33,13 @@ struct pay_data_item_s {
   tree_map_t pay_params ;
 
   struct rsa_entry_s rsa_cache ;
+
+  // there're some items with a same appid but 
+  // have     different    paytype   & id
+  struct {
+    unsigned short id[t_max];
+    char hole[64-(t_max<<1)];
+  } pt_desc ;
 
   struct list_head upper ;
 } ;
@@ -60,6 +68,8 @@ typedef struct pay_channels_entry_s* pay_channels_entry_t ;
 struct pay_route_item_s {
   pay_data_t pdr ;
 
+  int pt ; // pay type
+
   struct list_head upper ;
 } ;
 typedef struct pay_route_item_s* pay_route_item_t ;
@@ -76,7 +86,8 @@ extern int drop_outdated_pay_data(pay_channels_entry_t entry) ;
 
 extern void delete_pay_channels_entry(pay_channels_entry_t entry);
 
-extern pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason);
+extern pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason, 
+                                 unsigned int *pt);
 
 extern int init_pay_data(pay_channels_entry_t paych);
 
