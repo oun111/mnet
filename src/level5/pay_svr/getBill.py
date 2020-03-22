@@ -2,9 +2,11 @@
 from selenium import webdriver
 #from DbHandle import DbHandle
 import time
+import random
  
 # 登录 url
-Login_Url = 'https://auth.alipay.com/login/index.htm?goto=https%3A%2F%2Fwww.alipay.com%2F'
+#Login_Url = 'https://auth.alipay.com/login/index.htm?goto=https%3A%2F%2Fwww.alipay.com%2F'
+Login_Url = 'https://auth.alipay.com/login/index.htm'
 # 账单 url
 Bill_Url = 'https://consumeprod.alipay.com/record/standard.htm'
  
@@ -17,11 +19,15 @@ class Alipay_Bill_Info(object):
     def wait_input(self, ele, str):
         for i in str:
             ele.send_keys(i)
-            time.sleep(0.5)
+            pause = random.random()
+            time.sleep(pause)
  
     def get_data(self):
         # 初始化浏览器对象
-        sel = webdriver.Chrome()
+        option = webdriver.ChromeOptions()
+        #option.add_argument('disable-infobars')
+        option.add_experimental_option('excludeSwitches', ['enable-automation'])
+        sel = webdriver.Chrome(options=option)
         sel.maximize_window()
         sel.get(Login_Url)
         sel.implicitly_wait(3)
@@ -32,14 +38,17 @@ class Alipay_Bill_Info(object):
         uname.clear()
         print('正在输入账号.....')
         self.wait_input(uname, self.user)
-        time.sleep(1)
+        sel.implicitly_wait(5)
+        time.sleep(3)
         # 找到密码输入框
         upass = sel.find_element_by_id('password_rsainput')
         upass.clear()
         print('正在输入密码....')
         self.wait_input(upass, self.passwd)
+        time.sleep(50)
+        sel.implicitly_wait(10)
         # 找到登录按钮
-        time.sleep(1)
+        #time.sleep(1)
         butten = sel.find_element_by_id('J-login-btn')
         butten.click()
  
@@ -120,17 +129,20 @@ class Alipay_Bill_Info(object):
 
 def main():
 
+  userDict = {
+    "zf_13192804289_10@163.com":"zr368368",
+    "zf_13192804289_01@163.com":"zr368368",
+    "hzxyl2020_01@163.com":"bb368368",
+    "hzzy2019_01@163.com":"cc368368",
+    "Hzkl2019_01@163.com":"cc368368",
+    "Hzhfl2020_01@163.com":"bb368368"
+  }
+
   # initialize the interfaces
-  abi = Alipay_Bill_Info("zf_13192804289_10@163.com","zr368368") 
+  k = "zf_13192804289_10@163.com"
+  abi = Alipay_Bill_Info(k,userDict[k]) 
   abi.get_data()
 
-  """
-  zf_13192804289_01@163.com zr368368
-  hzxyl2020_01@163.com      bb368368
-  hzzy2019_01@163.com       cc368368
-  Hzkl2019_01@163.com       cc368368
-  Hzhfl2020_01@163.com      bb368368
-  """
 
 if __name__=="__main__":
   main()
