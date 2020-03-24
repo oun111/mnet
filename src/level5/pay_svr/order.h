@@ -31,6 +31,7 @@ enum order_types {
   t_pay,
   t_qrpay,
   t_pagepay,
+  t_persTrans,
   t_max,
 } ;
 

@@ -33,6 +33,11 @@ pay_data_t get_pay_data(pay_channel_t pc, const char *appid)
   pay_data_t pd = 0;
 
 
+  if (!appid) {
+    log_error("invalid appid!\n");
+    return NULL;
+  }
+
   list_for_each_entry(pd,&pc->pay_data_list,upper) {
     if (!strcmp(pd->appid,appid))
       return pd;
