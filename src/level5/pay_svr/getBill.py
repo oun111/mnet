@@ -156,14 +156,15 @@ class billCollector(object):
                 break
 
 
-    def send_bill_notify(self,notify_data,out_trade_no):
+    def send_bill_notify(self,notify_data):
 
         if notify_data==None:
             return 
 
-        logger.debug("尝试发送通知: ",notify_data)
+        logger.debug("尝试发送通知: {0}".format(notify_data))
 
         try:
+            out_trade_no = notify_data['out_trade_no']
             notify_data= parse.urlencode(notify_data).encode('utf-8')
             req = urllib.request.Request(self.notifyUrl,data=notify_data)
             res = urllib.request.urlopen(req).read()
@@ -256,7 +257,7 @@ class billCollector(object):
         # 以特定字符串开头的备注才认为是有效的
         #   个人 转帐  记录，才 进行 后续 处理
         if otnkey not in way:
-            return None,None
+            return None
             
         otn = way[len(otnkey):]
 
@@ -275,12 +276,12 @@ class billCollector(object):
 
         amount = figure[2:]
 
-        return {'gmt_payment=' : date.replace('.','-')+" "+time,
-                'seller_id='   : payer,
-                'amount='      : amount,
-                'trade_status=': st,
-                'out_trade_no=': otn,
-                'trade_no='    : tradeNo
+        return {'gmt_payment' : date.replace('.','-')+" "+time,
+                'seller_id'   : payer,
+                'amount'      : amount,
+                'trade_status': st,
+                'out_trade_no': otn,
+                'trade_no'    : tradeNo
                 }
 
 
@@ -347,16 +348,15 @@ def main():
   bc = billCollector(cont) 
   bc.get_data()
 
-
   """
   data = {
      'gmt_payment':'2020-03-24 11:48',
      'seller_id':'惠州市好福来商贸有限公司',
      'amount':'0.01',
      'trade_status':'TRADE_SUCCESS',
-     'out_trade_no':'44100-27204',
+     'out_trade_no':'44100-27209',
      'trade_no':'20200324200040011100140086003041'}
-  bc.send_bill_notify(data,data['out_trade_no'])
+  bc.send_bill_notify(data)
   """
 
 if __name__=="__main__":
