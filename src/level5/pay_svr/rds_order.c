@@ -218,6 +218,9 @@ get_rds_order(rds_order_entry_t entry, const char *table,
   tmp = get_tree_map_value(odr_map,"create_time");
   p->create_time = atoll(tmp);
 
+  tmp = get_tree_map_value(odr_map,"order_type");
+  p->order_type = atoi(tmp);
+
   jsons_release(pr);
 
   delete_tree_map(map);
