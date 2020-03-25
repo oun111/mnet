@@ -293,6 +293,9 @@ class billCollector(object):
             logger.error("can't connect to " + self.notifyUrl)
         except urllib.error.URLError as e:
             logger.error("can't connect to " + self.notifyUrl)
+        # XXX: what the fuck 'http.client.RemoteDisconnected' is???
+        except Exception as e:
+            logger.error(e)
 
     def parse_page(self):
 
