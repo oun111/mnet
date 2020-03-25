@@ -112,7 +112,7 @@ class billCollector(object):
         self.parse_configs(cfgContent)
         self.user = user
         self.passwd = passwd
-        self.init_driver()
+        #self.init_driver()
          
 
     def parse_configs(self,cont):
@@ -293,7 +293,6 @@ class billCollector(object):
             logger.error("can't connect to " + self.notifyUrl)
         except urllib.error.URLError as e:
             logger.error("can't connect to " + self.notifyUrl)
-            
 
     def parse_page(self):
 
@@ -440,26 +439,30 @@ class billCollector(object):
         sel = self.sel
 
         while True:
-            # 跳转到账单页面
-            logger.debug('Start scanning Bill....')
-            if self.parse_bill()==-1:
-                self.qrcode_login()
-                time.sleep(self.maxDelay)
-                continue
+            try:
+                # 跳转到账单页面
+                logger.debug('Start scanning Bill....')
+                if self.parse_bill()==-1:
+                    self.qrcode_login()
+                    time.sleep(self.maxDelay)
+                    continue
 
-            time.sleep(random.randint(self.minDelay,self.maxDelay))
-
-             
-            pgtotal = random.randint(1,len(self.url_list))
-            logger.debug('Anti-anti-papa total {0} pages....'.format(pgtotal))
-
-            for i in range(pgtotal):
-                page = self.url_list[random.randint(0,len(self.url_list)-1)]
-                logger.debug('Jumpping to page...{0}'.format(page))
-                sel.get(page)
                 time.sleep(random.randint(self.minDelay,self.maxDelay))
 
-            logger.debug('Anti-anti-papa Done!')
+                 
+                pgtotal = random.randint(1,len(self.url_list))
+                logger.debug('Anti-anti-papa total {0} pages....'.format(pgtotal))
+
+                for i in range(pgtotal):
+                    page = self.url_list[random.randint(0,len(self.url_list)-1)]
+                    logger.debug('Jumpping to page...{0}'.format(page))
+                    sel.get(page)
+                    time.sleep(random.randint(self.minDelay,self.maxDelay))
+
+                logger.debug('Anti-anti-papa Done!')
+
+            except Exception as e:
+                logger.error(e)
 
 
 
@@ -503,18 +506,16 @@ def main():
 
   # initialize the interfaces
   bc = billCollector(cont) 
-  bc.get_data()
+  #bc.get_data()
 
-  """
   data = {
      'gmt_payment':'2020-03-24 11:48',
      'seller_id':'惠州市好福来商贸有限公司',
      'amount':'0.01',
      'trade_status':'TRADE_SUCCESS',
-     'out_trade_no':'44100-27209',
+     'out_trade_no':'44100-27209-001',
      'trade_no':'20200324200040011100140086003041'}
   bc.send_bill_notify(data)
-  """
 
 if __name__=="__main__":
   main()
