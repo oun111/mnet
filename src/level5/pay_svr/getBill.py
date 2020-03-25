@@ -112,7 +112,7 @@ class billCollector(object):
         self.parse_configs(cfgContent)
         self.user = user
         self.passwd = passwd
-        #self.init_driver()
+        self.init_driver()
          
 
     def parse_configs(self,cont):
@@ -506,8 +506,9 @@ def main():
 
   # initialize the interfaces
   bc = billCollector(cont) 
-  #bc.get_data()
+  bc.get_data()
 
+  """
   data = {
      'gmt_payment':'2020-03-24 11:48',
      'seller_id':'惠州市好福来商贸有限公司',
@@ -516,6 +517,7 @@ def main():
      'out_trade_no':'44100-27209-001',
      'trade_no':'20200324200040011100140086003041'}
   bc.send_bill_notify(data)
+  """
 
 if __name__=="__main__":
   main()
