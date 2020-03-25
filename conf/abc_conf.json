@@ -1,0 +1,29 @@
+{
+  "notifyUrl"     : "http://127.0.0.1:1366/alipay/notify",
+  "safeDelayRange": "10,30",
+  "otnKeyword"    : "REMARK-",
+  "redis" : {
+    "address"       : "127.0.0.1",
+    "port"          : 6379,
+    "succOrderCache": "odr001",
+    "failOrderCache": "odr002"
+  },
+  "loginPage":"https://auth.alipay.com/login/index.htm",
+  "billPage" :"https://consumeprod.alipay.com/record/advanced.htm",
+  "antiPaPages" :
+  [
+    "https://b.alipay.com/signing/productSetV2.htm?mrchportalwebServer=https%3A%2F%2Fmrchportalweb.alipay.com",
+    "https://mrchportalweb.alipay.com/user/asset/flow.htm#/flow/list",
+    "https://bizfundprod.alipay.com/fund/autoFinance/index.htm#/?_k=oz4sr1",
+    "https://my.alipay.com/portal/i.htm",
+    "https://app.alipay.com/container/web/index.htm",
+    "https://my.alipay.com/portal/account/safeguard.htm",
+    "https://zht.alipay.com/asset/newIndex.htm",
+    "https://my.alipay.com/wealth/index.html",
+    "https://help.alipay.com/lab/question.htm",
+    "https://yebprod.alipay.com/yeb/asset.htm",
+    "https://zcbprod.alipay.com/index.htm",
+    "https://zd.alipay.com/ebill/monthebill.htm"
+  ]
+}
+

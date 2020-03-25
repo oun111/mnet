@@ -3,6 +3,7 @@
 import os
 import sys
 import json
+import redis
 import getopt
 import time
 import random
@@ -20,32 +21,95 @@ from urllib import parse
 globalName = 'billCollector'
 logger     = logging.getLogger(globalName + '_log')
 
+
+
+class myredis(object):
+
+  def __init__(self,host,port,succCache,failCache):
+    self.host   = host
+    self.port   = port
+    self.succCache= succCache
+    self.failCache= failCache
+    self.do_connect()
+
+    if (self.m_rds==None):
+      logger.debug("connect to redis {0}:{1} fail!".format(host,port))
+    else:
+      logger.debug("connect to redis {0}:{1} ok!".format(host,port))
+
+  def do_connect(self):
+    pool = redis.ConnectionPool(host=self.host,port=self.port,password='')
+    self.m_rds = redis.Redis(connection_pool=pool)
+
+  def read(self,dict1,key):
+    while True:
+      try:
+        if (self.m_rds.hexists(dict1,key)==False):
+          return None
+        return self.m_rds.hget(dict1,key)
+      except redis.ConnectionError as e:
+        self.do_connect()
+
+  def write(self,dict1,key,val):
+    while True:
+      try:
+        self.m_rds.hset(dict1,key,val)
+        break
+      except redis.ConnectionError as e:
+        self.do_connect()
+
+  def delete(self,dict1,key=None):
+    while True:
+      try:
+        self.m_rds.delete(dict1)
+        break
+      except redis.ConnectionError as e:
+        self.do_connect()
+
+  def pushq(self,mq,v):
+    while True:
+      try:
+        self.m_rds.rpush(mq,v)
+        break
+      except redis.ConnectionError as e:
+        self.do_connect()
+
+  def publish(self,mq,v):
+    while True:
+      try:
+        self.m_rds.publish(mq,v)
+        break
+      except redis.ConnectionError as e:
+        self.do_connect()
+
+  def popq(self,mq):
+    while True:
+      try:
+        return self.m_rds.lpop(mq)
+      except redis.ConnectionError as e:
+        self.do_connect()
+
+  def topq(self,mq):
+    while True:
+      try:
+        return self.m_rds.lindex(mq,0)
+      except redis.ConnectionError as e:
+        self.do_connect()
+
+  def save(self):
+    while True:
+      try:
+        self.m_rds.save()
+      except redis.ConnectionError as e:
+        self.do_connect()
+
+
  
 class billCollector(object):
  
     def __init__(self,cfgContent,user='', passwd=''):
-        # 登录 url
-        self.Login_Url = 'https://auth.alipay.com/login/index.htm'
-        # 账单 url
-        self.Bill_Url = 'https://consumeprod.alipay.com/record/advanced.htm'
-        # 防封页面列表，随机访问
-        self.url_list = [
-          "https://b.alipay.com/signing/productSetV2.htm?mrchportalwebServer=https%3A%2F%2Fmrchportalweb.alipay.com",
-          "https://mrchportalweb.alipay.com/user/asset/flow.htm#/flow/list",
-          "https://bizfundprod.alipay.com/fund/autoFinance/index.htm#/?_k=oz4sr1",
-          "https://my.alipay.com/portal/i.htm",
-          "https://app.alipay.com/container/web/index.htm",
-          "https://my.alipay.com/portal/account/safeguard.htm",
-          "https://zht.alipay.com/asset/newIndex.htm",
-          "https://my.alipay.com/wealth/index.html",
-          "https://help.alipay.com/lab/question.htm",
-          "https://yebprod.alipay.com/yeb/asset.htm",
-          "https://zcbprod.alipay.com/index.htm",
-          "https://zd.alipay.com/ebill/monthebill.htm",
-        ]
 
         self.parse_configs(cfgContent)
-
         self.user = user
         self.passwd = passwd
         self.init_driver()
@@ -57,18 +121,18 @@ class billCollector(object):
         k = 'notifyUrl'
         c = cfg.get(k)
         if (c==None or len(c)==0):
-            logger.error("配置错误: '{0}'".format(k))
+            logger.error("Configure ERROR: '{0}'".format(k))
             exit(-1)
         self.notifyUrl = c
 
         k = 'safeDelayRange'
         c = cfg.get(k)
         if (c==None or len(c)==0):
-            logger.error("配置错误: '{0}'".format(k))
+            logger.error("Configure ERROR: '{0}'".format(k))
             exit(-1)
         rl= c.split(',')
         if len(rl)!=2:
-            logger.error("配置错误1: '{0}'".format(k))
+            logger.error("Configure ERROR1: '{0}'".format(k))
             exit(-1)
 
         self.minDelay = int(rl[0])
@@ -77,13 +141,43 @@ class billCollector(object):
         k = 'otnKeyword'
         c = cfg.get(k)
         if (c==None or len(c)==0):
-            logger.error("配置错误: '{0}'".format(k))
+            logger.error("Configure ERROR: '{0}'".format(k))
             exit(-1)
         self.otnKeyword = c
 
-        logger.info("通知地址：" + self.notifyUrl)
-        logger.info("安全延迟时间区间：({0},{1})".format(self.minDelay,self.maxDelay))
-        logger.info("订单区分标志：" + self.otnKeyword)
+        logger.info("Notify URL: " + self.notifyUrl)
+        logger.info("Safety Delay Time Range: ({0},{1})".format(self.minDelay,self.maxDelay))
+        logger.info("Order Identity Mark: " + self.otnKeyword)
+
+        k = 'antiPaPages'
+        c = cfg.get(k)
+        if (c==None or len(c)==0):
+            logger.error("Configure ERROR: '{0}'".format(k))
+            exit(-1)
+        self.url_list = []
+        for i in range(len(c)):
+            self.url_list.append(c[i])
+
+        k = 'loginPage'
+        c = cfg.get(k)
+        if (c==None or len(c)==0):
+            logger.error("Configure ERROR: '{0}'".format(k))
+            exit(-1)
+        self.Login_Url = c
+
+        k = 'billPage'
+        c = cfg.get(k)
+        if (c==None or len(c)==0):
+            logger.error("Configure ERROR: '{0}'".format(k))
+            exit(-1)
+        self.Bill_Url = c
+
+        rds = cfg['redis']
+        if len(rds)>0:
+            self.myrds = myredis(cfg['redis']['address'],
+                                 cfg['redis']['port'],
+                                 cfg['redis']['succOrderCache'],
+                                 cfg['redis']['failOrderCache'])
         
 
     def init_driver(self):
@@ -120,14 +214,14 @@ class billCollector(object):
         uname.clear()
         uname.click()
         time.sleep(1000)
-        logger.debug('正在输入账号.....')
+        logger.debug('input login account.....')
         self.wait_input(uname, self.user)
         sel.implicitly_wait(5)
         time.sleep(1)
         # 找到密码输入框
         upass = sel.find_element_by_id('password_rsainput')
         upass.clear()
-        logger.debug('正在输入密码....')
+        logger.debug('input password....')
         self.wait_input(upass, self.passwd)
         sel.implicitly_wait(10)
         time.sleep(3)
@@ -144,7 +238,7 @@ class billCollector(object):
         sel = self.sel
 
         sel.get(self.Login_Url)
-        logger.debug("尝试重新登陆...")
+        logger.debug("Try to re-login...")
 
         while True:
             try:
@@ -152,7 +246,7 @@ class billCollector(object):
                     #logger.debug("current url: " + sel.current_url)
                     time.sleep(3)
             except NoSuchElementException:
-                logger.debug("成功登陆")
+                logger.debug("Login OK!")
                 break
 
 
@@ -161,10 +255,27 @@ class billCollector(object):
         if notify_data==None:
             return 
 
-        logger.debug("尝试发送通知: {0}".format(notify_data))
+        logger.debug("Sending notification: {0}".format(notify_data))
 
         try:
-            out_trade_no = notify_data['out_trade_no']
+            rds = self.myrds
+            out_trade_no= notify_data['out_trade_no']
+            trade_no    = notify_data['trade_no']
+
+            stored = rds.read(rds.succCache,out_trade_no)
+            if stored!=None:
+
+                stored = str(stored).replace('b','').replace('\'','')
+
+                if stored == trade_no:
+                    logger.debug("out_trade_no '{0}' with trade_no '{1}' duplicates, will NOT notify again!"\
+                                 .format(out_trade_no,trade_no))
+                    return
+
+                logger.debug("out_trade_no '{0}' already has an old trade_no '{1}', will be over-written by '{2}'"\
+                             .format(out_trade_no,stored,trade_no))
+
+
             notify_data= parse.urlencode(notify_data).encode('utf-8')
             req = urllib.request.Request(self.notifyUrl,data=notify_data)
             res = urllib.request.urlopen(req).read()
@@ -173,8 +284,10 @@ class billCollector(object):
 
             if res == 'success':
               logger.debug("notify order '{0}' ok!!".format(out_trade_no))
+              rds.write(rds.succCache,out_trade_no,trade_no)
             else:
               logger.error("notify order '{0}' fail: {1}".format(out_trade_no,res))
+              rds.write(rds.failCache,out_trade_no,trade_no)
 
         except ConnectionRefusedError as e:
             logger.error("can't connect to " + self.notifyUrl)
@@ -182,20 +295,9 @@ class billCollector(object):
             logger.error("can't connect to " + self.notifyUrl)
             
 
-        
+    def parse_page(self):
 
-
-    def parse_bill(self):
         sel = self.sel
-
-        sel.get(self.Bill_Url)
-        sel.implicitly_wait(3)
-        time.sleep(3)
-        try:
-            sel.find_element_by_xpath('//*[@id="J-item-1"]')
-        except:
-            logger.debug("登录出错啦！")
-            return -1
 
         num = 0
         while True:
@@ -238,12 +340,56 @@ class billCollector(object):
 
             except NoSuchElementException as e :
                 #logger.debug(e)
-                logger.debug("扫描结束")
+                logger.debug("Scanning current page DONE!")
                 break 
             except TimeoutException as e1:
                 #logger.debug(e1)
-                logger.debug("扫描结束, 超时")
+                logger.debug("Scanning current page DONE! Time out!!")
                 break 
+
+
+    def parse_bill(self):
+        sel = self.sel
+
+        sel.get(self.Bill_Url)
+        sel.implicitly_wait(3)
+        time.sleep(3)
+        try:
+            sel.find_element_by_xpath('//*[@id="J-item-1"]')
+        except:
+            logger.debug("Login fail!!!")
+            return -1
+
+        page = 1
+        while True:
+            try:
+
+              """查询一页"""
+              logger.info("Page{0} ...".format(page))
+              self.parse_page()
+
+              """下一页"""
+              """ <a>标签 class page-next"""
+              s = 'a.page-next'
+              wait = ui.WebDriverWait(sel,random.randint(self.minDelay,self.maxDelay))
+              wait.until(lambda driver: sel.find_element_by_css_selector(s))
+              sel.find_element_by_css_selector(s).click()
+
+              page = page + 1
+
+            except NoSuchElementException as e :
+                #logger.debug(e)
+                logger.debug("End of Bill")
+                break 
+            except TimeoutException as e1:
+                #logger.debug(e1)
+                logger.debug("End of Bill, Time out!!!")
+                break 
+
+        """
+        self.myrds.save()
+        logger.debug("flushing redis...")
+        """
 
         return 0
 
@@ -253,6 +399,8 @@ class billCollector(object):
         amount = 0
         st = 'TRADE_ERROR'
         otnkey = self.otnKeyword
+
+        logger.debug("***Bill record{0},{1},{2},{3},{4}".format(date+time,way,snum,status,payer))
 
         # 以特定字符串开头的备注才认为是有效的
         #   个人 转帐  记录，才 进行 后续 处理
@@ -268,6 +416,8 @@ class billCollector(object):
 
         if '成功' in status:
             st = 'TRADE_SUCCESS'
+        else:
+            st = 'TRADE_ERROR'
 
         if '+' in figure:
             sign = 'in'
@@ -276,7 +426,7 @@ class billCollector(object):
 
         amount = figure[2:]
 
-        return {'gmt_payment' : date.replace('.','-')+" "+time,
+        return {'gmt_payment' : date.replace('.','-')+"_"+time,
                 'seller_id'   : payer,
                 'amount'      : amount,
                 'trade_status': st,
@@ -291,7 +441,7 @@ class billCollector(object):
 
         while True:
             # 跳转到账单页面
-            logger.debug('正在跳转页面....' + self.Bill_Url)
+            logger.debug('Start scanning Bill....')
             if self.parse_bill()==-1:
                 self.qrcode_login()
                 time.sleep(self.maxDelay)
@@ -299,10 +449,17 @@ class billCollector(object):
 
             time.sleep(random.randint(self.minDelay,self.maxDelay))
 
-            page = self.url_list[random.randint(0,len(self.url_list)-1)]
-            logger.debug('正在跳转页面（反反爬）....' + page)
-            sel.get(page)
-            time.sleep(random.randint(self.minDelay,self.maxDelay))
+             
+            pgtotal = random.randint(1,len(self.url_list))
+            logger.debug('Anti-anti-papa total {0} pages....'.format(pgtotal))
+
+            for i in range(pgtotal):
+                page = self.url_list[random.randint(0,len(self.url_list)-1)]
+                logger.debug('Jumpping to page...{0}'.format(page))
+                sel.get(page)
+                time.sleep(random.randint(self.minDelay,self.maxDelay))
+
+            logger.debug('Anti-anti-papa Done!')
 
 
 
