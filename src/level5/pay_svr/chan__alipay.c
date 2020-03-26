@@ -2153,7 +2153,7 @@ int update_alipay_ptrans_biz(dbuffer_t *errbuf, tree_map_t user_params,
   // amount
   put_tree_map_string(pay_biz,"a",amount);
   // out-trade-no
-  snprintf(tmp,sizeof(tmp),"REMARK-%s",out_trade_no);
+  snprintf(tmp,sizeof(tmp),"备注-%s",out_trade_no);
   put_tree_map_string(pay_biz,"m",tmp);
 
   dbuffer_t strBiz = create_json_params(pay_biz);
