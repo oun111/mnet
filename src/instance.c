@@ -293,7 +293,7 @@ int instance_start(int argc, char *argv[])
   // signals
   signal(SIGTERM,sig_term_handler);
   signal(SIGINT,sig_term_handler);
-  signal(SIGSEGV,sig_term_handler);
+  //signal(SIGSEGV,sig_term_handler);
   signal(SIGPIPE,SIG_IGN);
 
   save_log_pid();

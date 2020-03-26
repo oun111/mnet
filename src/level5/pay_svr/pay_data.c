@@ -28,7 +28,7 @@ pay_channel_t get_pay_channel(pay_channels_entry_t entry, const char *chan)
   return p;
 }
 
-pay_data_t get_pay_data(pay_channel_t pc, const char *appid)
+pay_data_t get_pay_data(pay_channel_t pc, const char *appid, int pt)
 {
   pay_data_t pd = 0;
 
@@ -39,7 +39,7 @@ pay_data_t get_pay_data(pay_channel_t pc, const char *appid)
   }
 
   list_for_each_entry(pd,&pc->pay_data_list,upper) {
-    if (!strcmp(pd->appid,appid))
+    if (!strcmp(pd->appid,appid) && pd->pay_type==pt)
       return pd;
   }
 
@@ -48,7 +48,7 @@ pay_data_t get_pay_data(pay_channel_t pc, const char *appid)
 
 pay_data_t 
 get_paydata_by_ali_appid(pay_channels_entry_t entry, const char *chan, 
-                         const char *appid)
+                         const char *appid, int pt)
 {
   pay_channel_t pc = get_pay_channel(entry,chan);
 
@@ -58,12 +58,11 @@ get_paydata_by_ali_appid(pay_channels_entry_t entry, const char *chan,
     return NULL;
   }
 
-  return get_pay_data(pc,appid);
+  return get_pay_data(pc,appid,pt);
 }
 
 pay_data_t 
-get_paydata_by_id(pay_channels_entry_t entry, const char *chan, 
-                  int id, int *paytype)
+get_paydata_by_id(pay_channels_entry_t entry, const char *chan, int id)
 {
   pay_data_t pd = 0;
   pay_channel_t pc = get_pay_channel(entry,chan);
@@ -76,12 +75,10 @@ get_paydata_by_id(pay_channels_entry_t entry, const char *chan,
 
   list_for_each_entry(pd,&pc->pay_data_list,upper) {
 
-    // search id from external id list
-    for (int i=0;i<t_max;i++) 
-      if (pd->pt_desc.id[i]==id) {
-        *paytype = i ;
-        return pd ;
-      }
+    char *pid = get_tree_map_value(pd->pay_params,"id");
+
+    if (atoi(pid)==id) 
+      return pd ;
   }
 
   return NULL ;
@@ -139,9 +136,8 @@ static int get_rc_paras(tree_map_t rc_cfg, struct risk_control_s *rcp, dbuffer_t
 
 pay_data_t 
 add_pay_data(pay_channels_entry_t entry, const char *chan, 
-             const char *appid, tree_map_t params)
+             const char *appid, int pt, tree_map_t params)
 {
-  int nv = 0;
   char *pv = 0;
   pay_channel_t pc = get_pay_channel(entry,chan);
   pay_data_t p = NULL;
@@ -158,7 +154,7 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
     }
   }
 
-  p = get_pay_data(pc,appid);
+  p = get_pay_data(pc,appid,pt);
 
   if (!p) {
     p = kmalloc(sizeof(struct pay_data_item_s),0L);
@@ -168,23 +164,10 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
     }
 
     p->appid = alloc_default_dbuffer();
-    //p->pay_params = params;
-#if 0
-    p->rc.max_amount = 0.0;
-    p->rc.max_orders = 0;
-    p->rc.time = 0L;
-    p->cfg_rc.max_amount = 0.0;
-    p->cfg_rc.max_orders = 0;
-    p->cfg_rc.time = 0L;
-    p->rsa_cache.sign_item   = NULL;
-    p->rsa_cache.versign_item= NULL;
-#else
     bzero(&p->rc,sizeof(p->rc));
     bzero(&p->cfg_rc,sizeof(p->cfg_rc));
     bzero(&p->rsa_cache,sizeof(p->rsa_cache));
-#endif
-
-    memset(p->pt_desc.id,-1,sizeof(p->pt_desc.id));
+    p->pay_type = 0;
 
     INIT_LIST_HEAD(&p->upper); 
     list_add(&p->upper,&pc->pay_data_list);
@@ -217,14 +200,10 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
   }
 
   // pay type
-  pv = get_tree_map_value(p->pay_params,"pay_type");
-  nv = pv?atoi(pv):-1;
-  if (unlikely(!IS_ORDERTYPE_VALID(nv))) 
-    log_error("invalid pay type %d\n", nv);
+  if (unlikely(!IS_ORDERTYPE_VALID(pt))) 
+    log_error("invalid pay type %d\n", pt);
   else {
-    // related record id
-    pv = get_tree_map_value(p->pay_params,"id");
-    p->pt_desc.id[nv] = atoi(pv) ;
+    p->pay_type = pt ;
   }
 
   pv = (char*)appid ;
@@ -281,13 +260,8 @@ void delete_pay_channels_entry(pay_channels_entry_t entry)
 
 void update_paydata_rc_arguments(pay_data_t pd, double amount)
 {
-#if 0
-  pd->rc.max_amount += amount ;
-  pd->rc.max_orders ++ ;
-#else
   pd->rc.amount.max += amount ;
   pd->rc.order.max ++ ;
-#endif
 }
 
 int reset_paydata_rc_arguments(pay_channels_entry_t entry, const char *chan)
@@ -305,16 +279,10 @@ int reset_paydata_rc_arguments(pay_channels_entry_t entry, const char *chan)
   gettimeofday(&ts,NULL);
 
   list_for_each_entry(pd,&pc->pay_data_list,upper) {
-#if 0
-    pd->rc.time = ts.tv_sec;
-    pd->rc.max_orders = 0;
-    pd->rc.max_amount = 0.0;
-#else
     pd->rc.order.time = ts.tv_sec;
     pd->rc.order.max  = 0;
     pd->rc.amount.time= ts.tv_sec;
     pd->rc.amount.max = 0.0;
-#endif
   }
 
   log_debug("reset rc arguments done!!\n");
@@ -325,6 +293,7 @@ int reset_paydata_rc_arguments(pay_channels_entry_t entry, const char *chan)
 int 
 fetch_runtime_rc(pay_channels_entry_t entry, runtime_rc_t re, const char *chan)
 {
+  char key[128] = "";
   pay_data_t pd = 0;
   struct timeval tv;
   pay_channel_t pc = get_pay_channel(entry,chan);
@@ -338,13 +307,22 @@ fetch_runtime_rc(pay_channels_entry_t entry, runtime_rc_t re, const char *chan)
   gettimeofday(&tv,NULL);
 
   list_for_each_entry(pd,&pc->pay_data_list,upper) {
+
+    if (unlikely(dbuffer_data_size(pd->appid)+2 > sizeof(key))) {
+      log_error("appid '%s' is too long!!\n",pd->appid);
+    }
+
+    // appid | pay_type
+    snprintf(key,sizeof(key),"%s|%d",pd->appid,pd->pay_type);
+
     // get latest local time, NOT from redis storage
     pd->rc.order.time = tv.tv_sec;
     pd->rc.amount.time = tv.tv_sec;
-    re->fetch(re,rt_amount,pd->appid,&pd->rc.amount.max);
-    re->fetch(re,rt_orders,pd->appid,&pd->rc.order.max);
+    re->fetch(re,rt_amount,key,&pd->rc.amount.max);
+    re->fetch(re,rt_orders,key,&pd->rc.order.max);
 
-    log_debug("%s: amount(%lu,%f), order(%lu,%d)\n",pd->appid,
+    log_debug("%s|%d: amount(%lu,%f), order(%lu,%d)\n",
+        pd->appid,pd->pay_type,
         pd->rc.amount.time,pd->rc.amount.max,
         pd->rc.order.time,pd->rc.order.max);
   }
@@ -357,6 +335,7 @@ fetch_runtime_rc(pay_channels_entry_t entry, runtime_rc_t re, const char *chan)
 int 
 save_runtime_rc(pay_channels_entry_t entry, runtime_rc_t re, const char *chan)
 {
+  char key[128] = "";
   pay_data_t pd = 0;
   pay_channel_t pc = get_pay_channel(entry,chan);
 
@@ -373,11 +352,18 @@ save_runtime_rc(pay_channels_entry_t entry, runtime_rc_t re, const char *chan)
 
   list_for_each_entry(pd,&pc->pay_data_list,upper) {
 
+    if (unlikely(dbuffer_data_size(pd->appid)+2 > sizeof(key))) {
+      log_error("appid '%s' is too long!!\n",pd->appid);
+    }
+
+    // appid | pay_type
+    snprintf(key,sizeof(key),"%s|%d",pd->appid,pd->pay_type);
+
     // don't save time onto redis storage, it's useless
 
-    re->save(re,rt_amount,pd->appid,&pd->rc.amount.max);
+    re->save(re,rt_amount,key,&pd->rc.amount.max);
 
-    re->save(re,rt_orders,pd->appid,&pd->rc.order.max);
+    re->save(re,rt_orders,key,&pd->rc.order.max);
   }
 
   //log_debug("save runtime rc data done!!\n");
@@ -433,7 +419,7 @@ pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason, unsigned
     }
 
     // get pay type
-    *pt = pr->pt ;
+    *pt = pos->pay_type ;
 
     // move pay data item to list tail
     {
@@ -471,9 +457,18 @@ int init_pay_data(pay_channels_entry_t paych)
     MY_RBTREE_PREORDER_FOR_EACH_ENTRY_SAFE(pos1,n1,&chansub->u.root,node) {
 
       char *appid = get_tree_map_value(pos1->nest_map,"app_id");
+      char *pv    = get_tree_map_value(pos1->nest_map,"pay_type");
+      int pt      = 0;
 
-      add_pay_data(paych,pos->key,/*pos1->key*/appid,pos1->nest_map);
-      log_info("adding channel by appid '%s - %s'\n",pos->key,/*pos1->key*/appid);
+
+      if (unlikely(!pv)) {
+        log_error("found no pay type configs for appid '%s'!\n",appid);
+        continue ;
+      }
+
+      pt = atoi(pv);
+      add_pay_data(paych,pos->key,appid,pt,pos1->nest_map);
+      log_info("adding channel by appid '%s - %s|%d'\n",pos->key,appid,pt);
     }
   }
 
@@ -512,8 +507,8 @@ int drop_outdated_pay_data(pay_channels_entry_t entry)
 
       // find pay data item from latest configs
       tm_item_t pi, ni;
-      int pts = 0;
       unsigned short ids[t_max];
+      bool found = false ;
 
       memset(ids,-1,sizeof(ids));
       // not found means this paydata is outdated!!
@@ -528,23 +523,21 @@ int drop_outdated_pay_data(pay_channels_entry_t entry)
           break ;
         }
 
-        if (!strcmp(appid,posd->appid)) {
-          char *pid= get_tree_map_value(pi->nest_map,"id");
-          ids[nv] = atoi(pid);
-          pts ++ ;
+        if (!strcmp(appid,posd->appid) && posd->pay_type==nv) {
+          found = true;
+          break ;
         }
       }
 
-      if (!pts) {
-        log_debug("droping outdated pay data by appid '%s'\n",posd->appid);
+      if (!found) {
+        log_debug("droping outdated pay data by appid '%s' pay type %d\n",
+                  posd->appid,posd->pay_type);
 
         list_del(&posd->upper);
         drop_dbuffer(posd->appid);
         release_rsa_entry(&posd->rsa_cache);
         kfree(posd);
       }
-      else 
-        memcpy(posd->pt_desc.id,ids,sizeof(ids));
 
     }
   }
@@ -585,7 +578,7 @@ int init_pay_route_references(pay_channels_entry_t pe, struct list_head *pr_list
   pay_data_t pd = NULL;
   const char *chan = "alipay";
   struct bitmap64_s bm ;
-  int id = 0, pt = 0;
+  int id = 0;
 
 
   // bitmap with 5000+ bits available
@@ -602,7 +595,7 @@ int init_pay_route_references(pay_channels_entry_t pe, struct list_head *pr_list
       continue ;
     }
 
-    if (bm64_test_bit(&bm,id) && (pd=get_paydata_by_id(pe,chan,id,&pt))) {
+    if (bm64_test_bit(&bm,id) && (pd=get_paydata_by_id(pe,chan,id))) {
 
       char *tf = get_tree_map_value(pd->pay_params,"istransfund");
 
@@ -612,7 +605,6 @@ int init_pay_route_references(pay_channels_entry_t pe, struct list_head *pr_list
 
       pr = kmalloc(sizeof(struct pay_route_item_s),0L);
       pr->pdr = pd ;
-      pr->pt  = pt ; // id --> pay type
       list_add(&pr->upper,pr_list);
     }
   }

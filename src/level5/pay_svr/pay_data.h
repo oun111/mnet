@@ -34,12 +34,7 @@ struct pay_data_item_s {
 
   struct rsa_entry_s rsa_cache ;
 
-  // there're some items with a same appid but 
-  // have     different    paytype   & id
-  struct {
-    unsigned short id[t_max];
-    char hole[64-(t_max<<1)];
-  } pt_desc ;
+  unsigned int pay_type ;
 
   struct list_head upper ;
 } ;
@@ -68,8 +63,6 @@ typedef struct pay_channels_entry_s* pay_channels_entry_t ;
 struct pay_route_item_s {
   pay_data_t pdr ;
 
-  int pt ; // pay type
-
   struct list_head upper ;
 } ;
 typedef struct pay_route_item_s* pay_route_item_t ;
@@ -77,10 +70,10 @@ typedef struct pay_route_item_s* pay_route_item_t ;
 
 extern pay_channel_t get_pay_channel(pay_channels_entry_t entry, const char *chan);
 
-extern pay_data_t get_pay_data(pay_channel_t pc, const char *subname);
+extern pay_data_t get_pay_data(pay_channel_t pc, const char *subname, int pt);
 
 extern pay_data_t add_pay_data(pay_channels_entry_t entry, const char *chan, 
-                               const char *subname, tree_map_t params);
+                               const char *subname, int pt, tree_map_t params);
 
 extern int drop_outdated_pay_data(pay_channels_entry_t entry) ;
 
@@ -92,7 +85,7 @@ extern pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason,
 extern int init_pay_data(pay_channels_entry_t paych);
 
 extern pay_data_t get_paydata_by_ali_appid(pay_channels_entry_t entry, 
-           const char *chan, const char *appid);
+           const char *chan, const char *appid, int pt);
 
 extern void update_paydata_rc_arguments(pay_data_t pd, double amount);
 

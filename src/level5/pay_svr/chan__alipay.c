@@ -1466,7 +1466,6 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
   pay_channels_entry_t pce = get_pay_channels_entry() ;
   paySvr_config_t pc = get_running_configs();
   mysql_conf_t mcfg = get_mysql_configs(pc);
-  const char *appid = get_tree_map_value(user_params,APPID);
   const char *payChan = g_alipay_mod.name ;
   char *tno = 0;
   pay_data_t pd = 0 ;
@@ -1492,25 +1491,20 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
     return -1;
   }
 
-  // there's NO appid in notify if it's personal transfund
-  if (po->order_type!=t_persTrans) {
-    pd = get_paydata_by_ali_appid(pce,payChan,appid);
-    if (!pd) {
-      log_error("found no pay route by '%s'\n",payChan);
-      sock_close(pconn->fd);
-      //return -1;
-      goto __done;
-    }
-
-    // verify signature of alipay notifications
-    if (do_verify_sign(pd,user_params)) {
-      sock_close(pconn->fd);
-      //return -1;
-      goto __done;
-    }
+  pd = get_paydata_by_ali_appid(pce,payChan,po->chan.mch_no,
+                                po->order_type);
+  if (!pd) {
+    log_error("found no pay route by '%s'\n",payChan);
+    sock_close(pconn->fd);
+    //return -1;
+    goto __done;
   }
-  else {
-    pd = get_paydata_by_ali_appid(pce,payChan,po->chan.mch_no);
+
+  // verify signature of alipay notifications
+  if (po->order_type!=t_persTrans && do_verify_sign(pd,user_params)) {
+    sock_close(pconn->fd);
+    //return -1;
+    goto __done;
   }
 
   // send a feed back to ALI
