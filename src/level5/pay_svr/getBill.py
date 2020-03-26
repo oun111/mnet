@@ -172,6 +172,13 @@ class billCollector(object):
             exit(-1)
         self.Bill_Url = c
 
+        k = 'accountPage'
+        c = cfg.get(k)
+        if (c==None or len(c)==0):
+            logger.error("Configure ERROR: '{0}'".format(k))
+            exit(-1)
+        self.Account_Url = c
+
         rds = cfg['redis']
         if len(rds)>0:
             self.myrds = myredis(cfg['redis']['address'],
@@ -232,6 +239,24 @@ class billCollector(object):
  
         # sel.save_screenshot('2.png')
         logger.debug(sel.current_url)
+
+   
+    def get_login_name(self):
+        sel = self.sel
+
+        sel.get(self.Account_Url)
+        logger.debug("Getting account name...")
+
+        try:
+            s = 'span[class~=\'ft-14\']'
+            wait = ui.WebDriverWait(sel,random.randint(self.minDelay,self.maxDelay))
+            wait.until(lambda driver: sel.find_element_by_css_selector(s))
+            self.loginName = sel.find_element_by_css_selector(s).text.split(' ')[0]
+
+            logger.debug("login name is: " + self.loginName)
+
+        except Exception as e:
+            logger.debug("login name not found, {0}".format(e))
 
 
     def qrcode_login(self):
@@ -447,7 +472,9 @@ class billCollector(object):
                 logger.debug('Start scanning Bill....')
                 if self.parse_bill()==-1:
                     self.qrcode_login()
-                    time.sleep(self.maxDelay)
+                    #time.sleep(random.randint(self.minDelay,self.maxDelay))
+                    self.get_login_name()
+                    #time.sleep(random.randint(self.minDelay,self.maxDelay))
                     continue
 
                 time.sleep(random.randint(self.minDelay,self.maxDelay))
