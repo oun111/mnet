@@ -1244,13 +1244,16 @@ int do_alipay_order(Network_t net,connection_t pconn,tree_map_t user_params)
   }
 
   reason = alloc_default_dbuffer();
-
   //pd = get_pay_route(get_pay_channels_entry(),payChan,&reason);
   pd = get_pay_route2(&pm->alipay_pay_route,&reason,&pt);
   if (!pd) {
     FORMAT_ERR(errbuf,E_BAD_ROUTE,payChan);
     goto __done ;
   }
+
+  // increase order count, no matter whether 
+  // user    pays    successfully   or   not
+  update_paydata_rc_arguments(pd, 0, 1);
 
   log_debug("route to app_id: %s\n",get_tree_map_value(pd->pay_params,APPID));
 
@@ -1536,7 +1539,7 @@ int do_alipay_notify(Network_t net,connection_t pconn,tree_map_t user_params)
 
     st = s_paid;
 
-    update_paydata_rc_arguments(pd,po->amount);
+    update_paydata_rc_arguments(pd,po->amount,0);
   }
 
   set_order_message(po,ptr);
@@ -2153,7 +2156,7 @@ int update_alipay_ptrans_biz(dbuffer_t *errbuf, tree_map_t user_params,
   // amount
   put_tree_map_string(pay_biz,"a",amount);
   // out-trade-no
-  snprintf(tmp,sizeof(tmp),"备注-%s",out_trade_no);
+  snprintf(tmp,sizeof(tmp),"备注 %s",out_trade_no);
   put_tree_map_string(pay_biz,"m",tmp);
 
   dbuffer_t strBiz = create_json_params(pay_biz);
@@ -2327,6 +2330,56 @@ int do_alipay_reset_rc(Network_t net,connection_t pconn,tree_map_t user_params)
   return 0;
 }
 
+static 
+int do_alipay_enable_chan(Network_t net,connection_t pconn,tree_map_t user_params)
+{
+  extern pay_channels_entry_t get_pay_channels_entry();
+  pay_channels_entry_t pce = get_pay_channels_entry();
+  const char *du_res = "success";
+  dbuffer_t *errbuf = &pconn->txb;
+  merchant_entry_t pme = get_merchant_entry();
+  merchant_info_t pm = 0;
+
+
+  char *mch_id = get_tree_map_value(user_params,MCHID);
+
+  if (!mch_id || !(pm=get_merchant(pme,mch_id))) {
+    FORMAT_ERR(errbuf,E_BAD_MCH,mch_id);
+    return -1 ;
+  }
+
+  char *lname = get_tree_map_value(user_params,"loginName");
+
+  if (!lname) {
+    log_error("no 'login Name'\n");
+    return -1 ;
+  }
+
+  char *en = get_tree_map_value(user_params,"enable");
+
+  if (!en) {
+    log_error("no 'enable'\n");
+    return -1 ;
+  }
+
+  if (enable_paydata_by_loginname(pce,g_alipay_mod.name,lname,*en!='0'))
+    du_res = "fail";
+
+  // send a feed back
+  create_http_normal_res(&pconn->txb,-1,pt_html,du_res);
+
+  if (!pconn->ssl || pconn->ssl->state==s_ok) {
+    if (!alipay_tx(net,pconn))
+      sock_close(pconn->fd);
+    else {
+      log_error("send later by %d\n",pconn->fd);
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
 static
 void destroy_dynamic_cfg_updater()
 {
@@ -2375,6 +2428,13 @@ struct http_action_s action__alipay_reset_rc =
 {
   .action  = "reset-rc",
   .cb      = do_alipay_reset_rc,
+} ;
+
+static
+struct http_action_s action__alipay_enable_chan = 
+{
+  .action  = "enableChan",
+  .cb      = do_alipay_enable_chan,
 } ;
 
 
@@ -2429,6 +2489,7 @@ int alipay_init(Network_t net)
   add_http_action(pe,g_alipay_mod.name,&action__alipay_manualNotify);
   add_http_action(pe,g_alipay_mod.name,&action__alipay_cfgUpdate);
   add_http_action(pe,g_alipay_mod.name,&action__alipay_reset_rc);
+  add_http_action(pe,g_alipay_mod.name,&action__alipay_enable_chan);
 
   // TODO: create the 'push messages rx' thread here, 
   //  use to update configs dynamically

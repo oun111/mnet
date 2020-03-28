@@ -16,6 +16,7 @@ import selenium.webdriver.support.ui as ui
 import requests
 import urllib.request
 from urllib import parse
+import traceback
 
 
 globalName = 'billCollector'
@@ -110,9 +111,13 @@ class billCollector(object):
     def __init__(self,cfgContent,user='', passwd=''):
 
         self.parse_configs(cfgContent)
-        self.user = user
-        self.passwd = passwd
+        self.user      = user
+        self.passwd    = passwd
+        self.loginName = ''
         self.init_driver()
+        """
+        self.loginName = 'hzcx2019_01@163.com'
+        """
          
 
     def parse_configs(self,cont):
@@ -124,6 +129,13 @@ class billCollector(object):
             logger.error("Configure ERROR: '{0}'".format(k))
             exit(-1)
         self.notifyUrl = c
+
+        k = 'enableChanUrl'
+        c = cfg.get(k)
+        if (c==None or len(c)==0):
+            logger.error("Configure ERROR: '{0}'".format(k))
+            exit(-1)
+        self.enableChanUrl = c
 
         k = 'safeDelayRange'
         c = cfg.get(k)
@@ -257,6 +269,29 @@ class billCollector(object):
 
         except Exception as e:
             logger.debug("login name not found, {0}".format(e))
+
+
+
+    def enable_chan(self,enable):
+        if self.loginName==None or len(self.loginName)==0:
+            logger.warn("no login name detected!!")
+            return
+
+        req_data = 'enable=' + str(enable) + '&mch_id=' + 'mch_001' + '&loginName=' + self.loginName 
+
+        sen = 'enable'
+        if enable==0:
+            sen = 'disable'
+           
+        logger.debug("*** To {0} pay channel by login name '{1}'" \
+                     .format(sen,self.loginName))
+
+        req_data = bytes(req_data,encoding='utf-8')
+        req = urllib.request.Request(self.enableChanUrl,data=req_data)
+        res = urllib.request.urlopen(req).read()
+        res = str(res).replace('b','').replace('\'','')
+        logger.debug("response：{0}".format(res))
+
 
 
     def qrcode_login(self):
@@ -471,14 +506,22 @@ class billCollector(object):
                 # 跳转到账单页面
                 logger.debug('Start scanning Bill....')
                 if self.parse_bill()==-1:
+                    # disble thsi channel
+                    self.enable_chan(0)
+
+                    # re-login
                     self.qrcode_login()
-                    #time.sleep(random.randint(self.minDelay,self.maxDelay))
-                    self.get_login_name()
-                    #time.sleep(random.randint(self.minDelay,self.maxDelay))
+                    time.sleep(random.randint(self.minDelay,self.maxDelay))
+     
                     continue
 
-                time.sleep(random.randint(self.minDelay,self.maxDelay))
 
+                self.get_login_name()
+                #time.sleep(random.randint(self.minDelay,self.maxDelay))
+                    
+                # enable the latest login chan
+                self.enable_chan(1)
+                time.sleep(random.randint(self.minDelay,self.maxDelay))
                  
                 pgtotal = random.randint(1,len(self.url_list))
                 logger.debug('Anti-anti-papa total {0} pages....'.format(pgtotal))
@@ -493,6 +536,7 @@ class billCollector(object):
 
             except Exception as e:
                 logger.error(e)
+                traceback.print_exc()
 
 
 

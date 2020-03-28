@@ -37,6 +37,8 @@ struct pay_data_item_s {
   unsigned int pay_type ;
 
   struct list_head upper ;
+
+  unsigned char enable:1 ;
 } ;
 typedef struct pay_data_item_s* pay_data_t ;
 
@@ -87,7 +89,7 @@ extern int init_pay_data(pay_channels_entry_t paych);
 extern pay_data_t get_paydata_by_ali_appid(pay_channels_entry_t entry, 
            const char *chan, const char *appid, int pt);
 
-extern void update_paydata_rc_arguments(pay_data_t pd, double amount);
+extern void update_paydata_rc_arguments(pay_data_t pd, double amount, int order);
 
 extern int reset_paydata_rc_arguments(pay_channels_entry_t entry, const char *chan);
 
@@ -99,6 +101,9 @@ extern int release_all_pay_route_references(struct list_head *pr_list);
 extern int save_runtime_rc(pay_channels_entry_t, runtime_rc_t, const char*);
 
 extern int fetch_runtime_rc(pay_channels_entry_t, runtime_rc_t, const char*);
+
+extern int enable_paydata_by_loginname(pay_channels_entry_t entry, const char *chan, 
+                                       const char *name, unsigned char enable);
 
 #endif /* __PAY_DATA_H__*/
 

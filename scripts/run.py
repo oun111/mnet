@@ -17,19 +17,20 @@ script,opt = argv
 #
 #    1 pressure test, multiple processes, using log files
 ##
-pressure = 1
+pressure = 0
 
 
 logFlushInterval = 5
 connTimeout = 3600*24
 
 if pressure==1:
-  numWorkers = cpu_count()
+  numWorkers = cpu_count() * 2
   logToFile = "-L /home/user1/work/mnet/logs/"
-  numSyncds = numWorkers 
+  numSyncds = numWorkers *2
 else:
   numWorkers = 0
-  logToFile = ""
+  #logToFile = ""
+  logToFile = "-L /home/user1/work/mnet/logs/"
   numSyncds = 1
 
 
@@ -48,4 +49,6 @@ if opt=="0" or opt=="1":
      while (n<numSyncds):
        os.system("./src/level5/pay_svr/syncd.py -c ./conf/paysvr_conf.json {0}  &".format(logToFile))
        n = n+1
+
+     os.system("./src/level5/pay_svr/recio.py -c ./conf/paysvr_conf.json {0}  &".format(logToFile))
 

@@ -84,6 +84,32 @@ get_paydata_by_id(pay_channels_entry_t entry, const char *chan, int id)
   return NULL ;
 }
 
+int 
+enable_paydata_by_loginname(pay_channels_entry_t entry, const char *chan, 
+                            const char *name, unsigned char enable)
+{
+  pay_data_t pd = 0;
+  pay_channel_t pc = get_pay_channel(entry,chan);
+
+
+  if (!pc) {
+    log_error("found no pay channel '%s'\n",chan);
+    return -1;
+  }
+
+  list_for_each_entry(pd,&pc->pay_data_list,upper) {
+
+    char *lname = get_tree_map_value(pd->pay_params,"name");
+
+    if (!strcmp(name,lname) && pd->pay_type==t_persTrans) {
+      pd->enable = !!enable ;
+      return 0;
+    }
+  }
+
+  return -1 ;
+}
+
 pay_channel_t new_pay_channel(const char *chan)
 {
   char *pv  = NULL;
@@ -168,6 +194,7 @@ add_pay_data(pay_channels_entry_t entry, const char *chan,
     bzero(&p->cfg_rc,sizeof(p->cfg_rc));
     bzero(&p->rsa_cache,sizeof(p->rsa_cache));
     p->pay_type = 0;
+    p->enable  |= 0x1;
 
     INIT_LIST_HEAD(&p->upper); 
     list_add(&p->upper,&pc->pay_data_list);
@@ -258,10 +285,10 @@ void delete_pay_channels_entry(pay_channels_entry_t entry)
   release_all_pay_datas(entry);
 }
 
-void update_paydata_rc_arguments(pay_data_t pd, double amount)
+void update_paydata_rc_arguments(pay_data_t pd, double amount, int order)
 {
   pd->rc.amount.max += amount ;
-  pd->rc.order.max ++ ;
+  pd->rc.order.max  += order ;
 }
 
 int reset_paydata_rc_arguments(pay_channels_entry_t entry, const char *chan)
@@ -402,9 +429,10 @@ pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason, unsigned
     log_debug("  config rc: amount(%fy / %llds),order(%d / %llds)\n",
         pos->cfg_rc.amount.max,pos->cfg_rc.amount.period,
         pos->cfg_rc.order.max,pos->cfg_rc.order.period);
-    log_debug("  current rc: amount(%fy, %lus),order(%d / %lus)\n",
+    log_debug("  current rc: amount(%fy, %lus),order(%d / %lus), %s\n",
         pos->rc.amount.max,ts.tv_sec-pos->rc.amount.time,
-        pos->rc.order.max,ts.tv_sec-pos->rc.order.time);
+        pos->rc.order.max,ts.tv_sec-pos->rc.order.time,
+        pos->enable?"enable":"disable");
 
     if ((ts.tv_sec-pos->rc.order.time)<pos->cfg_rc.order.period) {
 
@@ -417,6 +445,9 @@ pay_data_t get_pay_route2(struct list_head *pr_list, dbuffer_t *reason, unsigned
       if (pos->rc.amount.max>=pos->cfg_rc.amount.max)
         continue ;
     }
+
+    if (!pos->enable)
+      continue ;
 
     // get pay type
     *pt = pos->pay_type ;

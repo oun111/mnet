@@ -16,7 +16,7 @@ OBJS            := $(C_OBJS)
 #
 MODULE_SRC_DIR  := level5
 #DY_MODS_SRCS        := $(shell find $(MODULE_SRC_DIR) -maxdepth 1 -type d ! -name "$(MODULE_SRC_DIR)")
-DY_MODS_SRCS        := $(MODULE_SRC_DIR)/hsyncd #$(MODULE_SRC_DIR)/http_base $(MODULE_SRC_DIR)/pay_svr #$(MODULE_SRC_DIR)/crypto_svr #$(MODULE_SRC_DIR)/mysql #$(MODULE_SRC_DIR)/example_http #$(MODULE_SRC_DIR)/my_jvm
+DY_MODS_SRCS        := $(MODULE_SRC_DIR)/http_base $(MODULE_SRC_DIR)/pay_svr #$(MODULE_SRC_DIR)/alipay_chk #$(MODULE_SRC_DIR)/hsyncd #$(MODULE_SRC_DIR)/crypto_svr #$(MODULE_SRC_DIR)/mysql #$(MODULE_SRC_DIR)/example_http #$(MODULE_SRC_DIR)/my_jvm
 
 
 DY_MODS_INSTALL_DIR := ../modules/
