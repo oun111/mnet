@@ -89,6 +89,7 @@ int process_param_list(Network_t net, connection_t pconn,
   }
   else {
     INTERNAL_ERR(&pconn->txb,"found no action '%s'",key);
+    ret = -2;
   }
 
   delete_tree_map(map);
@@ -212,6 +213,8 @@ int http_svr_rx(Network_t net, connection_t pconn)
 {
   ssize_t sz_in = 0L;
   int rc = 0;
+  bool closeNow = false;
+
 
   while ((sz_in=http_svr_rx_raw(net,pconn))>0) {
     dbuffer_t inb = dbuffer_ptr(pconn->rxb,0);
@@ -236,9 +239,17 @@ int http_svr_rx(Network_t net, connection_t pconn)
 
     pconn->l5opt.tx(net,pconn);
 
+    // close connection immediately
+    if (rc==-2) {
+      closeNow = true ;
+    }
+
     /* REMEMBER TO update the read pointer of rx buffer */
     dbuffer_lseek(pconn->rxb,sz_in,SEEK_CUR,0);
   }
+
+  if (closeNow==true)
+    sock_close(pconn->fd);
 
   if (unlikely(sz_in==-2)) {
     return -1;

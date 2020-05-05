@@ -82,6 +82,7 @@ save_order(order_entry_t entry, char *order_id, char *mch_no, char *notify_url,
       p->chan.name = NULL;
       p->chan.mch_no = NULL;
       p->chan.message= NULL;
+      p->chan.qrcode = NULL;
     }
   }
 
@@ -177,6 +178,9 @@ int drop_order_internal(order_entry_t entry, order_info_t p, bool fast)
     drop_dbuffer(p->chan.mch_no);
 
     drop_dbuffer(p->chan.message);
+
+    if (p->chan.qrcode)
+      drop_dbuffer(p->chan.qrcode);
   }
 
   obj_pool_free(entry->pool,p);
@@ -222,6 +226,8 @@ int init_order_entry(order_entry_t entry, ssize_t pool_size)
     pos->chan.mch_no = NULL;
 
     pos->chan.message= NULL;
+
+    pos->chan.qrcode = NULL;
   }
 
   log_debug("max order cache size: %zu\n",entry->pool->pool_size);
@@ -266,5 +272,13 @@ void set_order_message(order_info_t p, const char *msg)
 size_t get_order_count(order_entry_t entry)
 {
   return entry->num_orders ;
+}
+
+void save_qrcode(order_info_t p, const char *qrcode)
+{
+  if (!p->chan.qrcode)
+    p->chan.qrcode = alloc_default_dbuffer();
+
+  write_dbuf_str(p->chan.qrcode,qrcode);
 }
 

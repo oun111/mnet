@@ -277,6 +277,9 @@ int drop_rds_order_internal(rds_order_entry_t entry, rds_order_t p, bool fast)
     drop_dbuffer(p->chan.mch_no);
 
     drop_dbuffer(p->chan.message);
+
+    if (p->chan.qrcode)
+      drop_dbuffer(p->chan.qrcode);
   }
 
   obj_pool_free(entry->pool,p);
@@ -312,6 +315,9 @@ int release_all_rds_orders(rds_order_entry_t entry)
     drop_dbuffer(pos->chan.mch_no);
 
     drop_dbuffer(pos->chan.message);
+
+    if (pos->chan.qrcode)
+      drop_dbuffer(pos->chan.qrcode);
   }
 
   release_obj_pool(entry->pool,struct order_info_s);

@@ -57,12 +57,14 @@ struct __attribute__((__aligned__(64))) Network_s {
 
   struct active_conn_s {
     struct list_head list ;
+#if 0
     //pthread_rwlock_t lck ;
     pthread_mutex_t lck ;
 
     try_lock_active try_lock;
     lock_active lock;
     unlock_active unlock;
+#endif
   } active ;
 
   connection_t (*reg_local)(Network_t,int fd,int mod_id);
@@ -90,6 +92,6 @@ extern int free_conn(Network_t net, connection_t pconn);
 
 extern int scan_timeout_conns(void *pnet, void *ptos);
 
-extern void update_conn_times(connection_t pconn);
+extern void update_conn_times(Network_t net, connection_t pconn);
 
 #endif /* __CONNECTION_H__*/

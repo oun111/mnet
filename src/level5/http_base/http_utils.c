@@ -218,6 +218,30 @@ int create_browser_redirect_req(dbuffer_t *inb, const char *url,
   return 0;
 }
 
+int create_browser_redirect_req2(dbuffer_t *inb, const char *url)
+{
+  char *hdr = 0;
+  size_t sz_hdr = 0L;
+  const char *body = "";
+  const char hdrFmt[] = "HTTP/1.1 302 Found\r\n"
+                        //"Content-Length: %zu\r\n"
+                        "Location: %s \r\n\r\n";
+
+
+  sz_hdr = sizeof(hdrFmt)+strlen(url);
+  hdr = alloca(sz_hdr);
+
+  snprintf(hdr,sz_hdr,hdrFmt,/*strlen(body),*/url);
+
+  // attach whole body
+  write_dbuf_str(*inb,hdr);
+  append_dbuf_str(*inb,body);
+
+  log_debug("REDIRECT req: %s\n",*inb);
+
+  return 0;
+}
+
 int create_http_get_req(dbuffer_t *inb, const char *url, 
                         int param_type, tree_map_t map)
 {

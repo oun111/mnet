@@ -11,6 +11,7 @@
 #include "log.h"
 #include "module.h"
 #include "timer.h"
+#include "notify.h"
 
 
 DECLARE_LOG;
@@ -25,28 +26,12 @@ static connection_t register_outbound_protocol(Network_t net, int fd, int mod_id
 
 static int unregister_protocols(Network_t net, connection_t pconn);
 
-static
-struct __attribute__((__aligned__(64))) main_instance_s {
-
-  char name[32];
-
-  int is_master;
-
-  size_t num_workers;
-
-  struct Network_s g_nets ;
-
-  unsigned int worker_stop:1 ;
-
-  int use_log:1 ;
-
-  int exit ;
-
-  struct simple_timer_entry_s timers ;
-} 
-g_inst =
+/*static*/
+struct __attribute__((__aligned__(64))) main_instance_s  g_inst =
 {
   .num_workers    = 0,
+
+  .worker_pids    = NULL,
 
   .g_nets = {
     .reg_local    = register_local_protocol,
@@ -60,8 +45,6 @@ g_inst =
   .worker_stop    = 0,
 
   .use_log        = 0,
-
-  .exit           = 0,
 };
 
 
@@ -73,6 +56,8 @@ struct simple_timer_s g_log_flusher =
   .cb = flush_log,
 
   .timeouts = 5,
+
+  .bottom_half = false,
 } ;
 
 static
@@ -83,6 +68,8 @@ struct simple_timer_s g_tos_conn_killer =
   .cb = scan_timeout_conns,
 
   .timeouts = 86400,
+
+  .bottom_half = true,
 } ;
 
 
@@ -127,6 +114,9 @@ static inline int do_tx(Network_t net, connection_t pconn)
 {
   int ret = 0;
 
+
+  update_conn_times(net,pconn);
+
   do {
     ret = pconn->l4opt.tx(net,pconn);
 
@@ -139,12 +129,19 @@ static inline int do_rx(Network_t net, connection_t pconn)
 {
   int ret = 0, ret1 = 0;
     
+  update_conn_times(net,pconn);
+
   while (!(ret1 || ret)) {
     ret = pconn->l4opt.rx(net,pconn);
     ret1= pconn->l5opt.rx(net,pconn) ;
   }
 
   return (ret<0||ret1<0)?-1:0 ;
+}
+
+static inline int bottom_half_process(Network_t net, connection_t pconn)
+{
+  return pconn?pconn->l4opt.rx(net,pconn):-1;
 }
 
 void* instance_event_loop()
@@ -154,6 +151,7 @@ void* instance_event_loop()
 
   while (!(g_inst.worker_stop&1)) {
 
+    connection_t note_conn = 0 ;
     int nEvents = epoll_wait(net->m_efd,net->elist,MAXEVENTS,-1);
 
     for (int i=0;i<nEvents;i++) {
@@ -170,12 +168,14 @@ void* instance_event_loop()
           
       else { 
         /* request in */
-        if (event & EPOLLIN) {
+        if ((event & EPOLLIN) && pconn->fd==notify_rx_fd(CURRENT_NOTIFY)) {
+          note_conn = pconn ;
+        }
+        else if (event & EPOLLIN) {
           if (do_rx(net,pconn)<0) {
             do_close(net,pconn);
             continue ;
           } 
-          update_conn_times(pconn);
         }   
         /* ready to send */
         if (event & EPOLLOUT) {
@@ -184,13 +184,13 @@ void* instance_event_loop()
             do_close(net,pconn);
             continue ;
           }
-          update_conn_times(pconn);
         }
       }
 
     } // end for
 
-
+    // process notify
+    bottom_half_process(net,note_conn);
   }
 
   return 0;
@@ -241,18 +241,44 @@ int parse_cmd_line(int argc, char *argv[])
       printf("-mW:  <max workers count>\n");
       printf("-cTo: <connection timeouts>\n");
       printf("-L:   <use log output>\n");
-      g_inst.exit = 1;
+      exit(0);
     }
   }
   return 0;
 }
 
-void sig_term_handler(int sn)
+void sig_handler(int sn)
 {
-  flush_logs();
+  unsigned char s = -1;
+
+
+  if (sn==SIGCHLD) {
+    int pid = -1;
+
+    while ((pid=wait(0))>0) {
+
+      for (int i=0;pid>0 && i<g_inst.num_workers;i++) {
+        if (g_inst.worker_pids[i]==pid) {
+          g_inst.worker_pids[i] = g_inst.worker_pids[--g_inst.num_workers];
+          log_debug("worker pid %d exit\n",pid);
+          break ;
+        }
+      }
+    }
+
+    return ;
+  }
+
+  if (sn==SIGINT||sn==SIGTERM) {
+    s = nt_sig_stop ;
+  }
+
+  send_notify(&s,sizeof(s));
+}
+
+void gracefully_exit()
+{
   g_inst.worker_stop = 1;
-  instance_stop();
-  exit(0);
 }
 
 int instance_start(int argc, char *argv[])
@@ -264,10 +290,6 @@ int instance_start(int argc, char *argv[])
 
   init_module_list(argc,argv);
 
-  // just output help messages, don't go further
-  if (g_inst.exit==1)
-    exit(0);
-
   dump_instance_params();
 
   log_info("starting instance...\n");
@@ -278,6 +300,12 @@ int instance_start(int argc, char *argv[])
 
     if (pid>0) {
       log_debug("creating worker %d\n",pid);
+
+      if (!g_inst.worker_pids) {
+        g_inst.worker_pids = kmalloc(sizeof(pid_t)*g_inst.num_workers,0);
+      }
+      g_inst.worker_pids[i] = pid ;
+
       g_inst.is_master = 1;
     }
     else if (pid<0)  {
@@ -291,34 +319,34 @@ int instance_start(int argc, char *argv[])
   }
 
   // signals
-  signal(SIGTERM,sig_term_handler);
-  signal(SIGINT,sig_term_handler);
-  //signal(SIGSEGV,sig_term_handler);
+  signal(SIGTERM,sig_handler);
+  signal(SIGINT,sig_handler);
+  signal(SIGCHLD,sig_handler);
   signal(SIGPIPE,SIG_IGN);
 
   save_log_pid();
 
   if (g_inst.is_master == 0) {
 
-    // timers init
-    init_timer_entry(&g_inst.g_nets,&g_inst.timers);
-    register_simple_timer(&g_inst.timers,&g_log_flusher);
-    register_simple_timer(&g_inst.timers,&g_tos_conn_killer);
-
     log_debug("worker %d start working\n",LOG_INSTANCE->pid);
 
     /* create thread-based epoll */
     fd = init_epoll();
-
     if (fd<=0) {
       log_error("init epoll fail: %s\n",strerror(errno));
       return -1;
     }
 
     init_conn_pool(&g_inst.g_nets,-1);
-
     g_inst.g_nets.m_efd = fd ;
 
+    // the notifies module
+    init_notify_entry(&g_inst.notify,&g_inst.g_nets);
+
+    // timers init
+    init_timer_entry(&g_inst.g_nets,&g_inst.timers);
+    register_simple_timer(&g_inst.timers,&g_log_flusher);
+    register_simple_timer(&g_inst.timers,&g_tos_conn_killer);
 
     // invoke init() within all modules
     module_t pmod = NULL;
@@ -336,11 +364,17 @@ int instance_start(int argc, char *argv[])
     instance_event_loop();
   }
   else {
-    log_debug("pid %d waiting child.....\n",getpid());
-    wait(0);
+
+    while (g_inst.num_workers>0) sleep(1);
+
+    kfree(g_inst.worker_pids);
+
+    log_debug("master now exit\n");
   }
 
+  flush_logs();
   instance_stop();
+  exit(0);
 
   return 0;
 }
@@ -459,4 +493,3 @@ void set_proc_name(int argc, char *argv[], const char *newname)
 
   prctl(PR_SET_NAME,argv[0]);
 }
-

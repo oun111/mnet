@@ -56,6 +56,8 @@ struct order_info_s {
     dbuffer_t mch_no;
 
     dbuffer_t message;
+
+    dbuffer_t qrcode ;
   } chan ;
 
   double amount ;
@@ -121,5 +123,7 @@ extern void set_order_un_status(order_info_t p, int st);
 extern char* get_pay_status_str(int st);
 
 extern void set_order_message(order_info_t p, const char *msg);
+
+extern void save_qrcode(order_info_t p, const char *qrcode);
 
 #endif /* __ORDER_H__*/

@@ -5,6 +5,14 @@
 typedef struct connection_s* connection_t;
 typedef struct Network_s* Network_t ;
 
+enum proto_types {
+  local_l4,
+  normal_l4,
+  inbound_l5,
+  outbound_l5,
+  max_protos,
+} ;
+
 /**
  * protocol operations
  */

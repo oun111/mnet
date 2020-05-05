@@ -171,6 +171,17 @@ int do_accept(int sfd, void *client_info)
   return fd;
 }
 
+int new_socketpair(int efd, int fds[])
+{
+  if (socketpair(PF_UNIX,SOCK_STREAM,0,fds)==-1) {
+    return -1;
+  }
+
+  set_nonblock(fds[1]);
+
+  return 0;
+}
+
 int brocast_tx(int fd, int bcast_port, char *data, size_t len)
 {
   int i = 0;

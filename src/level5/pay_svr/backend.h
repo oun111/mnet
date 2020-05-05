@@ -13,7 +13,7 @@ enum backend_types {
   bt_notify2user,
   bt_transfund2user,
   bt_qr2user,
-  bt_qrGet2,
+  //bt_qrGet2,
 };
 
 struct backend_s {

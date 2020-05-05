@@ -74,5 +74,7 @@ extern unsigned long hostname_to_uladdr(const char *host);
 
 extern int sock_close(int fd);
 
+extern int new_socketpair(int efd, int fds[]);
+
 #endif /* __SOCKET_H__ */
 
